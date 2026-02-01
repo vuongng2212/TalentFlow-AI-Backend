@@ -1,7 +1,7 @@
 # PART 2: SOFTWARE REQUIREMENTS SPECIFICATION (SRS)
 
 **Project Name:** TalentFlow AI
-**Architecture Pattern:** Hybrid Microservices (Polyglot)
+**Architecture Pattern:** NestJS Monorepo with Clean Architecture
 
 ## 1. System Architecture Overview
 
@@ -98,7 +98,7 @@ Kafka Consumer (NestJS Core Module)
 
 ### 3.4. Search & Matching (NestJS Search Module)
 
-* **FR-10:** API tìm kiếm ứng viên bằng ngôn ngữ tự nhiên (VD: "Tìm ứng viên biết React và Spring Boot") qua **NestJS GraphQL Resolver** hoặc REST endpoint.
+* **FR-10:** API tìm kiếm ứng viên bằng ngôn ngữ tự nhiên (VD: "Tìm ứng viên biết React và NestJS") qua **NestJS GraphQL Resolver** hoặc REST endpoint.
 
 * **FR-11:** Hệ thống chuyển search query thành Vector (qua OpenAI Embeddings), thực hiện **Cosine Similarity Search** trong Vector DB, trả về top N candidates với confidence score.
 
@@ -149,4 +149,271 @@ model Candidate {
   "status": 200,
   "message": "Success",
   "data": { ... },
-  "timestamp": "2026-02
+  "timestamp": "2026-02-01T10:00:00Z"
+}
+```
+
+* **Error Handling:** Sử dụng NestJS Exception Filters:
+```json
+{
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Invalid file format",
+  "timestamp": "2026-02-01T10:00:00Z"
+}
+```
+
+* **NestJS Architectural Patterns:**
+  - **Guards:** `@UseGuards(JwtAuthGuard, RolesGuard)` cho authentication & authorization.
+  - **Interceptors:** Logging, response transformation, caching.
+  - **Pipes:** DTO validation với `class-validator` và `class-transformer`.
+  - **Filters:** Global exception handling.
+
+* **GraphQL Schema (Search Example):**
+```graphql
+type Query {
+  searchCandidates(query: String!, jobId: ID, limit: Int): [Candidate!]!
+}
+
+type Candidate {
+  id: ID!
+  fullName: String!
+  email: String!
+  aiScore: Float
+  skills: [String!]!
+}
+```
+
+* **Documentation:**
+  - **Swagger/OpenAPI:** Auto-generated từ NestJS decorators (`@ApiTags`, `@ApiOperation`, `@ApiResponse`).
+  - **GraphQL Playground:** Built-in với NestJS GraphQL module.
+  - Access tại: `http://localhost:3000/api/docs` (Swagger) và `http://localhost:3000/graphql` (GraphQL Playground).
+
+## 6. NestJS Monorepo Structure
+
+Hệ thống sử dụng **NestJS Workspace** để quản lý monorepo với nhiều applications và shared libraries.
+
+### 6.1. Project Structure
+
+```
+talentflow-backend/
+├── apps/
+│   ├── api-gateway/              # Main API entry point
+│   │   ├── src/
+│   │   │   ├── main.ts
+│   │   │   ├── app.module.ts
+│   │   │   └── modules/
+│   │   │       ├── auth/         # Auth module
+│   │   │       ├── job/          # Job management
+│   │   │       ├── candidate/    # Candidate management
+│   │   │       ├── application/  # Application tracking
+│   │   │       └── upload/       # File upload handling
+│   │   └── test/
+│   │
+│   ├── ai-worker/                # CV Processing Worker
+│   │   ├── src/
+│   │   │   ├── main.ts
+│   │   │   ├── app.module.ts
+│   │   │   └── processors/
+│   │   │       ├── cv-parser.processor.ts
+│   │   │       ├── llm-extractor.processor.ts
+│   │   │       └── vector-indexer.processor.ts
+│   │   └── test/
+│   │
+│   └── notification-service/     # Email/WebSocket notifications
+│       ├── src/
+│       │   ├── main.ts
+│       │   ├── app.module.ts
+│       │   └── gateways/
+│       │       ├── websocket.gateway.ts
+│       │       └── email.service.ts
+│       └── test/
+│
+├── libs/                         # Shared libraries
+│   ├── common/                   # Common utilities
+│   │   ├── src/
+│   │   │   ├── guards/           # Auth guards, Role guards
+│   │   │   ├── interceptors/     # Logging, Transform interceptors
+│   │   │   ├── pipes/            # Validation pipes
+│   │   │   ├── filters/          # Exception filters
+│   │   │   ├── decorators/       # Custom decorators
+│   │   │   └── constants/        # App constants
+│   │   └── test/
+│   │
+│   ├── database/                 # Prisma client & database module
+│   │   ├── src/
+│   │   │   ├── prisma.service.ts
+│   │   │   └── prisma.module.ts
+│   │   ├── prisma/
+│   │   │   ├── schema.prisma
+│   │   │   └── migrations/
+│   │   └── test/
+│   │
+│   ├── kafka/                    # Kafka producer/consumer
+│   │   ├── src/
+│   │   │   ├── kafka.service.ts
+│   │   │   ├── kafka.module.ts
+│   │   │   └── topics/
+│   │   │       ├── cv-uploaded.topic.ts
+│   │   │       └── cv-processed.topic.ts
+│   │   └── test/
+│   │
+│   └── domain/                   # Domain entities, DTOs, interfaces
+│       ├── src/
+│       │   ├── entities/         # Domain entities
+│       │   ├── dtos/             # Data Transfer Objects
+│       │   ├── interfaces/       # Service interfaces
+│       │   └── enums/            # Domain enums
+│       └── test/
+│
+├── nest-cli.json                 # NestJS workspace config
+├── package.json                  # Root package.json
+├── tsconfig.json                 # Base TypeScript config
+└── docker-compose.yml            # Docker services
+```
+
+### 6.2. Module Responsibilities
+
+#### **apps/api-gateway**
+- Main HTTP/GraphQL server
+- Handles all incoming requests from Frontend
+- Orchestrates business logic
+- Produces events to Kafka
+
+#### **apps/ai-worker**
+- Consumes events from Kafka
+- Processes CV files (parsing, extraction)
+- Interacts with OpenAI API
+- Stores vectors in Vector DB
+- Produces processed events back to Kafka
+
+#### **apps/notification-service**
+- WebSocket server for real-time notifications
+- Email service integration (SendGrid/SES)
+- SMS notifications (optional)
+
+#### **libs/common**
+- Shared guards, interceptors, pipes, filters
+- Custom decorators: `@CurrentUser()`, `@Roles()`, `@Public()`
+- Constants and utility functions
+
+#### **libs/database**
+- Prisma client wrapper
+- Database connection management
+- Shared database module
+
+#### **libs/kafka**
+- Kafka producer/consumer abstractions
+- Topic definitions and event schemas
+- Retry logic and error handling
+
+#### **libs/domain**
+- Shared domain models (entities, DTOs)
+- Business interfaces
+- Domain-specific enums and constants
+
+### 6.3. Clean Architecture Layers in Practice
+
+```
+Presentation Layer (Controllers, Gateways)
+    ↓
+Application Layer (Services, Use Cases)
+    ↓
+Domain Layer (Entities, Business Logic)
+    ↓
+Infrastructure Layer (Prisma, Kafka, S3, External APIs)
+```
+
+**Example: CV Upload Flow**
+```typescript
+// Presentation Layer
+@Controller('candidates')
+export class CandidateController {
+  @Post('upload')
+  async uploadCV(@UploadedFile() file: Express.Multer.File) {
+    return this.candidateService.processCVUpload(file);
+  }
+}
+
+// Application Layer
+@Injectable()
+export class CandidateService {
+  async processCVUpload(file: File) {
+    // Business logic
+    const url = await this.storageService.upload(file);
+    await this.kafkaService.emit('cv.uploaded', { url });
+  }
+}
+
+// Infrastructure Layer
+@Injectable()
+export class KafkaService {
+  async emit(topic: string, message: any) {
+    await this.producer.send({ topic, messages: [message] });
+  }
+}
+```
+
+### 6.4. Environment Configuration
+
+```
+.env.development
+.env.production
+.env.test
+```
+
+**Key Environment Variables:**
+```bash
+# Database
+DATABASE_URL="postgresql://user:pass@localhost:5432/talentflow"
+
+# Kafka
+KAFKA_BROKERS="localhost:9092"
+KAFKA_CLIENT_ID="talentflow-api"
+
+# Storage
+S3_BUCKET="talentflow-cvs"
+S3_REGION="us-east-1"
+
+# OpenAI
+OPENAI_API_KEY="sk-..."
+
+# Vector DB
+PINECONE_API_KEY="..."
+PINECONE_INDEX="talentflow-candidates"
+
+# JWT
+JWT_SECRET="super-secret-key"
+JWT_EXPIRES_IN="15m"
+```
+
+### 6.5. Development Commands
+
+```bash
+# Install dependencies
+npm install
+
+# Generate Prisma client
+npm run prisma:generate
+
+# Run migrations
+npm run prisma:migrate
+
+# Start all services in dev mode
+npm run start:dev
+
+# Start specific app
+npm run start:dev api-gateway
+npm run start:dev ai-worker
+
+# Run tests
+npm run test
+npm run test:e2e
+
+# Build all apps
+npm run build
+
+# Lint & format
+npm run lint
+npm run format
+```
