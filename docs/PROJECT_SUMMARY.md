@@ -46,7 +46,6 @@
 #### Bảo Mật & Quyết Định
 12. **SECURITY.md** - Chính sách bảo mật
 13. **TEAM_DECISIONS.md** - Các quyết định chính thức & action plan
-14. **RECOMMENDED_SKILLS.md** - Claude skills đề xuất
 
 #### Setup
 - **docker-compose.yml** - Infrastructure services (Kafka, PostgreSQL, Redis, MinIO)
