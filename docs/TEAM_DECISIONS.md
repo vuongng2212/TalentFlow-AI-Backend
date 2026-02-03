@@ -8,18 +8,20 @@
 
 ## ✅ Các Quyết định Chính Thức
 
-### 1. Message Queue: Apache Kafka ✅
-**Quyết định:** Sử dụng Kafka từ đầu (như đã tài liệu hóa)
+### 1. Message Queue: BullMQ (Redis) ✅
+**Quyết định:** Sử dụng BullMQ (Redis) thay vì Apache Kafka
 **Lý do:**
-- Đầu tư học ngay từ đầu
-- Ready cho Phase 2 (AI matching)
-- Event streaming cho future features
+- MVP traffic < 1000 CVs/day → Kafka overkill
+- BullMQ đơn giản hơn 10x (no Zookeeper, easy setup)
+- Redis already needed for caching
+- Sufficient features: retry, DLQ, priority queues
+- Can migrate to Kafka later if needed (> 10k CVs/day)
 
 **Action Items:**
-- [ ] Team học Kafka basics (6 giờ)
-- [ ] Follow hướng dẫn setup trong docker-compose.yml
-- [ ] Tạo simplified Kafka setup guide
-- [ ] Document common Kafka troubleshooting
+- [x] Team học BullMQ basics (2 giờ)
+- [x] Follow hướng dẫn setup trong docker-compose.yml
+- [ ] Document BullMQ queue patterns
+- [ ] Setup Bull Board dashboard (queue monitoring)
 
 ---
 

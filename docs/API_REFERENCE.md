@@ -4,7 +4,8 @@
 **Base URL (Development):** `http://localhost:3000/api`
 **Base URL (Production):** `https://api.talentflow.ai/api`
 **API Version:** v1
-**Last Updated:** 2026-02-01
+**Architecture:** Service 1 (API Gateway - NestJS) exposes all REST endpoints
+**Last Updated:** 2026-02-02
 
 ---
 
@@ -15,8 +16,65 @@
 - [Jobs](#jobs)
 - [Candidates](#candidates)
 - [Applications](#applications)
+- [Sequence Diagrams](#sequence-diagrams)
 - [Error Handling](#error-handling)
 - [Rate Limiting](#rate-limiting)
+
+---
+
+## Sequence Diagrams
+
+### CV Upload & Processing Flow
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend<br/>(Next.js)
+    participant A as API Gateway<br/>(NestJS)
+    participant Q as BullMQ<br/>(Redis Queue)
+    participant P as CV Parser<br/>(Spring Boot/ASP.NET)
+    participant D as Database<br/>(PostgreSQL)
+    participant R as Storage<br/>(Cloudflare R2)
+    participant N as Notification<br/>(NestJS/ASP.NET)
+    participant AI as Claude AI
+
+    %% Upload Phase
+    F->>A: POST /api/v1/candidates/upload<br/>(PDF file, jobId)
+    A->>A: Validate file<br/>(size < 10MB, type = PDF)
+    A->>R: Upload to R2<br/>(generate signed URL)
+    R-->>A: File URL
+    A->>D: Insert CV metadata<br/>(candidateId, fileUrl, status=PROCESSING)
+    D-->>A: CV ID
+    A->>Q: Publish cv.uploaded event<br/>{candidateId, fileUrl, jobId}
+    A-->>F: 202 Accepted<br/>{cvId, status: "processing"}
+
+    %% Processing Phase
+    Note over Q,P: Async Processing Starts
+    Q->>P: Consume cv.uploaded event
+    P->>R: Download CV file
+    R-->>P: PDF bytes
+    P->>P: Extract text<br/>(PDFBox/iTextSharp + Tesseract OCR)
+    P->>AI: Parse CV structure<br/>(name, email, skills, experience)
+    AI-->>P: Parsed JSON
+    P->>AI: Calculate match score<br/>(CV vs Job Requirements)
+    AI-->>P: Score (0-100)
+    P->>D: Update CV record<br/>(parsed_data, ai_score, status=COMPLETED)
+    P->>Q: Publish cv.processed event<br/>{candidateId, score, matched_jobs}
+
+    %% Notification Phase
+    Note over Q,N: Notification Flow
+    Q->>N: Consume cv.processed event
+    N->>D: Fetch candidate & job details
+    D-->>N: Data
+    N->>F: WebSocket push<br/>"CV processed: 85% match!"
+    N->>N: Send email to recruiter<br/>(optional)
+
+    Note over F: UI updates Kanban board<br/>with new candidate card
+```
+
+**Flow Steps:**
+1. **Upload (Sync):** Frontend uploads CV → API Gateway validates → Store in R2 → Queue event
+2. **Processing (Async):** CV Parser consumes event → Parse PDF → Call AI → Update DB
+3. **Notification (Async):** Notification service consumes event → WebSocket to Frontend → Email to recruiter
 
 ---
 
@@ -292,7 +350,7 @@ Content-Type: application/json
   "title": "Senior Backend Developer",
   "description": "We are looking for an experienced backend developer...",
   "requirements": {
-    "skills": ["NestJS", "PostgreSQL", "Kafka"],
+    "skills": ["NestJS", "PostgreSQL", "Spring Boot", "BullMQ"],
     "experience": "5+ years"
   },
   "salaryRange": "$120k - $160k",
@@ -401,7 +459,7 @@ John Doe
       "id": "cand-id-1",
       "email": "john.doe@email.com",
       "fullName": "John Doe",
-      "resumeUrl": "https://s3.amazonaws.com/bucket/resumes/john-doe-resume.pdf"
+      "resumeUrl": "https://talentflow-cvs.r2.cloudflarestorage.com/resumes/john-doe-resume.pdf"
     },
     "processing": {
       "status": "QUEUED",
@@ -625,14 +683,23 @@ socket.on('cv:processed', (data) => {
 });
 ```
 
+**Events:**
+| Event | Description | Payload |
+|-------|-------------|---------|
+| `cv:processing` | CV parsing started | `{ candidateId, status, progress }` |
+| `cv:completed` | CV parsed successfully | `{ candidateId, aiScore, aiSummary }` |
+| `cv:failed` | CV parsing failed | `{ candidateId, error }` |
+| `application:updated` | Application stage changed | `{ applicationId, stage, status }` |
+
 ---
 
 ## Related Documentation
 
 - [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) - Database design
 - [SRS.md](./SRS.md) - Software requirements
+- [ADR-006](./adr/ADR-006-hybrid-microservices.md) - Service architecture
 - [Swagger Docs](http://localhost:3000/api/docs) - Interactive API explorer
 
 ---
 
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-02

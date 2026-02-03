@@ -232,21 +232,21 @@ async uploadCV(@UploadedFile() file: Express.Multer.File) {
   // Sanitize filename
   const sanitizedFilename = `${uuidv4()}.${file.originalname.split('.').pop()}`;
 
-  // Upload to S3 with virus scan (Phase 2)
+  // Upload to Cloudflare R2 with virus scan (Phase 2)
 }
 ```
 
 ### Storage Security
 
-**S3/MinIO Configuration:**
-- **Private buckets**: No public access
-- **Signed URLs**: Temporary access (1 hour expiry)
+**Cloudflare R2 Configuration:**
+- **Private buckets**: No public access by default
+- **Signed URLs**: Temporary access (1 hour expiry) via presigned URLs
 - **Encryption at rest**: AES-256
 - **Encryption in transit**: HTTPS only
 
 **Example:**
 ```typescript
-const signedUrl = await s3.getSignedUrlPromise('getObject', {
+const signedUrl = await r2Client.getSignedUrl({
   Bucket: 'talentflow-cvs',
   Key: fileKey,
   Expires: 3600, // 1 hour
@@ -298,8 +298,8 @@ async deleteCandidate(@Param('id') id: string) {
 ### Encryption
 
 **At Rest:**
-- Database: PostgreSQL with encryption at rest (Neon/Supabase default)
-- File Storage: S3 server-side encryption (SSE-S3)
+- Database: PostgreSQL with encryption at rest (Railway/Neon default)
+- File Storage: Cloudflare R2 server-side encryption (default enabled)
 - Sensitive env vars: Railway/Vercel encrypted secrets
 
 **In Transit:**
@@ -378,7 +378,7 @@ async deleteCandidate(@Param('id') id: string) {
 - [ ] File size limits enforced (10 MB max)
 - [ ] Filenames sanitized
 - [ ] Virus scanning enabled (Phase 2)
-- [ ] S3 buckets are private (no public access)
+- [ ] R2 buckets are private (no public access)
 
 ### Infrastructure
 - [ ] HTTPS enforced (redirect HTTP to HTTPS)

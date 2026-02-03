@@ -15,7 +15,7 @@
 - [Frontend Deployment (Vercel)](#frontend-deployment-vercel)
 - [Backend Deployment (Railway)](#backend-deployment-railway)
 - [Database Setup (Neon)](#database-setup-neon)
-- [Kafka Setup (Upstash)](#kafka-setup-upstash)
+- [BullMQ Setup (Redis)](#bullmq-setup-redis)
 - [Monitoring Setup](#monitoring-setup)
 - [Post-Deployment Verification](#post-deployment-verification)
 - [Rollback Procedure](#rollback-procedure)
@@ -36,12 +36,81 @@
 |------|-------------|---------|
 | **Week 2** | Vercel (Frontend) | Demo #1 - UI prototype |
 | **Week 4** | Railway (Backend) + Neon | Demo #2 - Working API |
-| **Week 6** | Full stack + Kafka | Demo #3 - CV upload |
+| **Week 6** | Full stack + BullMQ | Demo #3 - CV upload |
 | **Week 8** | Production + Monitoring | Demo #4 - MVP launch |
 
 ---
 
 ## 🏗️ Deployment Architecture
+
+### Infrastructure Diagram
+
+```mermaid
+graph TB
+    %% Users
+    Users[👥 End Users]
+
+    %% CDN
+    CDN[🌐 Cloudflare CDN<br/>Optional Edge Cache]
+
+    %% Frontend
+    subgraph "Vercel Edge Network"
+        Frontend[🖥️ Frontend<br/>Next.js 16<br/>app.talentflow.ai]
+    end
+
+    %% Backend Services
+    subgraph "Railway (US Region)"
+        API[⚙️ API Gateway<br/>NestJS:3000<br/>api.talentflow.ai]
+        Parser[🔧 CV Parser<br/>Spring Boot:8080 OR<br/>ASP.NET Core:5000]
+        Notif[📬 Notification<br/>NestJS:3001 OR<br/>ASP.NET Core:5001]
+        Redis[⚡ Redis<br/>:6379<br/>BullMQ + Cache]
+    end
+
+    %% Database
+    subgraph "Neon (Serverless)"
+        DB[(🗄️ PostgreSQL<br/>Prisma/EF Core)]
+    end
+
+    %% External Services
+    subgraph "External Services"
+        R2[☁️ Cloudflare R2<br/>CV Storage]
+        Claude[🤖 Anthropic Claude<br/>AI API]
+        SendGrid[📧 SendGrid<br/>Email]
+    end
+
+    %% Connections
+    Users -->|HTTPS| CDN
+    CDN -->|Cache Miss| Frontend
+    Frontend -->|API Calls| API
+
+    API -->|TCP| DB
+    API -->|Pub/Sub| Redis
+    API -->|Upload| R2
+
+    Redis -->|Events| Parser
+    Redis -->|Events| Notif
+
+    Parser -->|Read| R2
+    Parser -->|AI Requests| Claude
+    Parser -->|Update| DB
+
+    Notif -->|Send| SendGrid
+    Notif -->|Read| DB
+    Notif -->|WebSocket| Frontend
+
+    %% Styling
+    classDef frontend fill:#1168BD,stroke:#0B4884,color:#fff
+    classDef service fill:#438DD5,stroke:#2E6295,color:#fff
+    classDef storage fill:#6DB33F,stroke:#4D7F2C,color:#fff
+    classDef external fill:#999999,stroke:#6B6B6B,color:#fff
+
+    class Frontend frontend
+    class API,Parser,Notif service
+    class DB,Redis storage
+    class R2,Claude,SendGrid,CDN external
+```
+
+### ASCII Architecture Diagram (Legacy)
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -63,24 +132,24 @@
 └─────────────────────┘    - GraphQL (Phase 2)
       ↓                    - WebSocket Gateway
 ┌─────────────────────┐
-│  Upstash Kafka      │ → Event Streaming
+│  Railway Redis      │ → BullMQ Queue + Cache
 │  Serverless         │
 └─────────────────────┘
       ↓
 ┌─────────────────────┐
-│  Railway            │ → NestJS AI Worker
+│  Railway            │ → CV Parser (Spring Boot/ASP.NET)
 │  (Background)       │    - CV Processing
 └─────────────────────┘
       ↓
 ┌─────────────────────┐
-│  Neon PostgreSQL    │ → Database (Prisma)
+│  Neon PostgreSQL    │ → Database (Prisma/EF Core)
 │  Serverless         │
 └─────────────────────┘
 
 External Services:
-├── AWS S3                → File storage
-├── Upstash Redis         → Caching
-└── ELK + Grafana         → Monitoring (Self-hosted hoặc managed)
+├── Cloudflare R2         → File storage
+├── Anthropic Claude      → AI API
+└── SendGrid              → Email notifications
 ```
 
 ---
@@ -321,64 +390,69 @@ railway run npx prisma db pull
 
 ---
 
-## 📨 Kafka Setup (Upstash)
+## 📨 BullMQ Setup (Redis Queue)
 
-### Step 1: Create Upstash Kafka Cluster
+### Step 1: Use Railway Redis Add-on
 
+**Option 1: Railway Redis (Recommended)**
+```bash
+# Railway Dashboard → Project → Add Service → Redis
+# Redis instance created automatically with connection URL
+```
+
+**Option 2: Upstash Redis (Alternative)**
 1. Đi tới [upstash.com](https://upstash.com)
-2. Create Kafka cluster
+2. Create Redis database
 3. Region: US East (same as Railway)
-4. Plan: Free tier (10K messages/day)
+4. Plan: Free tier (10K commands/day)
 
-### Step 2: Get Credentials
+### Step 2: Get Redis URL
 
 ```bash
-# Upstash Dashboard → Details
-KAFKA_BROKER=creative-fox-12345-us1-kafka.upstash.io:9092
-KAFKA_USERNAME=Y3JlYXRpdmUtZm94...
-KAFKA_PASSWORD=YourPasswordHere
-KAFKA_SASL_MECHANISM=SCRAM-SHA-256
+# Railway Redis:
+REDIS_URL=redis://:password@redis.railway.internal:6379
+
+# Or Upstash Redis:
+REDIS_URL=rediss://default:token@redis.upstash.io:6379
 ```
 
-### Step 3: Add to Railway
+### Step 3: Add to Railway Environment Variables
 
 ```bash
-# Railway → Variables (API Gateway & AI Worker)
-KAFKA_BROKERS=creative-fox-12345-us1-kafka.upstash.io:9092
-KAFKA_USERNAME=Y3JlYXRpdmUtZm94...
-KAFKA_PASSWORD=YourPasswordHere
-KAFKA_SASL_MECHANISM=SCRAM-SHA-256
+# Railway → Variables (All services)
+REDIS_URL=${{Redis.REDIS_URL}}
 ```
 
-### Step 4: Create Topics
+### Step 4: BullMQ Auto-Configuration
 
-```bash
-# Upstash Dashboard → Topics → Create Topic
+BullMQ automatically creates queues on first use. No manual topic creation needed!
 
-Topics to create:
-1. cv.uploaded       (3 partitions, retention: 7 days)
-2. cv.parsed         (3 partitions, retention: 7 days)
-3. cv.processed      (3 partitions, retention: 7 days)
-```
+**Queues created automatically:**
+- `cv.uploaded` - When CV is uploaded
+- `cv.processed` - When CV parsing completes
 
-### Step 5: Test Connection
+### Step 5: Monitor Queues (Optional)
 
-```bash
-# Railway → Run command
-railway run node -e "
-const { Kafka } = require('kafkajs');
-const kafka = new Kafka({
-  brokers: [process.env.KAFKA_BROKERS],
-  sasl: {
-    mechanism: 'scram-sha-256',
-    username: process.env.KAFKA_USERNAME,
-    password: process.env.KAFKA_PASSWORD,
-  },
-  ssl: true,
+**Install Bull Board dashboard:**
+```typescript
+// api-gateway/src/main.ts
+import { createBullBoard } from '@bull-board/api';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
+import { ExpressAdapter } from '@bull-board/express';
+
+const serverAdapter = new ExpressAdapter();
+createBullBoard({
+  queues: [
+    new BullMQAdapter(cvUploadedQueue),
+    new BullMQAdapter(cvProcessedQueue),
+  ],
+  serverAdapter,
 });
-kafka.admin().listTopics().then(console.log);
-"
+
+app.use('/admin/queues', serverAdapter.getRouter());
 ```
+
+**Access:** http://localhost:3000/admin/queues
 
 ---
 

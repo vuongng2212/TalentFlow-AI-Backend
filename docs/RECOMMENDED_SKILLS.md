@@ -1,7 +1,7 @@
 # Recommended Claude Skills for TalentFlow AI
 
-**Last Updated:** 2026-02-01
-**Tech Stack:** NestJS Monorepo + Next.js 16 + Apache Kafka + Prisma + PostgreSQL
+**Last Updated:** 2026-02-02
+**Tech Stack:** Polyglot 3-Service (NestJS + Spring Boot + NestJS) + BullMQ + Prisma + PostgreSQL + Cloudflare R2
 
 ---
 
@@ -9,13 +9,11 @@
 
 ### Must-Have Skills
 1. **`architecture`** - System architecture design and patterns
-2. **`monorepo-architect`** - NestJS monorepo best practices and workspace management
-3. **`clean-code`** - Clean Architecture principles and implementation
-4. **`api-design-principles`** - RESTful API and GraphQL design patterns
-5. **`microservices-patterns`** - Microservices patterns (applicable to modular architecture)
+2. **`clean-code`** - Clean Architecture principles and implementation
+3. **`api-design-principles`** - RESTful API design patterns
+4. **`microservices-patterns`** - Service boundaries and communication patterns
 
 ### Recommended Skills
-- **`event-sourcing-architect`** - Event-driven architecture with Kafka
 - **`database-architect`** - PostgreSQL schema design and optimization
 - **`full-stack-orchestration-full-stack-feature`** - Full-stack feature orchestration
 
@@ -70,15 +68,15 @@
 
 ---
 
-## Message Broker & Event Streaming
+## Message Queue & Async Processing
 
 ### Must-Have Skills
-1. **`event-sourcing-architect`** - Event-driven architecture patterns
-2. **Custom Kafka Skill** (create if needed) - Apache Kafka producer/consumer patterns
+1. **`bullmq-redis-queue`** - BullMQ job queue patterns (Redis-based)
+2. **`async-processing-patterns`** - Async job processing and error handling
 
 ### Recommended Skills
-- **`async-python-patterns`** (adapt for Node.js) - Async processing patterns
 - **`workflow-orchestration-patterns`** - Workflow and event orchestration
+- **`redis-optimization`** - Redis performance tuning
 
 ---
 

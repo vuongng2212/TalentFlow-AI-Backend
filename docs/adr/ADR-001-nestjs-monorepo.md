@@ -1,8 +1,12 @@
 # ADR-001: Use NestJS Monorepo Instead of Polyglot Architecture
 
-**Status:** Accepted
+> ⚠️ **STATUS: SUPERSEDED by [ADR-006](./ADR-006-hybrid-microservices.md) on 2026-02-02**
+>
+> This ADR proposed a NestJS monorepo approach. After further analysis, the team decided to adopt a **polyglot 3-service architecture** to better handle CPU-intensive CV processing workloads. See ADR-006 for the current architecture.
+
+**Status:** ~~Accepted~~ → **SUPERSEDED**
 **Date:** 2026-02-01
-**Deciders:** Team (2 developers)
+**Superseded By:** [ADR-006](./ADR-006-hybrid-microservices.md) (2026-02-02)
 
 ---
 
@@ -83,16 +87,30 @@ NestJS Monorepo
 
 ### Mitigation:
 - Follow Clean Architecture principles
-- Use Kafka for async communication (supports future migration)
+- Use message queue for async communication (supports future migration)
 - Implement proper monitoring and observability from day 1
+
+---
+
+## Why This Was Superseded
+
+After team discussion and analysis of CV processing requirements (Tesseract OCR, PDF parsing), we identified that:
+
+1. **CPU-intensive workloads** (Tesseract.js) would block Node.js event loop in a monorepo
+2. **Team skills diversity** (Spring Boot, NestJS, ASP.NET) was underutilized
+3. **Polyglot architecture** with Spring Boot for CV parsing provides better performance for CPU-bound tasks
+
+The final decision: **3-service polyglot architecture** (see ADR-006).
 
 ---
 
 ## Related Decisions
 
-- [ADR-002: Use Apache Kafka for Message Queue](./ADR-002-kafka-message-queue.md)
-- [ADR-003: Use Prisma as ORM](./ADR-003-prisma-orm.md)
+- [ADR-002: Use Apache Kafka for Message Queue](./ADR-002-kafka-message-queue.md) - **SUPERSEDED by ADR-007**
+- [ADR-003: Use Prisma as ORM](./ADR-003-prisma-orm.md) - ✅ **Still Valid**
+- [ADR-006: Polyglot 3-Service Architecture](./ADR-006-hybrid-microservices.md) - **Current Architecture**
+- [ADR-007: Use BullMQ over Kafka](./ADR-007-bullmq-over-kafka.md) - **Current Queue**
 
 ---
 
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-02 (Marked as SUPERSEDED)
