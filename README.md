@@ -655,7 +655,6 @@ mvn test
 
 ### 🚀 Quick Start Guide
 - **New to the project?** → [PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md) (10 min read)
-- **Ready to code?** → [CONTRIBUTING.md](docs/CONTRIBUTING.md) (15 min read)
 - **Need architecture details?** → [ADR-006](docs/adr/ADR-006-hybrid-microservices.md)
 
 ### 📖 Essential Documentation
@@ -668,6 +667,14 @@ mvn test
 | [DATABASE_SCHEMA](docs/DATABASE_SCHEMA.md) | Database design with Prisma | ⭐⭐⭐⭐⭐ |
 | [API_REFERENCE](docs/API_REFERENCE.md) | REST API endpoints | ⭐⭐⭐⭐ |
 | [SECURITY](docs/SECURITY.md) | Security policy & GDPR | ⭐⭐⭐⭐⭐ |
+
+#### 🛠️ Operations & Performance
+| Document | Description | Priority |
+|----------|-------------|----------|
+| [MONITORING](docs/MONITORING.md) | ELK + Prometheus + Grafana setup | ⭐⭐⭐⭐⭐ |
+| [PERFORMANCE](docs/PERFORMANCE.md) | Load testing & optimization guide | ⭐⭐⭐⭐⭐ |
+| [DEPLOYMENT](docs/DEPLOYMENT.md) | Deployment guide (Vercel + Railway) | ⭐⭐⭐⭐ |
+| [TESTING_STRATEGY](docs/TESTING_STRATEGY.md) | Testing guide & strategies | ⭐⭐⭐⭐ |
 
 #### 🏛️ Architecture Decisions (ADRs)
 | Document | Topic | Status |
