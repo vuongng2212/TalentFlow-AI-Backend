@@ -1,36 +1,65 @@
 # PART 2: SOFTWARE REQUIREMENTS SPECIFICATION (SRS)
 
 **Project Name:** TalentFlow AI
-**Architecture Pattern:** NestJS Monorepo with Clean Architecture
+**Architecture Pattern:** Polyglot 3-Service Architecture (NestJS + Spring Boot + NestJS)
+**Last Updated:** 2026-02-02
+
+> ⚠️ **IMPORTANT:** This document describes the **CURRENT** architecture (Polyglot 3-Service).
+> For historical context on the previous NestJS Monorepo approach, see [ADR-001](./adr/ADR-001-nestjs-monorepo.md) (SUPERSEDED).
 
 ## 1. System Architecture Overview
 
-Hệ thống sử dụng kiến trúc **NestJS Monorepo** với **Clean Architecture** (Modular pattern):
+Hệ thống sử dụng kiến trúc **Polyglot 3-Service** trong **single repository**:
 
-* **Monorepo Structure:** Tất cả services được quản lý trong một repository với NestJS workspace, giúp tái sử dụng code và dễ dàng maintain.
-* **Modular Architecture:** Chia thành các modules độc lập: Auth, Job, Candidate, AI Worker, Notification - mỗi module có thể phát triển và deploy độc lập.
+* **Single Repository Structure:** 3 services trong 1 Git repository (`api-gateway/`, `cv-parser/`, `notification-service/`) để dễ quản lý.
+* **Polyglot Services:** Mỗi service dùng tech stack phù hợp nhất:
+  - **Service 1 (API Gateway):** NestJS - REST API, Auth, CRUD
+  - **Service 2 (CV Parser):** Spring Boot - CPU-intensive PDF/OCR processing
+  - **Service 3 (Notification):** NestJS - WebSocket, Email
 * **Clean Architecture Layers:**
   - **Domain Layer:** Entities, Use Cases, Business Rules - core business logic không phụ thuộc framework.
   - **Application Layer:** Service Interfaces, DTOs, Application Logic - orchestrate use cases.
-  - **Infrastructure Layer:** Database (Prisma), External APIs, Message Queue (Kafka) - implementation details.
+  - **Infrastructure Layer:** Database (Prisma), External APIs, Message Queue (BullMQ) - implementation details.
   - **Presentation Layer:** REST Controllers, WebSocket Gateways - handle HTTP/WS requests.
-* **Communication:** Event-driven architecture với **Apache Kafka** để đảm bảo scalability, fault-tolerance và event streaming.
+* **Communication:** Async queue-based architecture với **BullMQ (Redis)** để đảm bảo simplicity và reliability cho MVP.
+
+**Architecture Diagram:**
+```
+┌────────────────────────────────────────────┐
+│     Service 1: API Gateway (NestJS)        │
+│  - REST API, Auth, CRUD, File Upload       │
+└──────┬─────────────────────────┬───────────┘
+       │                         │
+       │ BullMQ (Redis)         │ PostgreSQL (Shared)
+       │                         │
+┌──────▼───────────┐  ┌─────────▼───────────┐
+│ Service 2:       │  │ Service 3:          │
+│ CV Parser        │  │ Notification        │
+│ (Spring Boot)    │  │ (NestJS)            │
+│ - Tesseract OCR  │  │ - WebSocket         │
+│ - PDF parsing    │  │ - Email             │
+└──────────────────┘  └─────────────────────┘
+```
+
+**See:** [ADR-006: Polyglot 3-Service Architecture](./adr/ADR-006-hybrid-microservices.md) for detailed rationale.
 
 ## 2. Technology Stack
 
 | Component | Technology | Description |
 | --- | --- | --- |
 | **Frontend** | **Next.js 16** | TypeScript, App Router, React Server Components, Server Actions, TailwindCSS, Shadcn/UI, React Query. |
-| **Backend Monorepo** | **NestJS (Workspace)** | TypeScript, Clean Architecture, Modular Design, Microservices pattern. |
-| **Auth Module** | **NestJS + Passport.js** | JWT (Access Token + Refresh Token), Role-based Access Control (RBAC). |
-| **ORM** | **Prisma** | Type-safe database client, migrations, schema management. |
-| **Database** | **PostgreSQL 16** | Primary relational database for structured data. |
-| **Vector DB** | **Pinecone / Weaviate** | Embeddings storage for Semantic Search and AI matching. |
-| **Storage** | **MinIO / AWS S3** | Object storage for CV files and attachments. |
-| **Message Broker** | **Apache Kafka** | Event streaming, async communication between modules, high throughput. |
-| **Cache** | **Redis** | Session caching, rate limiting, pub/sub for real-time features. |
-| **DevOps** | **Docker Compose** | Container orchestration for Dev/Staging environments. |
+| **Backend Service 1** | **NestJS** | API Gateway - REST API, Auth (JWT + Passport), CRUD operations, BullMQ producer. |
+| **Backend Service 2** | **Spring Boot 3.x** | CV Parser - PDF/DOCX parsing (Apache PDFBox/POI), Tesseract OCR, LLM integration, BullMQ consumer. |
+| **Backend Service 3** | **NestJS** | Notification Service - WebSocket (Socket.io), Email (SendGrid/Resend), BullMQ consumer. |
+| **ORM** | **Prisma** | Type-safe database client, migrations, schema management (used by NestJS services). |
+| **Database** | **PostgreSQL 16** | Primary relational database for structured data (shared by all services with logical separation). |
+| **Queue** | **BullMQ (Redis)** | Job queue for async communication between services, retry logic, DLQ support. |
+| **Storage** | **Cloudflare R2** | S3-compatible object storage for CV files (FREE egress saves $33k vs AWS S3). |
+| **Cache** | **Redis 7.x** | BullMQ queue storage + session caching + rate limiting. |
+| **Vector DB** | **Weaviate / Qdrant** | (Phase 2) Embeddings storage for Semantic Search and AI matching. |
+| **DevOps** | **Docker Compose** | Container orchestration for local development (PostgreSQL + Redis). |
 | **CI/CD** | **GitHub Actions** | Automated testing, building, and deployment pipelines. |
+| **Deployment** | **Railway** | Cloud platform for hosting services (API Gateway, CV Parser, Notification). |
 
 ## 3. Functional Requirements (Detailed)
 
@@ -44,41 +73,43 @@ Hệ thống sử dụng kiến trúc **NestJS Monorepo** với **Clean Architec
 * **FR-03:** CRUD Job Description thông qua RESTful API với **NestJS Controllers**.
 * **FR-04:** Lưu trữ JD dưới dạng cấu trúc JSON trong PostgreSQL (qua **Prisma ORM**) để AI dễ dàng đối chiếu và parse.
 
-### 3.3. CV Upload & Processing Pipeline (Event-Driven with Kafka)
+### 3.3. CV Upload & Processing Pipeline (Async with BullMQ)
 
 **Architecture Flow:**
 ```
 Frontend (Next.js 16)
-  -> NestJS API Gateway (Upload Controller)
-    -> MinIO/S3 Storage
+  -> Service 1: API Gateway (NestJS - Upload Controller)
+    -> Cloudflare R2 Storage
     -> PostgreSQL (Metadata via Prisma)
-    -> Kafka Producer: Topic "cv.uploaded"
+    -> BullMQ Producer: Queue "cv.uploaded"
 
-Kafka Consumer (NestJS AI Worker Module)
-  -> Download CV from MinIO
-  -> PDF Parsing (pdf-parse / Tesseract OCR)
-  -> LLM Extraction (OpenAI API)
-  -> Generate Embeddings (OpenAI Embeddings API)
-  -> Store in Vector DB (Pinecone/Weaviate)
-  -> Kafka Producer: Topic "cv.processed"
+Service 2: CV Parser (Spring Boot - BullMQ Consumer)
+  -> Download CV from R2
+  -> PDF Parsing (Apache PDFBox / Tika)
+  -> DOCX Parsing (Apache POI)
+  -> Tesseract OCR (for scanned PDFs)
+  -> LLM Extraction & Scoring (Anthropic Claude API)
+  -> Update PostgreSQL (resume_text, ai_score)
+  -> BullMQ Producer: Queue "cv.processed"
 
-Kafka Consumer (NestJS Core Module)
-  -> Update PostgreSQL (Prisma)
-  -> WebSocket/SSE notification to Frontend
+Service 3: Notification (NestJS - BullMQ Consumer)
+  -> WebSocket notification to Frontend (recruiter dashboard)
+  -> Email notification (SendGrid/Resend)
 ```
 
 **Detailed Requirements:**
 
 * **FR-05 (User Action):** User upload file PDF/DOCX từ Frontend -> Gọi **Next.js 16 Server Action** hoặc API endpoint tới **NestJS Upload Controller** (sử dụng `@nestjs/platform-express` với Multer).
 
-* **FR-06 (Storage):** NestJS validate file (size, type), upload lên **MinIO/S3** bằng AWS SDK, lưu metadata (file_url, candidate_id, job_id, status) vào **PostgreSQL** qua **Prisma**.
+* **FR-06 (Storage):** API Gateway (NestJS) validate file (size, type), upload lên **Cloudflare R2** bằng R2 SDK (S3-compatible), lưu metadata (file_url, candidate_id, job_id, status) vào **PostgreSQL** qua **Prisma**.
 
-* **FR-07 (Async Trigger):** NestJS bắn event `cv.uploaded` (payload: `{candidateId, fileUrl, jobId}`) vào **Kafka Topic**: `cv.uploaded` sử dụng **KafkaJS** client.
+* **FR-07 (Async Trigger):** API Gateway emit job `cv.uploaded` (payload: `{candidateId, fileUrl, jobId}`) vào **BullMQ Queue**: `cv.uploaded` sử dụng **BullMQ** library.
 
-* **FR-08 (AI Processing):** **NestJS AI Worker Module** lắng nghe Kafka topic `cv.uploaded`:
-  - Tải file từ MinIO/S3.
-  - Sử dụng **pdf-parse** (PDF) hoặc **mammoth** (Docx) để extract text.
-  - Gọi **OpenAI Chat Completion API** với structured prompt để trích xuất JSON:
+* **FR-08 (AI Processing):** **Service 2: CV Parser (Spring Boot)** consume BullMQ queue `cv.uploaded`:
+  - Tải file từ Cloudflare R2.
+  - Sử dụng **Apache PDFBox/Tika** (PDF) hoặc **Apache POI** (DOCX) để extract text.
+  - Tesseract OCR cho scanned PDFs.
+  - Rule-based filtering hoặc gọi **Anthropic Claude API** với structured prompt để trích xuất JSON:
     ```json
     {
       "name": "...",
@@ -89,12 +120,13 @@ Kafka Consumer (NestJS Core Module)
     }
     ```
   - Gọi **OpenAI Embeddings API** để generate vector representation.
-  - Lưu vector vào **Pinecone/Weaviate** với metadata.
-  - Bắn event `cv.processed` (payload: `{candidateId, extractedData, score}`) vào **Kafka Topic**: `cv.processed`.
+  - Lưu vector vào **Weaviate/Qdrant** với metadata (Phase 2).
+  - Emit job `cv.processed` (payload: `{candidateId, extractedData, score}`) vào **BullMQ Queue**: `cv.processed`.
 
-* **FR-09 (Update & Notification):** **NestJS Core Module** nhận event `cv.processed` từ Kafka, cập nhật thông tin extracted vào PostgreSQL (table `candidates`) qua Prisma, sau đó:
-  - Gửi notification tới Frontend qua **WebSocket Gateway** hoặc **Server-Sent Events (SSE)**.
-  - Update status trong database thành `processed`.
+* **FR-09 (Update & Notification):** **Service 3: Notification (NestJS)** nhận job `cv.processed` từ BullMQ, sau đó:
+  - Gửi notification tới Frontend qua **WebSocket Gateway**.
+  - Gửi email notification tới recruiter (optional).
+  - Update UI Kanban board real-time.
 
 ### 3.4. Search & Matching (NestJS Search Module)
 
@@ -189,128 +221,113 @@ type Candidate {
   - **GraphQL Playground:** Built-in với NestJS GraphQL module.
   - Access tại: `http://localhost:3000/api/docs` (Swagger) và `http://localhost:3000/graphql` (GraphQL Playground).
 
-## 6. NestJS Monorepo Structure
+## 6. Polyglot 3-Service Structure
 
-Hệ thống sử dụng **NestJS Workspace** để quản lý monorepo với nhiều applications và shared libraries.
+Hệ thống sử dụng **Polyglot Architecture** với 3 services trong **single repository**.
 
 ### 6.1. Project Structure
 
 ```
-talentflow-backend/
-├── apps/
-│   ├── api-gateway/              # Main API entry point
-│   │   ├── src/
-│   │   │   ├── main.ts
-│   │   │   ├── app.module.ts
-│   │   │   └── modules/
-│   │   │       ├── auth/         # Auth module
-│   │   │       ├── job/          # Job management
-│   │   │       ├── candidate/    # Candidate management
-│   │   │       ├── application/  # Application tracking
-│   │   │       └── upload/       # File upload handling
-│   │   └── test/
-│   │
-│   ├── ai-worker/                # CV Processing Worker
-│   │   ├── src/
-│   │   │   ├── main.ts
-│   │   │   ├── app.module.ts
-│   │   │   └── processors/
-│   │   │       ├── cv-parser.processor.ts
-│   │   │       ├── llm-extractor.processor.ts
-│   │   │       └── vector-indexer.processor.ts
-│   │   └── test/
-│   │
-│   └── notification-service/     # Email/WebSocket notifications
-│       ├── src/
-│       │   ├── main.ts
-│       │   ├── app.module.ts
-│       │   └── gateways/
-│       │       ├── websocket.gateway.ts
-│       │       └── email.service.ts
-│       └── test/
+talentflow-backend/  (Single Git Repository)
 │
-├── libs/                         # Shared libraries
-│   ├── common/                   # Common utilities
-│   │   ├── src/
-│   │   │   ├── guards/           # Auth guards, Role guards
-│   │   │   ├── interceptors/     # Logging, Transform interceptors
-│   │   │   ├── pipes/            # Validation pipes
-│   │   │   ├── filters/          # Exception filters
-│   │   │   ├── decorators/       # Custom decorators
-│   │   │   └── constants/        # App constants
-│   │   └── test/
-│   │
-│   ├── database/                 # Prisma client & database module
-│   │   ├── src/
-│   │   │   ├── prisma.service.ts
-│   │   │   └── prisma.module.ts
-│   │   ├── prisma/
-│   │   │   ├── schema.prisma
-│   │   │   └── migrations/
-│   │   └── test/
-│   │
-│   ├── kafka/                    # Kafka producer/consumer
-│   │   ├── src/
-│   │   │   ├── kafka.service.ts
-│   │   │   ├── kafka.module.ts
-│   │   │   └── topics/
-│   │   │       ├── cv-uploaded.topic.ts
-│   │   │       └── cv-processed.topic.ts
-│   │   └── test/
-│   │
-│   └── domain/                   # Domain entities, DTOs, interfaces
-│       ├── src/
-│       │   ├── entities/         # Domain entities
-│       │   ├── dtos/             # Data Transfer Objects
-│       │   ├── interfaces/       # Service interfaces
-│       │   └── enums/            # Domain enums
-│       └── test/
+├── api-gateway/                  # Service 1: NestJS API Gateway
+│   ├── src/
+│   │   ├── main.ts
+│   │   ├── app.module.ts
+│   │   └── modules/
+│   │       ├── auth/             # JWT Auth + RBAC
+│   │       ├── users/            # User management
+│   │       ├── jobs/             # Job CRUD
+│   │       ├── candidates/       # Candidate management
+│   │       ├── applications/     # Application tracking
+│   │       └── upload/           # File upload → R2
+│   ├── test/
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── prisma/
+│       └── schema.prisma         # Shared Prisma schema
 │
-├── nest-cli.json                 # NestJS workspace config
-├── package.json                  # Root package.json
-├── tsconfig.json                 # Base TypeScript config
-└── docker-compose.yml            # Docker services
+├── cv-parser/                    # Service 2: Spring Boot CV Parser
+│   ├── src/main/java/
+│   │   └── com/talentflow/parser/
+│   │       ├── CvParserApplication.java
+│   │       ├── config/
+│   │       │   ├── BullMQConfig.java
+│   │       │   └── R2Config.java
+│   │       ├── consumer/
+│   │       │   └── CvUploadedConsumer.java
+│   │       ├── service/
+│   │       │   ├── PdfParserService.java      # Apache PDFBox
+│   │       │   ├── DocxParserService.java     # Apache POI
+│   │       │   ├── TesseractService.java      # OCR
+│   │       │   ├── LlmScoringService.java     # Anthropic API
+│   │       │   └── R2StorageService.java
+│   │       └── producer/
+│   │           └── CvProcessedProducer.java
+│   ├── src/test/java/
+│   ├── pom.xml (or build.gradle)
+│   └── application.yml
+│
+├── notification-service/         # Service 3: NestJS Notification
+│   ├── src/
+│   │   ├── main.ts
+│   │   ├── app.module.ts
+│   │   ├── consumers/
+│   │   │   └── cv-processed.consumer.ts
+│   │   ├── gateways/
+│   │   │   └── websocket.gateway.ts
+│   │   └── services/
+│   │       └── email.service.ts
+│   ├── test/
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── shared/                       # Shared code
+│   ├── types/                    # TypeScript types (for NestJS services)
+│   ├── configs/                  # Config templates
+│   └── scripts/                  # Build scripts
+│
+├── docs/                         # Documentation
+├── .github/workflows/            # CI/CD pipelines
+├── docker-compose.yml            # PostgreSQL + Redis
+├── .env.example
+└── README.md
 ```
 
-### 6.2. Module Responsibilities
+### 6.2. Service Responsibilities
 
-#### **apps/api-gateway**
-- Main HTTP/GraphQL server
-- Handles all incoming requests from Frontend
-- Orchestrates business logic
-- Produces events to Kafka
+#### **Service 1: API Gateway (NestJS)** - Port 3000
+- Main HTTP server
+- Handles all incoming REST API requests from Frontend
+- Authentication & Authorization (JWT + RBAC)
+- Database CRUD operations (Prisma)
+- File upload to Cloudflare R2
+- BullMQ Producer (emit jobs to queue)
 
-#### **apps/ai-worker**
-- Consumes events from Kafka
-- Processes CV files (parsing, extraction)
-- Interacts with OpenAI API
-- Stores vectors in Vector DB
-- Produces processed events back to Kafka
+#### **Service 2: CV Parser (Spring Boot)** - Port 8080
+- BullMQ Consumer (listen `cv.uploaded` queue)
+- CPU-intensive file processing (PDF/DOCX/OCR)
+- LLM integration (Anthropic Claude)
+- Database updates (Spring Data JPA or Prisma bridge)
+- BullMQ Producer (emit `cv.processed` jobs)
 
-#### **apps/notification-service**
-- WebSocket server for real-time notifications
+#### **Service 3: Notification (NestJS)** - Port 3001
+- BullMQ Consumer (listen `cv.processed` queue)
+- WebSocket server for real-time updates
+- Email notifications (SendGrid/Resend)
 - Email service integration (SendGrid/SES)
 - SMS notifications (optional)
 
 #### **libs/common**
 - Shared guards, interceptors, pipes, filters
 - Custom decorators: `@CurrentUser()`, `@Roles()`, `@Public()`
-- Constants and utility functions
+#### **shared/types**
+- TypeScript type definitions shared across NestJS services
+- DTOs, Interfaces, Enums
 
-#### **libs/database**
-- Prisma client wrapper
-- Database connection management
-- Shared database module
-
-#### **libs/kafka**
-- Kafka producer/consumer abstractions
-- Topic definitions and event schemas
-- Retry logic and error handling
-
-#### **libs/domain**
-- Shared domain models (entities, DTOs)
-- Business interfaces
-- Domain-specific enums and constants
+#### **shared/configs**
+- Configuration templates
+- Shared constants
 
 ### 6.3. Clean Architecture Layers in Practice
 
@@ -321,10 +338,10 @@ Application Layer (Services, Use Cases)
     ↓
 Domain Layer (Entities, Business Logic)
     ↓
-Infrastructure Layer (Prisma, Kafka, S3, External APIs)
+Infrastructure Layer (Prisma, BullMQ, R2, External APIs)
 ```
 
-**Example: CV Upload Flow**
+**Example: CV Upload Flow (API Gateway - NestJS)**
 ```typescript
 // Presentation Layer
 @Controller('candidates')
@@ -340,51 +357,102 @@ export class CandidateController {
 export class CandidateService {
   async processCVUpload(file: File) {
     // Business logic
-    const url = await this.storageService.upload(file);
-    await this.kafkaService.emit('cv.uploaded', { url });
+    const url = await this.r2Service.upload(file);
+    await this.bullMQService.addJob('cv.uploaded', { url });
   }
 }
 
 // Infrastructure Layer
 @Injectable()
-export class KafkaService {
-  async emit(topic: string, message: any) {
-    await this.producer.send({ topic, messages: [message] });
+export class R2Service {
+  async upload(file: File): Promise<string> {
+    // Cloudflare R2 SDK implementation
+    return r2Url;
+  }
+}
+
+@Injectable()
+export class BullMQService {
+  async addJob(queueName: string, data: any) {
+    await this.cvQueue.add(queueName, data);
+  }
+}
+
+// Infrastructure Layer (R2 Storage)
+@Injectable()
+export class R2Service {
+  async upload(file: File): Promise<string> {
+    // Cloudflare R2 SDK implementation
+    return r2Url;
+  }
+}
+```
+
+**Example: CV Processing (CV Parser - Spring Boot)**
+```java
+@Service
+public class CvProcessorService {
+
+  @Async
+  public void processCv(String candidateId, String cvUrl, String jobId) {
+    // 1. Download from R2
+    byte[] pdfBytes = r2Client.download(cvUrl);
+
+    // 2. Extract text (Apache PDFBox)
+    String text = pdfBoxService.extractText(pdfBytes);
+
+    // 3. LLM Scoring (Anthropic Claude)
+    LlmResponse score = anthropicService.evaluate(text, jobRequirements);
+
+    // 4. Update database
+    candidateRepo.updateScore(candidateId, score);
+
+    // 5. Emit to notification queue
+    bullMQProducer.addJob("cv.processed", new CvProcessedEvent(candidateId, score));
   }
 }
 ```
 
 ### 6.4. Environment Configuration
 
+Each service has its own `.env` file but shares infrastructure credentials:
+
 ```
-.env.development
-.env.production
-.env.test
+api-gateway/.env
+cv-parser/.env (or application.yml)
+notification-service/.env
 ```
 
 **Key Environment Variables:**
 ```bash
-# Database
-DATABASE_URL="postgresql://user:pass@localhost:5432/talentflow"
+# Database (Shared)
+DATABASE_URL="postgresql://postgres:password@localhost:5432/talentflow_dev"
 
-# Kafka
-KAFKA_BROKERS="localhost:9092"
-KAFKA_CLIENT_ID="talentflow-api"
+# BullMQ (Redis Queue)
+REDIS_URL="redis://localhost:6379"
 
-# Storage
-S3_BUCKET="talentflow-cvs"
-S3_REGION="us-east-1"
+# Cloudflare R2 Storage
+R2_ACCOUNT_ID="your-account-id"
+R2_ACCESS_KEY_ID="your-access-key"
+R2_SECRET_ACCESS_KEY="your-secret-key"
+R2_BUCKET="talentflow-cvs"
 
-# OpenAI
-OPENAI_API_KEY="sk-..."
+# LLM API
+ANTHROPIC_API_KEY="sk-ant-..."
+# OR OPENAI_API_KEY="sk-..."
 
-# Vector DB
-PINECONE_API_KEY="..."
-PINECONE_INDEX="talentflow-candidates"
+# Vector DB (Phase 2)
+WEAVIATE_URL="http://localhost:8080"
 
-# JWT
-JWT_SECRET="super-secret-key"
-JWT_EXPIRES_IN="15m"
+# JWT (API Gateway)
+JWT_SECRET="super-secret-key-change-in-production"
+JWT_ACCESS_EXPIRATION="15m"
+JWT_REFRESH_EXPIRATION="7d"
+
+# Service Ports
+API_GATEWAY_PORT=3000
+CV_PARSER_PORT=8080
+NOTIFICATION_PORT=3001
 ```
 
 ### 6.5. Development Commands

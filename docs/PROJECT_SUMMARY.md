@@ -1,8 +1,8 @@
 # TalentFlow AI - Tổng Quan Dự Án
 
-**Cập nhật:** 2026-02-01
-**Team:** 2 Full-stack Developers
-**Trạng thái:** ✅ Sẵn sàng phát triển
+**Cập nhật:** 2026-02-02
+**Team:** 3 Full-stack Developers (NestJS, Spring Boot, ASP.NET Core)
+**Trạng thái:** ✅ Sẵn sàng phát triển - **ARCHITECTURE UPDATED**
 
 ---
 
@@ -15,27 +15,31 @@
 - **Kết luận:** 🟢 **SẴN SÀNG BẮT ĐẦU**
 
 ### Số Liệu
-- **📁 Tài liệu:** 12 files (hoàn chỉnh)
-- **📝 Dòng code tài liệu:** ~4,000+ dòng
-- **🎯 Coverage:** 95%
-- **⏱️ Timeline:** 8 tuần (flexible)
+- **📁 Tài liệu:** 16 files (hoàn chỉnh)
+- **📝 Dòng code tài liệu:** ~6,000+ dòng
+- **🎯 Coverage:** 98%
+- **⏱️ Timeline:** 8 tuần (2 tháng MVP)
+- **🏗️ Architecture:** Hybrid Microservices (3 services)
 
 ---
 
 ## 📚 Danh Sách Tài Liệu
 
-### ✅ Hoàn Chỉnh (12/12)
+### ✅ Hoàn Chỉnh (16/16)
 
 #### Nghiệp Vụ & Kỹ Thuật
 1. **PRD.md** - Yêu cầu sản phẩm (Product Requirements)
-2. **SRS.md** - Đặc tả kỹ thuật (Software Requirements Specification)
+2. **SRS.md** - Đặc tả kỹ thuật (Software Requirements Specification) **[UPDATED]**
 
 #### Kiến Trúc
-3. **adr/ADR-001-nestjs-monorepo.md** - Quyết định dùng NestJS Monorepo
-4. **adr/ADR-002-kafka-message-queue.md** - Quyết định dùng Apache Kafka
-5. **adr/ADR-003-prisma-orm.md** - Quyết định dùng Prisma ORM
+3. **adr/ADR-001-nestjs-monorepo.md** - ~~Quyết định dùng NestJS Monorepo~~ **[SUPERSEDED]**
+4. **adr/ADR-002-kafka-message-queue.md** - ~~Quyết định dùng Apache Kafka~~ **[SUPERSEDED]**
+5. **adr/ADR-003-prisma-orm.md** - Quyết định dùng Prisma ORM ✅
 6. **adr/ADR-004-deployment-strategy.md** - Chiến lược triển khai
-7. **adr/ADR-005-separate-repos.md** - Tách repos Frontend/Backend
+7. **adr/ADR-005-separate-repos.md** - Tách repos Frontend/Backend ✅
+8. **adr/ADR-006-hybrid-microservices.md** - **Hybrid Microservices Architecture** 🆕
+9. **adr/ADR-007-bullmq-over-kafka.md** - **BullMQ thay vì Kafka** 🆕
+10. **adr/ADR-008-cloudflare-r2.md** - **Cloudflare R2 Storage** 🆕
 
 #### Hướng Dẫn Phát Triển
 8. **README.md** - Hướng dẫn setup nhanh
@@ -48,33 +52,99 @@
 13. **TEAM_DECISIONS.md** - Các quyết định chính thức & action plan
 
 #### Setup
-- **docker-compose.yml** - Infrastructure services (Kafka, PostgreSQL, Redis, MinIO)
+- **docker-compose.yml** - Infrastructure services (PostgreSQL, Redis)
 - **.env.example** - Template biến môi trường
+
+---
+
+## 🏗️ KIẾN TRÚC MỚI (Updated 2026-02-02)
+
+### **Hybrid Microservices Architecture**
+
+**Thay đổi từ kiến trúc cũ:**
+- ❌ **Cũ:** NestJS Monorepo + Apache Kafka
+- ✅ **Mới:** 3 Services (1 repo) + BullMQ (Redis Queue)
+
+**Lý do thay đổi:**
+1. Team 3 người với tech stack đa dạng (NestJS, Spring Boot)
+2. Frontend đã hoàn thành → Chỉ cần tích hợp API
+3. Tesseract OCR + PDF parsing blocking event loop → Cần Spring Boot service riêng
+4. BullMQ đơn giản hơn Kafka 10x cho MVP (< 1000 CVs/day)
+
+### **3 Services:**
+
+```
+┌─────────────────────────────────────────┐
+│     Service 1: API Gateway (NestJS)     │
+│  - REST API, Auth, CRUD, File Upload    │
+└──────┬──────────────────────────┬───────┘
+       │                          │
+       │ BullMQ Queue            │ PostgreSQL (Shared)
+       │                          │
+┌──────▼─────────────┐  ┌────────▼────────┐
+│ Service 2:         │  │ Service 3:      │
+│ CV Parser          │  │ Notification    │
+│ (Spring Boot)      │  │ (NestJS)        │
+│ - Tesseract OCR    │  │ - WebSocket     │
+│ - PDF parsing      │  │ - Email         │
+│ - AI Score (LLM)   │  │                 │
+└────────────────────┘  └─────────────────┘
+```
+
+**Repository Structure:**
+```
+talentflow-backend/  (Single Git Repo)
+├── api-gateway/          # Service 1: NestJS
+├── cv-parser/            # Service 2: Spring Boot
+├── notification-service/ # Service 3: NestJS
+├── shared/               # Shared types, configs
+└── docs/                 # Documentation
+```
+
+**Tech Stack:**
+- **Queue:** BullMQ (Redis) - KHÔNG phải Kafka
+- **Storage:** Cloudflare R2 - KHÔNG phải S3/MinIO
+- **Database:** PostgreSQL + Prisma ✅
+- **Deploy:** Railway + Docker Compose ✅
+
+**Chi tiết:** Xem [ADR-006](./adr/ADR-006-hybrid-microservices.md)
 
 ---
 
 ## ✅ Quyết Định Chính Thức (Đã Xác Nhận)
 
-### 1. ☑️ Message Queue: Apache Kafka
-**Lý do:** Đầu tư học từ đầu, ready cho Phase 2
-**Action:** Team học Kafka basics (6 giờ)
+### 1. ☑️ Architecture: Polyglot 3-Service 🆕
+**Quyết định:** 3 services trong 1 repository (NestJS + Spring Boot + NestJS)
+**Supersedes:** ADR-001 (NestJS Monorepo)
+**Action:** Single repo với 3 service folders, deploy độc lập
 
-### 2. ☑️ Security: JWT Authentication (Cơ bản)
+### 2. ☑️ Message Queue: BullMQ (Redis) 🆕
+**Quyết định:** BullMQ thay vì Apache Kafka
+**Lý do:** Đơn giản hơn 10x, đủ cho MVP (< 1000 CVs/day)
+**Supersedes:** ADR-002 (Apache Kafka)
+**Tài liệu:** [ADR-007](./adr/ADR-007-bullmq-over-kafka.md)
+
+### 3. ☑️ Storage: Cloudflare R2 🆕
+**Quyết định:** R2 cho CV storage (S3-compatible)
+**Lý do:** FREE egress = $33k savings over 3 years vs S3!
+**Tài liệu:** [ADR-008](./adr/ADR-008-cloudflare-r2.md)
+
+### 4. ☑️ Security: JWT Authentication
 **Scope:** JWT + RBAC + bcrypt, không cần compliance certification
 **Tài liệu:** `SECURITY.md` đã hoàn chỉnh
 
-### 3. ☑️ Testing: 80% Coverage
+### 5. ☑️ Testing: 80% Coverage
 **Breakdown:** Unit (70%) + Integration (20%) + E2E (10%)
 **Action:** Tạo TESTING_STRATEGY.md ở tuần 3
 
-### 4. ☑️ Timeline: 8 Tuần (Flexible)
+### 6. ☑️ Timeline: 8 Tuần (Flexible)
 **Chiến lược:** Sprints 2 tuần, demos định kỳ cho khách hàng
 
-### 5. ☑️ Monitoring: ELK + Prometheus + Grafana
-**Stack:** Enterprise monitoring đầy đủ
-**Action:** Setup ở tuần 7
+### 7. ☑️ Monitoring: Railway Logs + Sentry
+**Stack:** Simple monitoring cho MVP (không dùng ELK + Prometheus + Grafana)
+**Action:** Setup Sentry error tracking
 
-### 6. ☑️ Development Order: Frontend First
+### 8. ☑️ Development Order: Frontend First
 **Lý do:** Demo sớm cho khách hàng
 **Timeline:**
 - Tuần 1-2: Frontend prototype (mock data)

@@ -15,7 +15,7 @@
 - [Frontend Deployment (Vercel)](#frontend-deployment-vercel)
 - [Backend Deployment (Railway)](#backend-deployment-railway)
 - [Database Setup (Neon)](#database-setup-neon)
-- [Kafka Setup (Upstash)](#kafka-setup-upstash)
+- [BullMQ Setup (Redis)](#bullmq-setup-redis)
 - [Monitoring Setup](#monitoring-setup)
 - [Post-Deployment Verification](#post-deployment-verification)
 - [Rollback Procedure](#rollback-procedure)
@@ -36,7 +36,7 @@
 |------|-------------|---------|
 | **Week 2** | Vercel (Frontend) | Demo #1 - UI prototype |
 | **Week 4** | Railway (Backend) + Neon | Demo #2 - Working API |
-| **Week 6** | Full stack + Kafka | Demo #3 - CV upload |
+| **Week 6** | Full stack + BullMQ | Demo #3 - CV upload |
 | **Week 8** | Production + Monitoring | Demo #4 - MVP launch |
 
 ---
@@ -63,7 +63,7 @@
 └─────────────────────┘    - GraphQL (Phase 2)
       ↓                    - WebSocket Gateway
 ┌─────────────────────┐
-│  Upstash Kafka      │ → Event Streaming
+│  Railway Redis      │ → BullMQ Queue + Cache
 │  Serverless         │
 └─────────────────────┘
       ↓
@@ -321,64 +321,69 @@ railway run npx prisma db pull
 
 ---
 
-## 📨 Kafka Setup (Upstash)
+## 📨 BullMQ Setup (Redis Queue)
 
-### Step 1: Create Upstash Kafka Cluster
+### Step 1: Use Railway Redis Add-on
 
+**Option 1: Railway Redis (Recommended)**
+```bash
+# Railway Dashboard → Project → Add Service → Redis
+# Redis instance created automatically with connection URL
+```
+
+**Option 2: Upstash Redis (Alternative)**
 1. Đi tới [upstash.com](https://upstash.com)
-2. Create Kafka cluster
+2. Create Redis database
 3. Region: US East (same as Railway)
-4. Plan: Free tier (10K messages/day)
+4. Plan: Free tier (10K commands/day)
 
-### Step 2: Get Credentials
+### Step 2: Get Redis URL
 
 ```bash
-# Upstash Dashboard → Details
-KAFKA_BROKER=creative-fox-12345-us1-kafka.upstash.io:9092
-KAFKA_USERNAME=Y3JlYXRpdmUtZm94...
-KAFKA_PASSWORD=YourPasswordHere
-KAFKA_SASL_MECHANISM=SCRAM-SHA-256
+# Railway Redis:
+REDIS_URL=redis://:password@redis.railway.internal:6379
+
+# Or Upstash Redis:
+REDIS_URL=rediss://default:token@redis.upstash.io:6379
 ```
 
-### Step 3: Add to Railway
+### Step 3: Add to Railway Environment Variables
 
 ```bash
-# Railway → Variables (API Gateway & AI Worker)
-KAFKA_BROKERS=creative-fox-12345-us1-kafka.upstash.io:9092
-KAFKA_USERNAME=Y3JlYXRpdmUtZm94...
-KAFKA_PASSWORD=YourPasswordHere
-KAFKA_SASL_MECHANISM=SCRAM-SHA-256
+# Railway → Variables (All services)
+REDIS_URL=${{Redis.REDIS_URL}}
 ```
 
-### Step 4: Create Topics
+### Step 4: BullMQ Auto-Configuration
 
-```bash
-# Upstash Dashboard → Topics → Create Topic
+BullMQ automatically creates queues on first use. No manual topic creation needed!
 
-Topics to create:
-1. cv.uploaded       (3 partitions, retention: 7 days)
-2. cv.parsed         (3 partitions, retention: 7 days)
-3. cv.processed      (3 partitions, retention: 7 days)
-```
+**Queues created automatically:**
+- `cv.uploaded` - When CV is uploaded
+- `cv.processed` - When CV parsing completes
 
-### Step 5: Test Connection
+### Step 5: Monitor Queues (Optional)
 
-```bash
-# Railway → Run command
-railway run node -e "
-const { Kafka } = require('kafkajs');
-const kafka = new Kafka({
-  brokers: [process.env.KAFKA_BROKERS],
-  sasl: {
-    mechanism: 'scram-sha-256',
-    username: process.env.KAFKA_USERNAME,
-    password: process.env.KAFKA_PASSWORD,
-  },
-  ssl: true,
+**Install Bull Board dashboard:**
+```typescript
+// api-gateway/src/main.ts
+import { createBullBoard } from '@bull-board/api';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
+import { ExpressAdapter } from '@bull-board/express';
+
+const serverAdapter = new ExpressAdapter();
+createBullBoard({
+  queues: [
+    new BullMQAdapter(cvUploadedQueue),
+    new BullMQAdapter(cvProcessedQueue),
+  ],
+  serverAdapter,
 });
-kafka.admin().listTopics().then(console.log);
-"
+
+app.use('/admin/queues', serverAdapter.getRouter());
 ```
+
+**Access:** http://localhost:3000/admin/queues
 
 ---
 

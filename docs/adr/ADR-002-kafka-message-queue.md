@@ -1,8 +1,12 @@
 # ADR-002: Use Apache Kafka Instead of RabbitMQ
 
-**Status:** Accepted
+> ⚠️ **STATUS: SUPERSEDED by [ADR-007](./ADR-007-bullmq-over-kafka.md) on 2026-02-02**
+>
+> This ADR proposed Apache Kafka for message queuing. After evaluating MVP requirements (< 1000 CVs/day), the team decided **BullMQ (Redis)** is sufficient and significantly simpler. Kafka complexity was not justified for Phase 1. See ADR-007 for current queue strategy.
+
+**Status:** ~~Accepted~~ → **SUPERSEDED**
 **Date:** 2026-02-01
-**Deciders:** Team (2 developers)
+**Superseded By:** [ADR-007](./ADR-007-bullmq-over-kafka.md) (2026-02-02)
 
 ---
 
@@ -144,18 +148,30 @@ Tools:
 
 ---
 
+## Why This Was Superseded
+
+After MVP scope analysis, we found:
+
+1. **MVP Traffic:** < 1000 CVs/day (~0.7 jobs/minute) - Kafka is overkill
+2. **Complexity:** Kafka requires significant learning curve + operational overhead (Zookeeper/KRaft, monitoring)
+3. **Simpler Alternative:** BullMQ (Redis) provides 10x simpler setup with sufficient features:
+   - Job retry with exponential backoff
+   - Dead Letter Queue (DLQ)
+   - Job scheduling and priority
+   - Dashboard UI (Bull Board)
+4. **Cost:** Single Redis instance vs 3+ Kafka brokers
+
+**Decision:** Start with **BullMQ for MVP**. Consider Kafka for Phase 2 if traffic > 10k CVs/day or event sourcing is needed.
+
+---
+
 ## Related Decisions
 
-- [ADR-001: Use NestJS Monorepo](./ADR-001-nestjs-monorepo.md)
-- [ADR-004: Deployment Strategy](./ADR-004-deployment-strategy.md)
+- [ADR-001: Use NestJS Monorepo](./ADR-001-nestjs-monorepo.md) - **SUPERSEDED by ADR-006**
+- [ADR-004: Deployment Strategy](./ADR-004-deployment-strategy.md) - ✅ **Still Valid**
+- [ADR-006: Polyglot 3-Service Architecture](./ADR-006-hybrid-microservices.md) - **Current Architecture**
+- [ADR-007: Use BullMQ over Kafka](./ADR-007-bullmq-over-kafka.md) - **Current Queue**
 
 ---
 
-## References
-
-- [Kafka Use Cases](https://kafka.apache.org/uses)
-- [When to use Kafka vs RabbitMQ](https://www.confluent.io/blog/kafka-vs-rabbitmq/)
-
----
-
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-02 (Marked as SUPERSEDED)

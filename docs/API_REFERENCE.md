@@ -4,7 +4,8 @@
 **Base URL (Development):** `http://localhost:3000/api`
 **Base URL (Production):** `https://api.talentflow.ai/api`
 **API Version:** v1
-**Last Updated:** 2026-02-01
+**Architecture:** Service 1 (API Gateway - NestJS) exposes all REST endpoints
+**Last Updated:** 2026-02-02
 
 ---
 
@@ -292,7 +293,7 @@ Content-Type: application/json
   "title": "Senior Backend Developer",
   "description": "We are looking for an experienced backend developer...",
   "requirements": {
-    "skills": ["NestJS", "PostgreSQL", "Kafka"],
+    "skills": ["NestJS", "PostgreSQL", "Spring Boot", "BullMQ"],
     "experience": "5+ years"
   },
   "salaryRange": "$120k - $160k",
@@ -401,7 +402,7 @@ John Doe
       "id": "cand-id-1",
       "email": "john.doe@email.com",
       "fullName": "John Doe",
-      "resumeUrl": "https://s3.amazonaws.com/bucket/resumes/john-doe-resume.pdf"
+      "resumeUrl": "https://talentflow-cvs.r2.cloudflarestorage.com/resumes/john-doe-resume.pdf"
     },
     "processing": {
       "status": "QUEUED",
@@ -625,14 +626,23 @@ socket.on('cv:processed', (data) => {
 });
 ```
 
+**Events:**
+| Event | Description | Payload |
+|-------|-------------|---------|
+| `cv:processing` | CV parsing started | `{ candidateId, status, progress }` |
+| `cv:completed` | CV parsed successfully | `{ candidateId, aiScore, aiSummary }` |
+| `cv:failed` | CV parsing failed | `{ candidateId, error }` |
+| `application:updated` | Application stage changed | `{ applicationId, stage, status }` |
+
 ---
 
 ## Related Documentation
 
 - [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) - Database design
 - [SRS.md](./SRS.md) - Software requirements
+- [ADR-006](./adr/ADR-006-hybrid-microservices.md) - Service architecture
 - [Swagger Docs](http://localhost:3000/api/docs) - Interactive API explorer
 
 ---
 
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-02

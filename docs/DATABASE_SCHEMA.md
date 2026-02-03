@@ -2,8 +2,9 @@
 
 **Project:** TalentFlow AI
 **ORM:** Prisma
-**Database:** PostgreSQL 16
-**Last Updated:** 2026-02-01
+**Database:** PostgreSQL 16 (Shared by all 3 services)
+**Architecture:** Polyglot 3-Service (NestJS + Spring Boot + NestJS)
+**Last Updated:** 2026-02-02
 
 ---
 
@@ -27,18 +28,25 @@
 3. **Soft Deletes**: Never hard-delete user data (use `deletedAt` field)
 4. **Timestamps**: All tables have `createdAt` and `updatedAt`
 5. **Snake Case Mapping**: Use snake_case in database, camelCase in TypeScript
+6. **Service Ownership**: Logical table ownership for 3-service architecture (see below)
 
 ### Core Entities (MVP - Phase 1)
 
-| Entity | Purpose | Status |
-|--------|---------|--------|
-| **User** | System users (Admin, Recruiter, Interviewer) | ✅ MVP |
-| **Job** | Job postings | ✅ MVP |
-| **Candidate** | Job applicants | ✅ MVP |
-| **Application** | Application submissions | ✅ MVP |
-| **Interview** | Interview scheduling | 🔜 Phase 2 |
-| **CandidateNote** | Recruiter notes on candidates | 🔜 Phase 2 |
-| **AuditLog** | System audit trail | 🔜 Phase 2 |
+| Entity | Purpose | Service Owner | Status |
+|--------|---------|---------------|--------|
+| **User** | System users (Admin, Recruiter, Interviewer) | API Gateway | ✅ MVP |
+| **Job** | Job postings | API Gateway | ✅ MVP |
+| **Candidate** | Job applicants | **CV Parser** | ✅ MVP |
+| **Application** | Application submissions | API Gateway | ✅ MVP |
+| **Interview** | Interview scheduling | API Gateway | 🔜 Phase 2 |
+| **CandidateNote** | Recruiter notes on candidates | API Gateway | 🔜 Phase 2 |
+| **AuditLog** | System audit trail | API Gateway | 🔜 Phase 2 |
+
+**Service Ownership Rules:**
+- ✅ **API Gateway (NestJS):** Owns `users`, `jobs`, `applications`, `interviews`, `candidate_notes`, `audit_logs`
+- ✅ **CV Parser (Spring Boot):** Owns `candidates` table (writes `resume_text`, `ai_score`)
+- ✅ **Notification Service (NestJS):** Stateless (no table ownership, reads from Redis cache)
+- ⚠️ **Cross-service reads OK, cross-service writes FORBIDDEN** (except CV Parser updates `candidates`)
 
 ---
 
@@ -126,7 +134,11 @@ erDiagram
 
 ## Prisma Schema
 
-### Full Schema (`libs/database/prisma/schema.prisma`)
+### Full Schema
+
+**Location Options:**
+- **Option 1 (Recommended):** `shared/prisma/schema.prisma` - Shared schema for all services
+- **Option 2:** `api-gateway/prisma/schema.prisma` - API Gateway owns Prisma, CV Parser uses JDBC
 
 ```prisma
 // This is your Prisma schema file
@@ -233,7 +245,7 @@ model Candidate {
   fullName    String   @map("full_name")
   phone       String?
   linkedinUrl String?  @map("linkedin_url")
-  resumeUrl   String   @map("resume_url") // S3/MinIO URL
+  resumeUrl   String   @map("resume_url") // Cloudflare R2 URL
   resumeText  String?  @map("resume_text") @db.Text // Extracted text
 
   createdAt   DateTime @default(now()) @map("created_at")
@@ -425,7 +437,7 @@ const job = await prisma.job.create({
 - `fullName` (String): Candidate name
 - `phone` (String, Optional): Phone number
 - `linkedinUrl` (String, Optional): LinkedIn profile
-- `resumeUrl` (String): S3/MinIO URL to resume file
+- `resumeUrl` (String): Cloudflare R2 URL to resume file
 - `resumeText` (Text, Optional): Extracted text from PDF
 - `createdAt`, `updatedAt`: Timestamps
 
@@ -440,7 +452,7 @@ const candidate = await prisma.candidate.create({
     email: 'john.doe@email.com',
     fullName: 'John Doe',
     phone: '+1234567890',
-    resumeUrl: 's3://bucket/resumes/john-doe-cv.pdf',
+    resumeUrl: 'https://talentflow-cvs.r2.cloudflarestorage.com/resumes/john-doe-cv.pdf',
     resumeText: 'Extracted text content...',
   },
 });
@@ -458,8 +470,8 @@ const candidate = await prisma.candidate.create({
 - `candidateId` (UUID, FK): Candidate applying
 - `stage` (Enum): APPLIED, SCREENING, INTERVIEW, OFFER, HIRED, REJECTED
 - `status` (Enum): PENDING, IN_REVIEW, ACCEPTED, REJECTED
-- `aiScore` (Float, Optional): Phase 2 - AI matching score (0-100)
-- `aiSummary` (Text, Optional): Phase 2 - AI-generated summary
+- `aiScore` (Float, Optional): AI matching score (0-100) - **Updated by CV Parser service**
+- `aiSummary` (Text, Optional): AI-generated summary - **Updated by CV Parser service**
 - `appliedAt`, `updatedAt`: Timestamps
 
 **Indexes**:
@@ -663,7 +675,7 @@ async function main() {
       title: 'Senior Full-Stack Developer',
       description: 'We are looking for an experienced full-stack developer...',
       requirements: {
-        skills: ['NestJS', 'Next.js', 'PostgreSQL', 'Kafka'],
+        skills: ['NestJS', 'Next.js', 'PostgreSQL', 'Spring Boot'],
         experience: '5+ years',
       },
       salaryRange: '$100k - $150k',
@@ -693,11 +705,61 @@ npm run prisma:seed
 
 ---
 
+## Service Access Patterns
+
+### API Gateway (NestJS) - Prisma Client
+```typescript
+// API Gateway có full access với Prisma
+const user = await prisma.user.create({...});
+const job = await prisma.job.create({...});
+const application = await prisma.application.create({...});
+
+// Read candidates (created by CV Parser)
+const candidates = await prisma.candidate.findMany({...});
+```
+
+### CV Parser (Spring Boot) - JDBC or Prisma (via Node bridge)
+
+**Option 1: Spring Data JPA (JDBC)**
+```java
+@Entity
+@Table(name = "candidates")
+public class Candidate {
+  @Id
+  private UUID id;
+
+  @Column(name = "resume_text")
+  private String resumeText;
+
+  @Column(name = "ai_score")
+  private Float aiScore;
+
+  // CV Parser updates these fields
+}
+```
+
+**Option 2: Call Prisma via Node.js wrapper** (if needed)
+```typescript
+// shared/prisma-bridge/update-candidate.ts
+export async function updateCandidate(id: string, data: UpdateData) {
+  return prisma.candidate.update({ where: { id }, data });
+}
+```
+
+### Notification Service (NestJS) - Read-only
+```typescript
+// Notification service chỉ đọc (via Redis cache hoặc API Gateway)
+// KHÔNG trực tiếp write vào database
+```
+
+---
+
 ## Related Documentation
 
 - [Prisma Documentation](https://www.prisma.io/docs)
 - [ADR-003: Use Prisma as ORM](./adr/ADR-003-prisma-orm.md)
+- [ADR-006: Polyglot 3-Service Architecture](./adr/ADR-006-hybrid-microservices.md) - Service ownership
 
 ---
 
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-02
