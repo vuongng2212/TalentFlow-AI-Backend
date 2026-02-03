@@ -1,8 +1,8 @@
 # 📚 Documentation Index - TalentFlow AI
 
-**Last Updated:** 2026-02-02
+**Last Updated:** 2026-02-03
 **Status:** Clean & Organized
-**Architecture:** Polyglot 3-Service (NestJS + Spring Boot + NestJS)
+**Architecture:** Polyglot 3-Service (NestJS + Spring Boot/ASP.NET Core)
 
 ---
 
@@ -119,10 +119,14 @@ talentflow-backend/
     │   ├── SRS.md
     │   ├── DATABASE_SCHEMA.md
     │   ├── API_REFERENCE.md
-    │   └── SECURITY.md
+    │   ├── SECURITY.md
+    │   ├── MONITORING.md              🆕 Monitoring & observability
+    │   └── PERFORMANCE.md             🆕 Performance optimization
     │
     ├── 👨‍💻 Development
     │   ├── CONTRIBUTING.md
+    │   ├── TESTING_STRATEGY.md
+    │   ├── DEPLOYMENT.md
     │   └── RECOMMENDED_SKILLS.md
     │
     ├── 📊 Project Management
@@ -185,12 +189,16 @@ talentflow-backend/
 | Database schema | DATABASE_SCHEMA.md |
 | Environment config | .env.example |
 | Local infrastructure | docker-compose.yml |
+| **Setup monitoring** | **MONITORING.md** 🆕 |
+| **Performance optimization** | **PERFORMANCE.md** 🆕 |
+| **Load testing** | **PERFORMANCE.md** 🆕 |
+| **Deploy to production** | **DEPLOYMENT.md** |
 
 ---
 
 ## 📊 Tóm Tắt Tài Liệu
 
-### Tổng Số Files: 19
+### Tổng Số Files: 21 (Updated!)
 
 #### Must Read - Start Here (5):
 1. ⭐ README.md - Setup guide
@@ -199,12 +207,18 @@ talentflow-backend/
 4. ⭐ TEAM_DECISIONS.md - Roadmap & decisions
 5. ⭐ SECURITY.md - Security policy
 
-#### Technical Reference (5):
+#### Technical Reference (7):
 6. SRS.md - Technical specification
 7. DATABASE_SCHEMA.md - Database design
 8. API_REFERENCE.md - API endpoints
 9. PRD.md - Product requirements
 10. RECOMMENDED_SKILLS.md - Claude skills
+11. **MONITORING.md** 🆕 - Monitoring & observability
+12. **PERFORMANCE.md** 🆕 - Performance optimization
+
+#### Operations & Deployment (2):
+13. DEPLOYMENT.md - Deployment guide
+14. TESTING_STRATEGY.md - Testing strategies
 
 #### Architecture Decisions - Active (6):
 11. ⭐ ADR-006 - **Polyglot 3-Service** (CURRENT)
