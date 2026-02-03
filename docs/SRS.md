@@ -14,16 +14,123 @@ Hệ thống sử dụng kiến trúc **Polyglot 3-Service** trong **single repo
 * **Single Repository Structure:** 3 services trong 1 Git repository (`api-gateway/`, `cv-parser/`, `notification-service/`) để dễ quản lý.
 * **Polyglot Services:** Mỗi service dùng tech stack phù hợp nhất:
   - **Service 1 (API Gateway):** NestJS - REST API, Auth, CRUD
-  - **Service 2 (CV Parser):** Spring Boot - CPU-intensive PDF/OCR processing
-  - **Service 3 (Notification):** NestJS - WebSocket, Email
+  - **Service 2 (CV Parser):** Spring Boot OR ASP.NET Core - CPU-intensive PDF/OCR processing
+  - **Service 3 (Notification):** NestJS OR ASP.NET Core - WebSocket, Email
 * **Clean Architecture Layers:**
   - **Domain Layer:** Entities, Use Cases, Business Rules - core business logic không phụ thuộc framework.
   - **Application Layer:** Service Interfaces, DTOs, Application Logic - orchestrate use cases.
-  - **Infrastructure Layer:** Database (Prisma), External APIs, Message Queue (BullMQ) - implementation details.
+  - **Infrastructure Layer:** Database (Prisma/EF Core), External APIs, Message Queue (BullMQ) - implementation details.
   - **Presentation Layer:** REST Controllers, WebSocket Gateways - handle HTTP/WS requests.
 * **Communication:** Async queue-based architecture với **BullMQ (Redis)** để đảm bảo simplicity và reliability cho MVP.
 
-**Architecture Diagram:**
+### C4 Model: Context Diagram
+
+```mermaid
+graph TB
+    %% External Actors
+    Recruiter[👤 Recruiter<br/>Creates jobs, reviews CVs]
+    HiringManager[👤 Hiring Manager<br/>Reviews candidates]
+    Admin[👤 Admin<br/>Manages system]
+
+    %% Main System
+    System[📦 TalentFlow AI System<br/>AI-Powered ATS]
+
+    %% External Systems
+    EmailService[📧 Email Service<br/>SendGrid/Resend]
+    AIService[🤖 AI Service<br/>Anthropic Claude API]
+    Storage[☁️ Cloud Storage<br/>Cloudflare R2]
+
+    %% Relationships
+    Recruiter -->|Upload CV, Review Candidates| System
+    HiringManager -->|Review Candidates, Interview| System
+    Admin -->|Manage Users & Jobs| System
+
+    System -->|Send Notifications| EmailService
+    System -->|Parse CV, Match Jobs| AIService
+    System -->|Store Files| Storage
+
+    %% Styling
+    classDef person fill:#08427B,stroke:#052E56,color:#fff
+    classDef system fill:#1168BD,stroke:#0B4884,color:#fff
+    classDef external fill:#999999,stroke:#6B6B6B,color:#fff
+
+    class Recruiter,HiringManager,Admin person
+    class System system
+    class EmailService,AIService,Storage external
+```
+
+**Context Diagram Legend:**
+- **Users:** Recruiters upload CVs and manage jobs, Hiring Managers review candidates
+- **System:** TalentFlow AI handles CV parsing, AI scoring, and workflow management
+- **External Systems:** Email for notifications, AI for CV processing, Cloud storage for files
+
+### C4 Model: Container Diagram
+
+```mermaid
+graph TB
+    %% Frontend
+    Frontend[🖥️ Web Application<br/>Next.js 16<br/>TypeScript, React Server Components]
+
+    %% Backend Services
+    subgraph "TalentFlow AI System"
+        APIGateway[⚙️ API Gateway<br/>NestJS TypeScript<br/>REST API, Auth, CRUD]
+        CVParser[🔧 CV Parser Service<br/>Spring Boot Java OR ASP.NET Core C#<br/>PDF/OCR Processing, AI Scoring]
+        Notification[📬 Notification Service<br/>NestJS TypeScript OR ASP.NET Core C#<br/>WebSocket, Email]
+
+        Database[(🗄️ PostgreSQL<br/>Neon Serverless<br/>Users, Jobs, CVs, Applications)]
+        Queue[🔄 Message Queue<br/>BullMQ + Redis<br/>Async Event Processing]
+        Cache[⚡ Redis Cache<br/>Session, Rate Limiting]
+    end
+
+    %% External Services
+    R2[☁️ Cloudflare R2<br/>CV File Storage]
+    Claude[🤖 Anthropic Claude<br/>CV Parsing & Scoring]
+    SendGrid[📧 SendGrid<br/>Email Notifications]
+
+    %% Relationships
+    Frontend -->|HTTPS REST API| APIGateway
+    Frontend -->|WebSocket| Notification
+
+    APIGateway -->|Query/Mutate| Database
+    APIGateway -->|Publish Events| Queue
+    APIGateway -->|Upload Files| R2
+    APIGateway -->|Cache Session| Cache
+
+    Queue -->|Consume cv.uploaded| CVParser
+    Queue -->|Consume cv.processed| Notification
+
+    CVParser -->|Download CV| R2
+    CVParser -->|Parse & Score| Claude
+    CVParser -->|Update Results| Database
+    CVParser -->|Publish cv.processed| Queue
+
+    Notification -->|Send Email| SendGrid
+    Notification -->|Push Updates| Frontend
+    Notification -->|Read Data| Database
+
+    %% Styling
+    classDef frontend fill:#1168BD,stroke:#0B4884,color:#fff
+    classDef service fill:#438DD5,stroke:#2E6295,color:#fff
+    classDef storage fill:#6DB33F,stroke:#4D7F2C,color:#fff
+    classDef external fill:#999999,stroke:#6B6B6B,color:#fff
+
+    class Frontend frontend
+    class APIGateway,CVParser,Notification service
+    class Database,Queue,Cache storage
+    class R2,Claude,SendGrid external
+```
+
+**Container Diagram Legend:**
+- **Frontend:** Next.js 16 web application for recruiters
+- **API Gateway:** NestJS service handling HTTP requests, authentication, CRUD
+- **CV Parser:** Spring Boot/ASP.NET service for CPU-intensive PDF parsing & OCR
+- **Notification:** NestJS/ASP.NET service for real-time WebSocket & email
+- **Database:** PostgreSQL for relational data (users, jobs, applications)
+- **Queue:** BullMQ (Redis) for async communication between services
+- **External:** Cloudflare R2 for file storage, Claude AI for CV processing
+
+### ASCII Architecture Diagram (Legacy)
+
 ```
 ┌────────────────────────────────────────────┐
 │     Service 1: API Gateway (NestJS)        │
@@ -35,7 +142,8 @@ Hệ thống sử dụng kiến trúc **Polyglot 3-Service** trong **single repo
 ┌──────▼───────────┐  ┌─────────▼───────────┐
 │ Service 2:       │  │ Service 3:          │
 │ CV Parser        │  │ Notification        │
-│ (Spring Boot)    │  │ (NestJS)            │
+│ (Spring Boot OR  │  │ (NestJS OR          │
+│  ASP.NET Core)   │  │  ASP.NET Core)      │
 │ - Tesseract OCR  │  │ - WebSocket         │
 │ - PDF parsing    │  │ - Email             │
 └──────────────────┘  └─────────────────────┘

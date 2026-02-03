@@ -43,6 +43,75 @@
 
 ## 🏗️ Deployment Architecture
 
+### Infrastructure Diagram
+
+```mermaid
+graph TB
+    %% Users
+    Users[👥 End Users]
+
+    %% CDN
+    CDN[🌐 Cloudflare CDN<br/>Optional Edge Cache]
+
+    %% Frontend
+    subgraph "Vercel Edge Network"
+        Frontend[🖥️ Frontend<br/>Next.js 16<br/>app.talentflow.ai]
+    end
+
+    %% Backend Services
+    subgraph "Railway (US Region)"
+        API[⚙️ API Gateway<br/>NestJS:3000<br/>api.talentflow.ai]
+        Parser[🔧 CV Parser<br/>Spring Boot:8080 OR<br/>ASP.NET Core:5000]
+        Notif[📬 Notification<br/>NestJS:3001 OR<br/>ASP.NET Core:5001]
+        Redis[⚡ Redis<br/>:6379<br/>BullMQ + Cache]
+    end
+
+    %% Database
+    subgraph "Neon (Serverless)"
+        DB[(🗄️ PostgreSQL<br/>Prisma/EF Core)]
+    end
+
+    %% External Services
+    subgraph "External Services"
+        R2[☁️ Cloudflare R2<br/>CV Storage]
+        Claude[🤖 Anthropic Claude<br/>AI API]
+        SendGrid[📧 SendGrid<br/>Email]
+    end
+
+    %% Connections
+    Users -->|HTTPS| CDN
+    CDN -->|Cache Miss| Frontend
+    Frontend -->|API Calls| API
+
+    API -->|TCP| DB
+    API -->|Pub/Sub| Redis
+    API -->|Upload| R2
+
+    Redis -->|Events| Parser
+    Redis -->|Events| Notif
+
+    Parser -->|Read| R2
+    Parser -->|AI Requests| Claude
+    Parser -->|Update| DB
+
+    Notif -->|Send| SendGrid
+    Notif -->|Read| DB
+    Notif -->|WebSocket| Frontend
+
+    %% Styling
+    classDef frontend fill:#1168BD,stroke:#0B4884,color:#fff
+    classDef service fill:#438DD5,stroke:#2E6295,color:#fff
+    classDef storage fill:#6DB33F,stroke:#4D7F2C,color:#fff
+    classDef external fill:#999999,stroke:#6B6B6B,color:#fff
+
+    class Frontend frontend
+    class API,Parser,Notif service
+    class DB,Redis storage
+    class R2,Claude,SendGrid,CDN external
+```
+
+### ASCII Architecture Diagram (Legacy)
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │                   PRODUCTION                        │
@@ -68,19 +137,19 @@
 └─────────────────────┘
       ↓
 ┌─────────────────────┐
-│  Railway            │ → NestJS AI Worker
+│  Railway            │ → CV Parser (Spring Boot/ASP.NET)
 │  (Background)       │    - CV Processing
 └─────────────────────┘
       ↓
 ┌─────────────────────┐
-│  Neon PostgreSQL    │ → Database (Prisma)
+│  Neon PostgreSQL    │ → Database (Prisma/EF Core)
 │  Serverless         │
 └─────────────────────┘
 
 External Services:
-├── AWS S3                → File storage
-├── Upstash Redis         → Caching
-└── ELK + Grafana         → Monitoring (Self-hosted hoặc managed)
+├── Cloudflare R2         → File storage
+├── Anthropic Claude      → AI API
+└── SendGrid              → Email notifications
 ```
 
 ---

@@ -1,6 +1,6 @@
 # TalentFlow AI - Backend
 
-> **AI-Powered Applicant Tracking System (ATS)** built with **Polyglot 3-Service Architecture**: NestJS + Spring Boot + NestJS.
+> **AI-Powered Applicant Tracking System (ATS)** built with **Flexible Polyglot 3-Service Architecture**: Choose the best framework for each service based on your team's expertise.
 
 ## 📋 Table of Contents
 
@@ -34,7 +34,7 @@ TalentFlow AI is a modern ATS that streamlines recruitment workflows with:
 
 ## 🏗️ Architecture
 
-We use a **Polyglot 3-Service Architecture** to leverage team expertise and handle CPU-intensive workloads efficiently:
+We use a **Flexible Polyglot 3-Service Architecture** that lets you choose the best framework for each service based on your team's expertise:
 
 ```
 ┌────────────────────────────────────────────────────┐
@@ -43,7 +43,7 @@ We use a **Polyglot 3-Service Architecture** to leverage team expertise and hand
 └─────────────────────┬──────────────────────────────┘
                       │ REST API (HTTPS)
 ┌─────────────────────┴──────────────────────────────┐
-│         Service 1: API Gateway (NestJS)             │
+│    Service 1: API Gateway (NestJS - TypeScript)     │
 │  - REST API endpoints                               │
 │  - JWT Authentication + RBAC                        │
 │  - Jobs/Candidates CRUD                             │
@@ -53,21 +53,22 @@ We use a **Polyglot 3-Service Architecture** to leverage team expertise and hand
        │                         │
        │ BullMQ (Redis)         │ PostgreSQL (Shared)
        │                         │
-┌──────▼────────────────┐  ┌────▼────────────────────┐
-│ Service 2: CV Parser  │  │ Service 3: Notification │
-│   (Spring Boot)       │  │      (NestJS)           │
-│ - BullMQ Consumer     │  │ - BullMQ Consumer       │
-│ - PDF/DOCX parsing    │  │ - WebSocket real-time   │
-│ - Tesseract OCR       │  │ - Email notifications   │
-│ - AI Score (LLM API)  │  │                         │
-└───────────────────────┘  └─────────────────────────┘
+┌──────▼────────────────────────┐  ┌──────▼──────────────────────┐
+│ Service 2: CV Parser          │  │ Service 3: Notification      │
+│ (Spring Boot OR ASP.NET Core) │  │ (NestJS OR ASP.NET Core)     │
+│ - BullMQ Consumer             │  │ - BullMQ Consumer            │
+│ - PDF/DOCX parsing            │  │ - WebSocket real-time        │
+│ - Tesseract OCR               │  │ - Email notifications        │
+│ - AI Score (LLM API)          │  │                              │
+└───────────────────────────────┘  └──────────────────────────────┘
 ```
 
 **Why 3 Services?**
-- ✅ **CPU-Intensive Isolation**: Spring Boot handles Tesseract OCR without blocking Node.js event loop
-- ✅ **Technology Fit**: Best tool for each job (NestJS for API, Java for PDF parsing)
+- ✅ **CPU-Intensive Isolation**: Dedicated service handles Tesseract OCR without blocking API Gateway
+- ✅ **Technology Flexibility**: Choose the best framework per service (NestJS, Spring Boot, ASP.NET Core)
 - ✅ **Independent Scaling**: Scale CV Parser horizontally for high load
 - ✅ **Clear Boundaries**: Each service has single responsibility (SOLID SRP)
+- ✅ **Team Expertise**: Leverage your team's existing skills (TypeScript, Java, or C#)
 
 **See:** [ADR-006: Polyglot 3-Service Architecture](docs/adr/ADR-006-hybrid-microservices.md)
 
@@ -75,7 +76,9 @@ We use a **Polyglot 3-Service Architecture** to leverage team expertise and hand
 
 ## 🛠️ Tech Stack
 
-### Service 1: API Gateway (NestJS)
+> **Flexibility First:** Each service can use the framework that best fits your team's expertise. Below are the recommended options:
+
+### Service 1: API Gateway (NestJS - Required)
 | Component | Technology | Version |
 |-----------|------------|---------|
 | **Runtime** | Node.js | 20.x |
@@ -86,7 +89,9 @@ We use a **Polyglot 3-Service Architecture** to leverage team expertise and hand
 | **Auth** | Passport + JWT | - |
 | **Testing** | Jest | 29.x |
 
-### Service 2: CV Parser (Spring Boot)
+### Service 2: CV Parser (Choose One)
+
+#### Option A: Spring Boot (Java) - Recommended
 | Component | Technology | Version |
 |-----------|------------|---------|
 | **Runtime** | Java JDK | 17+ |
@@ -95,14 +100,63 @@ We use a **Polyglot 3-Service Architecture** to leverage team expertise and hand
 | **DOCX Parsing** | Apache POI | 5.x |
 | **OCR** | Tesseract | 5.x |
 | **Queue** | BullMQ (via Redis) | - |
+| **Testing** | JUnit 5 + Mockito | - |
 
-### Service 3: Notification (NestJS)
+**When to choose Spring Boot:**
+- ✅ Team has Java expertise
+- ✅ Need mature PDF/OCR libraries (PDFBox, Tesseract4J)
+- ✅ Want JVM performance for CPU-intensive tasks
+- ✅ Prefer Spring ecosystem (Spring Data, Spring Security)
+
+#### Option B: ASP.NET Core (C#)
+| Component | Technology | Version |
+|-----------|------------|---------|
+| **Runtime** | .NET SDK | 8.0+ |
+| **Framework** | ASP.NET Core | 8.x |
+| **PDF Parsing** | iTextSharp / PDFium | Latest |
+| **DOCX Parsing** | DocumentFormat.OpenXml | 3.x |
+| **OCR** | Tesseract (via wrapper) | 5.x |
+| **Queue** | StackExchange.Redis | Latest |
+| **ORM** | Entity Framework Core | 8.x |
+| **Testing** | xUnit + Moq | - |
+
+**When to choose ASP.NET Core:**
+- ✅ Team has C# expertise
+- ✅ Prefer .NET ecosystem
+- ✅ Want async/await patterns for I/O
+- ✅ Need Windows-specific integrations
+
+### Service 3: Notification (Choose One)
+
+#### Option A: NestJS (TypeScript) - Recommended
 | Component | Technology | Version |
 |-----------|------------|---------|
 | **Runtime** | Node.js | 20.x |
 | **Framework** | NestJS | 10.x |
 | **WebSocket** | Socket.io | 4.x |
 | **Email** | SendGrid/Resend | - |
+| **Testing** | Jest | 29.x |
+
+**When to choose NestJS:**
+- ✅ Team already using NestJS for API Gateway
+- ✅ WebSocket support is first-class
+- ✅ Prefer TypeScript for all Node services
+- ✅ Want code sharing with API Gateway
+
+#### Option B: ASP.NET Core (C#)
+| Component | Technology | Version |
+|-----------|------------|---------|
+| **Runtime** | .NET SDK | 8.0+ |
+| **Framework** | ASP.NET Core | 8.x |
+| **WebSocket** | SignalR | 8.x |
+| **Email** | SendGrid / FluentEmail | Latest |
+| **Testing** | xUnit + Moq | - |
+
+**When to choose ASP.NET Core:**
+- ✅ Team has C# expertise
+- ✅ SignalR for real-time communication
+- ✅ Want unified .NET stack across services
+- ✅ Prefer strongly-typed language
 
 ### Shared Infrastructure
 | Component | Technology | Version |
@@ -114,19 +168,76 @@ We use a **Polyglot 3-Service Architecture** to leverage team expertise and hand
 
 ---
 
+## 🎯 Tech Stack Decision Matrix
+
+Use this matrix to choose the right framework for each service based on your team:
+
+| Your Team Has | Service 2 (CV Parser) | Service 3 (Notification) | Total Setup Time |
+|---------------|----------------------|--------------------------|------------------|
+| **TypeScript only** | ⚠️ Spring Boot (learning curve) | ✅ NestJS | 2-3 days |
+| **Java only** | ✅ Spring Boot | ⚠️ NestJS (learning curve) | 2-3 days |
+| **C# only** | ✅ ASP.NET Core | ✅ ASP.NET Core | 1-2 days |
+| **TypeScript + Java** | ✅ Spring Boot | ✅ NestJS | 1 day |
+| **TypeScript + C#** | ✅ ASP.NET Core | ✅ NestJS or ASP.NET | 1 day |
+| **Java + C#** | ✅ Either (pick one) | ✅ ASP.NET Core | 1-2 days |
+| **All 3 languages** | ✅ Any | ✅ Any | < 1 day |
+
+**Recommended Combinations:**
+
+1. **Full TypeScript Stack** (Easiest for JS/TS teams):
+   - Service 1: NestJS ✅
+   - Service 2: NestJS (but OCR may block event loop ⚠️)
+   - Service 3: NestJS ✅
+   - **Pros:** Code sharing, unified language, fast onboarding
+   - **Cons:** CV Parser performance issues with Tesseract
+
+2. **TypeScript + Java** (Balanced - Recommended):
+   - Service 1: NestJS ✅
+   - Service 2: Spring Boot ✅ (Best PDF/OCR libraries)
+   - Service 3: NestJS ✅
+   - **Pros:** Best tool for each job, mature Java libraries
+   - **Cons:** Two languages to maintain
+
+3. **TypeScript + C#** (Windows/Azure teams):
+   - Service 1: NestJS ✅
+   - Service 2: ASP.NET Core ✅
+   - Service 3: ASP.NET Core ✅
+   - **Pros:** Great .NET libraries, async patterns
+   - **Cons:** Two languages to maintain
+
+4. **Full C# Stack** (.NET shops):
+   - Service 1: NestJS ✅ (Best for API Gateway)
+   - Service 2: ASP.NET Core ✅
+   - Service 3: ASP.NET Core ✅
+   - **Pros:** Unified .NET stack, strong typing
+   - **Cons:** Need to learn NestJS for Service 1
+
+---
+
 ## 📦 Prerequisites
 
-Make sure you have installed:
+Make sure you have installed the base requirements:
 
-- **Node.js** >= 20.0.0 ([Download](https://nodejs.org/))
-- **Java JDK** >= 17 ([Download](https://adoptium.net/)) - for CV Parser service
-- **Maven** or **Gradle** ([Download](https://maven.apache.org/))
-- **Docker** & **Docker Compose** ([Download](https://www.docker.com/))
+### Required for All Setups:
+- **Node.js** >= 20.0.0 ([Download](https://nodejs.org/)) - For API Gateway (Service 1)
+- **Docker** & **Docker Compose** ([Download](https://www.docker.com/)) - For PostgreSQL, Redis
 - **Git** ([Download](https://git-scm.com/))
 
-**Optional but recommended:**
-- **VS Code** with extensions: ESLint, Prettier, Prisma
-- **IntelliJ IDEA** (for Spring Boot service)
+### Choose Based on Your Tech Stack:
+
+#### If using Spring Boot (Service 2 CV Parser):
+- **Java JDK** >= 17 ([Download](https://adoptium.net/))
+- **Maven** or **Gradle** ([Download](https://maven.apache.org/))
+- **Tesseract OCR** ([Installation Guide](https://tesseract-ocr.github.io/tessdoc/Installation.html))
+
+#### If using ASP.NET Core (Service 2 or 3):
+- **.NET SDK** >= 8.0 ([Download](https://dotnet.microsoft.com/download))
+- **Tesseract OCR** (if for Service 2) ([Installation Guide](https://tesseract-ocr.github.io/tessdoc/Installation.html))
+
+### Recommended IDEs:
+- **VS Code** with extensions: ESLint, Prettier, Prisma (for NestJS services)
+- **IntelliJ IDEA** or **Eclipse** (for Spring Boot service)
+- **Visual Studio** or **Rider** (for ASP.NET Core services)
 
 ---
 
@@ -198,7 +309,9 @@ You should see:
 
 ### 4. Setup Each Service
 
-#### Service 1: API Gateway (NestJS)
+> **Note:** Setup depends on which tech stack you chose for Services 2 & 3.
+
+#### Service 1: API Gateway (NestJS) - Required
 
 ```bash
 cd api-gateway
@@ -219,7 +332,9 @@ npx prisma db seed
 npm run start:dev
 ```
 
-#### Service 2: CV Parser (Spring Boot)
+#### Service 2: CV Parser - Choose Your Stack
+
+##### Option A: Spring Boot (Java)
 
 ```bash
 cd cv-parser
@@ -234,7 +349,27 @@ mvn spring-boot:run
 gradle bootRun
 ```
 
-#### Service 3: Notification (NestJS)
+##### Option B: ASP.NET Core (C#)
+
+```bash
+cd cv-parser
+
+# Restore dependencies
+dotnet restore
+
+# Run database migrations (if using EF Core)
+dotnet ef database update
+
+# Start application
+dotnet run
+
+# Or watch mode
+dotnet watch run
+```
+
+#### Service 3: Notification - Choose Your Stack
+
+##### Option A: NestJS (TypeScript)
 
 ```bash
 cd notification-service
@@ -246,6 +381,21 @@ npm install
 npm run start:dev
 ```
 
+##### Option B: ASP.NET Core (C#)
+
+```bash
+cd notification-service
+
+# Restore dependencies
+dotnet restore
+
+# Start application
+dotnet run
+
+# Or watch mode
+dotnet watch run
+```
+
 ### 5. Verify Installation
 
 Open your browser and navigate to:
@@ -253,8 +403,14 @@ Open your browser and navigate to:
 - **API Gateway**: http://localhost:3000
 - **Swagger API Docs**: http://localhost:3000/api/docs
 - **Health Check**: http://localhost:3000/health
-- **CV Parser**: http://localhost:8080/actuator/health
-- **Notification Service**: http://localhost:3001/health
+
+**Service 2 (CV Parser):**
+- **Spring Boot**: http://localhost:8080/actuator/health
+- **ASP.NET Core**: http://localhost:5000/health
+
+**Service 3 (Notification):**
+- **NestJS**: http://localhost:3001/health
+- **ASP.NET Core**: http://localhost:5001/health
 
 ---
 
@@ -278,7 +434,7 @@ talentflow-backend/  (Single Git Repository)
 │   ├── package.json
 │   └── tsconfig.json
 │
-├── cv-parser/                    # Service 2: Spring Boot CV Parser
+├── cv-parser/                    # Service 2: CV Parser (Spring Boot OR ASP.NET Core)
 │   ├── src/main/java/
 │   │   └── com/talentflow/parser/
 │   │       ├── consumer/         # BullMQ consumer
@@ -291,7 +447,7 @@ talentflow-backend/  (Single Git Repository)
 │   ├── pom.xml (or build.gradle)
 │   └── application.yml
 │
-├── notification-service/         # Service 3: NestJS Notification
+├── notification-service/         # Service 3: Notification (NestJS OR ASP.NET Core)
 │   ├── src/
 │   │   ├── gateways/
 │   │   │   └── websocket.gateway.ts
@@ -355,7 +511,9 @@ npm run lint
 npm run format
 ```
 
-### Service 2: CV Parser (Spring Boot)
+### Service 2: CV Parser - Choose Your Stack
+
+#### Spring Boot (Java)
 
 ```bash
 cd cv-parser
@@ -373,7 +531,27 @@ mvn test                       # Run tests
 mvn verify                     # Integration tests
 ```
 
-### Service 3: Notification (NestJS)
+#### ASP.NET Core (C#)
+
+```bash
+cd cv-parser
+
+# Development
+dotnet run                     # Start application
+dotnet watch run               # Watch mode (hot reload)
+
+# Build
+dotnet build                   # Build project
+dotnet publish -c Release      # Build for production
+
+# Testing
+dotnet test                    # Run all tests
+dotnet test --filter "Category=Unit"  # Unit tests only
+```
+
+### Service 3: Notification - Choose Your Stack
+
+#### NestJS (TypeScript)
 
 ```bash
 cd notification-service
@@ -382,6 +560,23 @@ cd notification-service
 npm run start:dev
 npm run test
 npm run lint
+```
+
+#### ASP.NET Core (C#)
+
+```bash
+cd notification-service
+
+# Development
+dotnet run                     # Start application
+dotnet watch run               # Watch mode (hot reload)
+
+# Build
+dotnet build
+dotnet publish -c Release
+
+# Testing
+dotnet test
 ```
 
 ### Development Workflow

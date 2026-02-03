@@ -16,8 +16,65 @@
 - [Jobs](#jobs)
 - [Candidates](#candidates)
 - [Applications](#applications)
+- [Sequence Diagrams](#sequence-diagrams)
 - [Error Handling](#error-handling)
 - [Rate Limiting](#rate-limiting)
+
+---
+
+## Sequence Diagrams
+
+### CV Upload & Processing Flow
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend<br/>(Next.js)
+    participant A as API Gateway<br/>(NestJS)
+    participant Q as BullMQ<br/>(Redis Queue)
+    participant P as CV Parser<br/>(Spring Boot/ASP.NET)
+    participant D as Database<br/>(PostgreSQL)
+    participant R as Storage<br/>(Cloudflare R2)
+    participant N as Notification<br/>(NestJS/ASP.NET)
+    participant AI as Claude AI
+
+    %% Upload Phase
+    F->>A: POST /api/v1/candidates/upload<br/>(PDF file, jobId)
+    A->>A: Validate file<br/>(size < 10MB, type = PDF)
+    A->>R: Upload to R2<br/>(generate signed URL)
+    R-->>A: File URL
+    A->>D: Insert CV metadata<br/>(candidateId, fileUrl, status=PROCESSING)
+    D-->>A: CV ID
+    A->>Q: Publish cv.uploaded event<br/>{candidateId, fileUrl, jobId}
+    A-->>F: 202 Accepted<br/>{cvId, status: "processing"}
+
+    %% Processing Phase
+    Note over Q,P: Async Processing Starts
+    Q->>P: Consume cv.uploaded event
+    P->>R: Download CV file
+    R-->>P: PDF bytes
+    P->>P: Extract text<br/>(PDFBox/iTextSharp + Tesseract OCR)
+    P->>AI: Parse CV structure<br/>(name, email, skills, experience)
+    AI-->>P: Parsed JSON
+    P->>AI: Calculate match score<br/>(CV vs Job Requirements)
+    AI-->>P: Score (0-100)
+    P->>D: Update CV record<br/>(parsed_data, ai_score, status=COMPLETED)
+    P->>Q: Publish cv.processed event<br/>{candidateId, score, matched_jobs}
+
+    %% Notification Phase
+    Note over Q,N: Notification Flow
+    Q->>N: Consume cv.processed event
+    N->>D: Fetch candidate & job details
+    D-->>N: Data
+    N->>F: WebSocket push<br/>"CV processed: 85% match!"
+    N->>N: Send email to recruiter<br/>(optional)
+
+    Note over F: UI updates Kanban board<br/>with new candidate card
+```
+
+**Flow Steps:**
+1. **Upload (Sync):** Frontend uploads CV → API Gateway validates → Store in R2 → Queue event
+2. **Processing (Async):** CV Parser consumes event → Parse PDF → Call AI → Update DB
+3. **Notification (Async):** Notification service consumes event → WebSocket to Frontend → Email to recruiter
 
 ---
 
