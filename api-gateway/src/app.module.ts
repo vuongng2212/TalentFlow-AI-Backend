@@ -7,8 +7,14 @@ import { AppService } from './app.service';
 import { AppConfigModule } from './common/config/config.module';
 import { HealthModule } from './health/health.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { RedisModule } from './redis/redis.module';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
 import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
 import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { RolesGuard } from './auth/guards/roles.guard';
 
 @Module({
   imports: [
@@ -28,6 +34,10 @@ import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
     }),
     HealthModule,
     MetricsModule,
+    PrismaModule,
+    RedisModule,
+    AuthModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [
@@ -39,6 +49,14 @@ import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
     {
       provide: APP_INTERCEPTOR,
       useClass: MetricsInterceptor,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
     },
     {
       provide: APP_GUARD,
