@@ -5,9 +5,10 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import hpp from 'hpp';
 import { json, urlencoded } from 'express';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import cookieParser from 'cookie-parser';
 import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -36,6 +37,7 @@ async function bootstrap() {
     }),
   );
   app.use(hpp());
+  app.use(cookieParser());
   app.enableCors({
     origin: corsOrigins.length > 0 ? corsOrigins : [/^http:\/\/localhost:\d+$/],
     credentials: true,
@@ -53,7 +55,7 @@ async function bootstrap() {
     }),
   );
 
-  app.useGlobalInterceptors(new RequestLoggerInterceptor());
+  app.useGlobalInterceptors(new RequestLoggerInterceptor(), new TransformInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
 
   await app.listen(port);
