@@ -55,7 +55,9 @@ describe('UsersService', () => {
         deletedAt: null,
       };
 
-      (prisma.user.create as jest.Mock).mockResolvedValue(expectedUser);
+      const createSpy = jest
+        .spyOn(prisma.user, 'create')
+        .mockResolvedValue(expectedUser);
 
       const result = await service.create(
         createUserDto.email,
@@ -65,7 +67,7 @@ describe('UsersService', () => {
       );
 
       expect(result).toEqual(expectedUser);
-      expect(prisma.user.create).toHaveBeenCalledWith({
+      expect(createSpy).toHaveBeenCalledWith({
         data: createUserDto,
       });
     });
@@ -76,23 +78,30 @@ describe('UsersService', () => {
       const email = 'test@example.com';
       const expectedUser = { id: 'uuid', email };
 
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(expectedUser);
+      const findSpy = jest
+        .spyOn(prisma.user, 'findUnique')
+        .mockResolvedValue(expectedUser);
 
       const result = await service.findByEmail(email);
 
       expect(result).toEqual(expectedUser);
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      expect(findSpy).toHaveBeenCalledWith({
         where: { email },
       });
     });
 
     it('should return null if user not found', async () => {
       const email = 'notfound@example.com';
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+      const findSpy = jest
+        .spyOn(prisma.user, 'findUnique')
+        .mockResolvedValue(null);
 
       const result = await service.findByEmail(email);
 
       expect(result).toBeNull();
+      expect(findSpy).toHaveBeenCalledWith({
+        where: { email },
+      });
     });
   });
 });

@@ -12,6 +12,13 @@ interface JwtPayload {
   role: string;
 }
 
+const cookieExtractor =
+  (cookieName: string) =>
+  (request: Request | undefined): string | null => {
+    const cookies = request?.cookies as Record<string, string> | undefined;
+    return cookies?.[cookieName] ?? null;
+  };
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
@@ -25,9 +32,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
-        (request: Request) => {
-          return request?.cookies?.[ACCESS_TOKEN_COOKIE_NAME];
-        },
+        cookieExtractor(ACCESS_TOKEN_COOKIE_NAME),
       ]),
       ignoreExpiration: false,
       secretOrKey: secret,

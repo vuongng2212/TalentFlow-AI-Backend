@@ -13,7 +13,7 @@ import {
   JWT_ACCESS_TOKEN_EXPIRATION,
   JWT_REFRESH_TOKEN_EXPIRATION,
 } from './constants/auth.constants';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 interface TokenPayload {
   sub: string;
@@ -34,12 +34,7 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async signup(
-    email: string,
-    password: string,
-    fullName: string,
-    role: Role,
-  ) {
+  async signup(email: string, password: string, fullName: string, role: Role) {
     const existingUser = await this.usersService.findByEmail(email);
 
     if (existingUser) {
@@ -94,7 +89,7 @@ export class AuthService {
     };
   }
 
-  async refresh(userId: string, email: string) {
+  async refresh(userId: string) {
     const user = await this.usersService.findById(userId);
 
     if (!user || user.deletedAt) {
@@ -122,14 +117,18 @@ export class AuthService {
     );
   }
 
-  private async generateTokens(user: { id: string; email: string; role: Role }) {
+  private async generateTokens(user: {
+    id: string;
+    email: string;
+    role: Role;
+  }) {
     const accessTokenPayload: TokenPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
     };
 
-    const tokenId = uuidv4();
+    const tokenId = randomUUID();
     const refreshTokenPayload: RefreshTokenPayload = {
       sub: user.id,
       email: user.email,
@@ -137,18 +136,25 @@ export class AuthService {
       tokenId,
     };
 
+    const accessSecret = this.configService.get<string>('JWT_ACCESS_SECRET');
+    const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+
+    if (!accessSecret || !refreshSecret) {
+      throw new Error('JWT secrets are not configured');
+    }
+
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(accessTokenPayload, {
-        secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
+        secret: accessSecret,
         expiresIn: JWT_ACCESS_TOKEN_EXPIRATION,
       }),
       this.jwtService.signAsync(refreshTokenPayload, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+        secret: refreshSecret,
         expiresIn: JWT_REFRESH_TOKEN_EXPIRATION,
       }),
     ]);
 
-    return { accessToken, refreshToken };
+    return { accessToken, refreshToken } as const;
   }
 
   private async storeRefreshToken(userId: string, refreshToken: string) {

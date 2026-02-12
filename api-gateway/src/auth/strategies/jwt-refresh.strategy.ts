@@ -12,13 +12,20 @@ interface JwtRefreshPayload {
   tokenId: string;
 }
 
+const cookieExtractor =
+  (cookieName: string) =>
+  (request: Request | undefined): string | null => {
+    const cookies = request?.cookies as Record<string, string> | undefined;
+    return cookies?.[cookieName] ?? null;
+  };
+
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(
   Strategy,
   'jwt-refresh',
 ) {
   constructor(
-    private readonly configService: ConfigService,
+    configService: ConfigService,
     private readonly redisService: RedisService,
   ) {
     const secret = configService.get<string>('JWT_REFRESH_SECRET');
@@ -28,9 +35,7 @@ export class JwtRefreshStrategy extends PassportStrategy(
 
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
-        (request: Request) => {
-          return request?.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
-        },
+        cookieExtractor(REFRESH_TOKEN_COOKIE_NAME),
       ]),
       ignoreExpiration: false,
       secretOrKey: secret,
@@ -39,7 +44,7 @@ export class JwtRefreshStrategy extends PassportStrategy(
   }
 
   async validate(request: Request, payload: JwtRefreshPayload) {
-    const token = request.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
+    const token = cookieExtractor(REFRESH_TOKEN_COOKIE_NAME)(request);
 
     if (!token) {
       throw new UnauthorizedException('Refresh token not found');
@@ -65,6 +70,6 @@ export class JwtRefreshStrategy extends PassportStrategy(
       id: payload.sub,
       email: payload.email,
       tokenId: payload.tokenId,
-    };
+    } as const;
   }
 }

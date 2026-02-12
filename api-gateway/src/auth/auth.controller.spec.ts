@@ -6,7 +6,6 @@ import { Role } from '@prisma/client';
 
 describe('AuthController', () => {
   let controller: AuthController;
-  let authService: AuthService;
 
   const mockAuthService = {
     signup: jest.fn(),
@@ -15,10 +14,10 @@ describe('AuthController', () => {
     logout: jest.fn(),
   };
 
-  const mockResponse = {
+  const createMockResponse = (): Pick<Response, 'cookie' | 'clearCookie'> => ({
     cookie: jest.fn(),
     clearCookie: jest.fn(),
-  } as unknown as Response;
+  });
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -32,7 +31,6 @@ describe('AuthController', () => {
     }).compile();
 
     controller = module.get<AuthController>(AuthController);
-    authService = module.get<AuthService>(AuthService);
   });
 
   afterEach(() => {
@@ -49,7 +47,7 @@ describe('AuthController', () => {
       };
 
       const expectedUser = { id: 'uuid', ...dto };
-      (mockAuthService.signup as jest.Mock).mockResolvedValue(expectedUser);
+      mockAuthService.signup.mockResolvedValue(expectedUser);
 
       const result = await controller.signup(dto);
 
@@ -69,11 +67,12 @@ describe('AuthController', () => {
         user: { id: 'uuid', email: dto.email },
       };
 
-      (mockAuthService.login as jest.Mock).mockResolvedValue(authResult);
+      mockAuthService.login.mockResolvedValue(authResult);
+      const response = createMockResponse();
 
-      const result = await controller.login(dto, mockResponse);
+      const result = await controller.login(dto, response as Response);
 
-      expect(mockResponse.cookie).toHaveBeenCalledTimes(2); // Access and Refresh tokens
+      expect(response.cookie).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
         message: 'Login successful',
         user: authResult.user,
@@ -83,12 +82,22 @@ describe('AuthController', () => {
 
   describe('logout', () => {
     it('should clear cookies', async () => {
-      const user = { id: 'uuid', email: 'test@example.com', role: 'RECRUITER', fullName: 'Test', tokenId: 'token-id' };
+      const user = {
+        id: 'uuid',
+        email: 'test@example.com',
+        role: 'RECRUITER',
+        fullName: 'Test',
+        tokenId: 'token-id',
+      };
 
-      await controller.logout(user, mockResponse);
+      const response = createMockResponse();
+      await controller.logout(user, response as Response);
 
-      expect(mockAuthService.logout).toHaveBeenCalledWith(user.id, user.tokenId);
-      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(2);
+      expect(mockAuthService.logout).toHaveBeenCalledWith(
+        user.id,
+        user.tokenId,
+      );
+      expect(response.clearCookie).toHaveBeenCalledTimes(2);
     });
   });
 });

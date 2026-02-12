@@ -10,9 +10,6 @@ import * as passwordUtil from '../common/utils/password.util';
 
 describe('AuthService', () => {
   let service: AuthService;
-  let usersService: UsersService;
-  let jwtService: JwtService;
-  let redisService: RedisService;
 
   const mockUsersService = {
     findByEmail: jest.fn(),
@@ -52,9 +49,6 @@ describe('AuthService', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    usersService = module.get<UsersService>(UsersService);
-    jwtService = module.get<JwtService>(JwtService);
-    redisService = module.get<RedisService>(RedisService);
   });
 
   afterEach(() => {
@@ -70,23 +64,44 @@ describe('AuthService', () => {
         role: Role.RECRUITER,
       };
 
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(null);
-      jest.spyOn(passwordUtil, 'hashPassword').mockResolvedValue('hashed_password');
-      (mockUsersService.create as jest.Mock).mockResolvedValue({ id: 'uuid', ...signupData });
+      mockUsersService.findByEmail.mockResolvedValue(null);
+      jest
+        .spyOn(passwordUtil, 'hashPassword')
+        .mockResolvedValue('hashed_password');
+      mockUsersService.create.mockResolvedValue({
+        id: 'uuid',
+        ...signupData,
+      });
 
-      const result = await service.signup(signupData.email, signupData.password, signupData.fullName, signupData.role);
+      const result = await service.signup(
+        signupData.email,
+        signupData.password,
+        signupData.fullName,
+        signupData.role,
+      );
 
-      expect(mockUsersService.findByEmail).toHaveBeenCalledWith(signupData.email);
-      expect(passwordUtil.hashPassword).toHaveBeenCalledWith(signupData.password);
+      expect(mockUsersService.findByEmail).toHaveBeenCalledWith(
+        signupData.email,
+      );
+      expect(passwordUtil.hashPassword).toHaveBeenCalledWith(
+        signupData.password,
+      );
       expect(mockUsersService.create).toHaveBeenCalled();
       expect(result).toBeDefined();
     });
 
     it('should throw ConflictException if email exists', async () => {
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue({ id: 'uuid' });
+      mockUsersService.findByEmail.mockResolvedValue({
+        id: 'uuid',
+      });
 
       await expect(
-        service.signup('test@example.com', 'Password123!', 'Test', Role.RECRUITER),
+        service.signup(
+          'test@example.com',
+          'Password123!',
+          'Test',
+          Role.RECRUITER,
+        ),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -94,11 +109,16 @@ describe('AuthService', () => {
   describe('login', () => {
     it('should return tokens and user on successful login', async () => {
       const loginData = { email: 'test@example.com', password: 'Password123!' };
-      const user = { id: 'uuid', email: loginData.email, password: 'hashed_password', role: Role.RECRUITER };
+      const user = {
+        id: 'uuid',
+        email: loginData.email,
+        password: 'hashed_password',
+        role: Role.RECRUITER,
+      };
 
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(user);
+      mockUsersService.findByEmail.mockResolvedValue(user);
       jest.spyOn(passwordUtil, 'comparePassword').mockResolvedValue(true);
-      (mockJwtService.signAsync as jest.Mock).mockResolvedValue('token');
+      mockJwtService.signAsync.mockResolvedValue('token');
 
       const result = await service.login(loginData.email, loginData.password);
 
@@ -109,7 +129,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException on invalid credentials', async () => {
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(null);
+      mockUsersService.findByEmail.mockResolvedValue(null);
 
       await expect(
         service.login('wrong@email.com', 'password'),

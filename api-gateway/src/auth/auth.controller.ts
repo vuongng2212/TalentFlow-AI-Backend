@@ -54,7 +54,10 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const { accessToken, refreshToken, user } = await this.authService.login(
       loginDto.email,
       loginDto.password,
@@ -86,7 +89,6 @@ export class AuthController {
   ) {
     const { accessToken, refreshToken } = await this.authService.refresh(
       user.id,
-      user.email,
     );
 
     res.cookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, {
@@ -105,7 +107,7 @@ export class AuthController {
   }
 
   @Get('me')
-  async getProfile(@CurrentUser() user: UserPayload) {
+  getProfile(@CurrentUser() user: UserPayload) {
     return {
       user: {
         id: user.id,

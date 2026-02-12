@@ -42,26 +42,29 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     // Try to get requestId from request first (set by interceptor), then response header
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const requestId =
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      (request as any)['x-request-id'] ||
-      request.headers['x-request-id'] ||
-      response.getHeader('x-request-id') ||
-      undefined;
+      (request.headers['x-request-id'] as string | undefined) ||
+      (response.getHeader('x-request-id') as string | string[] | undefined);
 
-    const errorObj = typeof message === 'object' && message !== null ? message : { message };
-    const errorMessage = (errorObj as any).message;
-    const errorName = (errorObj as any).error || HttpStatus[status];
+    const errorObj =
+      typeof message === 'object' && message !== null ? message : { message };
 
-    response.status(status).json({
+    const extractedMessage = (errorObj as { message?: string | string[] })
+      .message;
+
+    const responsePayload = {
       status,
-      error: errorName,
-      message: Array.isArray(errorMessage) ? 'Validation failed' : errorMessage || message,
-      details: Array.isArray(errorMessage) ? errorMessage : undefined,
+      error:
+        (errorObj as { error?: string }).error || HttpStatus[status] || 'Error',
+      message: Array.isArray(extractedMessage)
+        ? 'Validation failed'
+        : extractedMessage || message,
+      details: Array.isArray(extractedMessage) ? extractedMessage : undefined,
       timestamp: new Date().toISOString(),
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       requestId,
-    });
+    };
+
+    response.status(status).json(responsePayload);
   }
 }
