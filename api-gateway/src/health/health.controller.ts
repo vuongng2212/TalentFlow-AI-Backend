@@ -1,4 +1,5 @@
 import { Controller, Get, Injectable } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
 import {
   HealthCheck,
@@ -47,6 +48,7 @@ class RedisHealthIndicator extends HealthIndicator {
   }
 }
 
+@ApiTags('health')
 @Controller()
 export class HealthController {
   private prismaHealth: PrismaHealthIndicator;
