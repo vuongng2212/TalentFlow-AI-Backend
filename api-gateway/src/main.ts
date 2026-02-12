@@ -9,6 +9,7 @@ import cookieParser from 'cookie-parser';
 import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -60,6 +61,49 @@ async function bootstrap() {
     new TransformInterceptor(),
   );
   app.useGlobalFilters(new HttpExceptionFilter());
+
+  const swaggerEnabled = configService.get<boolean>('SWAGGER_ENABLED', true);
+  if (swaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('TalentFlow AI API')
+      .setDescription('API documentation for the TalentFlow AI API Gateway')
+      .setVersion('v1')
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'Enter your access token',
+        },
+        'access-token',
+      )
+      .build();
+
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('/api/docs', app, document, {
+      swaggerOptions: {
+        persistAuthorization: true,
+      },
+    });
+
+    const httpAdapter = app.getHttpAdapter();
+    const expressInstance =
+      typeof httpAdapter.getInstance === 'function'
+        ? httpAdapter.getInstance()
+        : null;
+
+    if (expressInstance && typeof expressInstance.get === 'function') {
+      expressInstance.get(
+        '/api-json',
+        (
+          _req: unknown,
+          res: { type: (type: string) => { send: (body: unknown) => void } },
+        ) => {
+          res.type('application/json').send(document);
+        },
+      );
+    }
+  }
 
   await app.listen(port);
   logger.log(`API Gateway listening on port ${port}`);
