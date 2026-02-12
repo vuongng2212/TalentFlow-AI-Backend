@@ -8,6 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { Request, Response } from 'express';
 import { Observable, tap } from 'rxjs';
+import { sanitizeUrl, sanitizeError } from '../utils/sanitize.util';
 
 const REQUEST_ID_HEADER = 'x-request-id';
 
@@ -31,23 +32,12 @@ export class RequestLoggerInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap({
         next: () => {
-          const ms = Date.now() - started;
-          const method = request.method ?? 'UNKNOWN';
-          const url = request.url ?? '';
-          const status = response.statusCode ?? 0;
-          this.logger.log(
-            `${method} ${url} ${status} +${ms}ms reqId=${requestId}`,
-          );
+          const duration = Date.now() - started;
+          this.logRequest(request, response, duration, requestId);
         },
         error: (err: unknown) => {
-          const ms = Date.now() - started;
-          const status = response.statusCode ?? 500;
-          const method = request.method ?? 'UNKNOWN';
-          const url = request.url ?? '';
-          const message = this.stringifyError(err);
-          this.logger.error(
-            `${method} ${url} ${status} +${ms}ms reqId=${requestId} err=${message}`,
-          );
+          const duration = Date.now() - started;
+          this.logError(request, response, duration, requestId, err);
           throw err;
         },
       }),
@@ -62,16 +52,54 @@ export class RequestLoggerInterceptor implements NestInterceptor {
     return randomUUID();
   }
 
-  private stringifyError(err: unknown): string {
-    if (err instanceof Error) return err.message;
-    if (typeof err === 'string') return err;
-    if (err && typeof err === 'object') {
-      try {
-        return JSON.stringify(err);
-      } catch {
-        return '[unserializable error object]';
-      }
-    }
-    return String(err);
+  /**
+   * Log successful HTTP request
+   */
+  private logRequest(
+    request: RequestWithId,
+    response: Response,
+    duration: number,
+    requestId: string,
+  ): void {
+    const method = request.method ?? 'UNKNOWN';
+    const url = sanitizeUrl(request.url ?? '');
+    const status = response.statusCode ?? 0;
+
+    this.logger.log({
+      msg: 'HTTP Request',
+      method,
+      url,
+      status,
+      duration,
+      requestId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Log HTTP request error
+   */
+  private logError(
+    request: RequestWithId,
+    response: Response,
+    duration: number,
+    requestId: string,
+    error: unknown,
+  ): void {
+    const method = request.method ?? 'UNKNOWN';
+    const url = sanitizeUrl(request.url ?? '');
+    const status = response.statusCode ?? 500;
+
+    this.logger.error({
+      msg: 'HTTP Request Failed',
+      method,
+      url,
+      status,
+      duration,
+      requestId,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      error: sanitizeError(error),
+      timestamp: new Date().toISOString(),
+    });
   }
 }

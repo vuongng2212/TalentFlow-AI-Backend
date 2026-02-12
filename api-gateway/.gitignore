@@ -58,3 +58,8 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 /docs
 /.claude
 CLAUDE.md
+
+/generated/prisma
+
+# Cookies (E2E testing)
+cookies.txt
