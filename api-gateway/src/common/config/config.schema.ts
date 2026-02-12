@@ -19,7 +19,14 @@ export const appConfigSchema = Joi.object({
   ),
   REDIS_URL: requiredInProd(Joi.string().uri(), 'redis://localhost:6379'),
 
-  JWT_SECRET: requiredInProd(Joi.string().min(16), 'test-secret-change-me'),
+  JWT_ACCESS_SECRET: requiredInProd(
+    Joi.string().min(16),
+    'test-access-secret-change-me',
+  ),
+  JWT_REFRESH_SECRET: requiredInProd(
+    Joi.string().min(16),
+    'test-refresh-secret-change-me',
+  ),
   JWT_ACCESS_EXPIRATION: Joi.string().default('15m'),
   JWT_REFRESH_EXPIRATION: Joi.string().default('7d'),
 
