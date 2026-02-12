@@ -55,7 +55,10 @@ async function bootstrap() {
     }),
   );
 
-  app.useGlobalInterceptors(new RequestLoggerInterceptor(), new TransformInterceptor());
+  app.useGlobalInterceptors(
+    new RequestLoggerInterceptor(),
+    new TransformInterceptor(),
+  );
   app.useGlobalFilters(new HttpExceptionFilter());
 
   await app.listen(port);
