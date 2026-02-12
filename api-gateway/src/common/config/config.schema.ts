@@ -43,4 +43,9 @@ export const appConfigSchema = Joi.object({
   TIMEOUT_MS: Joi.number().integer().min(1000).default(15000),
 
   CORS_ORIGINS: Joi.string().allow('', null).default('http://localhost:3001'),
+  SWAGGER_ENABLED: Joi.boolean().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.boolean().valid(false).default(false),
+    otherwise: Joi.boolean().default(true),
+  }),
 });
