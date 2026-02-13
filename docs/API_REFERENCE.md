@@ -1,10 +1,12 @@
 # API Reference
 
 **Project:** TalentFlow AI Backend
-**Base URL (Development):** `http://localhost:3000/api`
-**Base URL (Production):** `https://api.talentflow.ai/api`
+**Base URL (Development):** `http://localhost:3000/api/v1`
+**Base URL (Production):** `https://api.talentflow.ai/api/v1`
 **API Version:** v1
 **Architecture:** Service 1 (API Gateway - NestJS) exposes all REST endpoints
+
+**Note:** The endpoints `/health`, `/ready`, and `/metrics` are exposed at the root path (no version prefix), e.g. `/health`, `/ready`, `/metrics`.
 **Last Updated:** 2026-02-02
 
 ---
@@ -87,11 +89,12 @@ Production:  https://api.talentflow.ai/api/v1
 ```
 
 ### Authentication
-All endpoints (except `/auth/login` and `/auth/signup`) require JWT token:
+All endpoints (except `/auth/login` and `/auth/signup`) require valid JWT tokens stored in **HttpOnly Cookies**.
+The browser automatically sends these cookies with cross-origin credentials enabled (`credentials: 'include'`).
 
 ```http
 GET /api/v1/jobs
-Authorization: Bearer <your_jwt_token>
+Cookie: access_token=...; refresh_token=...
 ```
 
 ### Response Format
@@ -141,16 +144,14 @@ Content-Type: application/json
 ```json
 {
   "status": 201,
-  "message": "User created successfully",
+  "message": "User registered successfully",
   "data": {
     "user": {
       "id": "550e8400-e29b-41d4-a716-446655440000",
       "email": "recruiter@company.com",
       "fullName": "Jane Doe",
       "role": "RECRUITER"
-    },
-    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    }
   }
 }
 ```
@@ -158,7 +159,7 @@ Content-Type: application/json
 ---
 
 ### POST /auth/login
-Login existing user
+Login existing user. Returns `access_token` and `refresh_token` in HttpOnly cookies.
 
 **Request:**
 ```http
@@ -182,9 +183,7 @@ Content-Type: application/json
       "email": "recruiter@company.com",
       "fullName": "Jane Doe",
       "role": "RECRUITER"
-    },
-    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    }
   }
 }
 ```
@@ -192,25 +191,20 @@ Content-Type: application/json
 ---
 
 ### POST /auth/refresh
-Refresh access token
+Refresh access token using `refresh_token` cookie.
 
 **Request:**
 ```http
 POST /api/v1/auth/refresh
-Content-Type: application/json
-
-{
-  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
+Cookie: refresh_token=...
 ```
 
 **Response** (200):
 ```json
 {
   "status": 200,
-  "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-  }
+  "message": "Token refreshed successfully",
+  "data": null
 }
 ```
 
@@ -222,7 +216,7 @@ Get current user profile
 **Request:**
 ```http
 GET /api/v1/auth/me
-Authorization: Bearer <access_token>
+Cookie: access_token=...
 ```
 
 **Response** (200):
@@ -659,11 +653,13 @@ X-RateLimit-Reset: 1672574400
 ```
 http://localhost:3000/api/docs
 ```
+(Enabled only when `SWAGGER_ENABLED=true`, which defaults to non-production environments.)
 
 **OpenAPI JSON:**
 ```
 http://localhost:3000/api-json
 ```
+(Same availability rules as above.)
 
 ---
 
