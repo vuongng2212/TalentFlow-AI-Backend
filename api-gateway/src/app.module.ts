@@ -11,6 +11,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { JobsModule } from './jobs/jobs.module';
+import { ApplicationsModule } from './applications/applications.module';
 import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
 import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -38,6 +40,8 @@ import { RolesGuard } from './auth/guards/roles.guard';
     RedisModule,
     AuthModule,
     UsersModule,
+    JobsModule,
+    ApplicationsModule,
   ],
   controllers: [AppController],
   providers: [
