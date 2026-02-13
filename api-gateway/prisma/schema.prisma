@@ -8,20 +8,123 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  email     String    @unique
-  password  String
-  role      Role      @default(RECRUITER)
-  fullName  String    @map("full_name")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
+  id          String    @id @default(uuid())
+  email       String    @unique
+  password    String
+  role        Role      @default(RECRUITER)
+  fullName    String    @map("full_name")
+  createdJobs Job[]     @relation("JobCreator")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
 
   @@map("users")
+}
+
+model Job {
+  id             String         @id @default(uuid())
+  title          String
+  description    String?
+  requirements   Json?
+  department     String?
+  location       String?
+  employmentType EmploymentType @default(FULL_TIME)
+  salaryMin      Int?
+  salaryMax      Int?
+  status         JobStatus      @default(DRAFT)
+  createdById    String         @map("created_by_id")
+  createdBy      User           @relation("JobCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  applications   Application[]
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  deletedAt      DateTime?      @map("deleted_at")
+
+  @@index([createdById])
+  @@index([status])
+  @@map("jobs")
+}
+
+model Candidate {
+  id          String  @id @default(uuid())
+  email       String  @unique
+  fullName    String  @map("full_name")
+  phone       String?
+  linkedinUrl String? @map("linkedin_url")
+  resumeUrl   String? @map("resume_url")
+  resumeText  String? @map("resume_text") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  applications Application[]
+
+  @@index([email])
+  @@index([fullName])
+  @@map("candidates")
+}
+
+model Application {
+  id          String            @id @default(uuid())
+  jobId       String            @map("job_id")
+  job         Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidateId String            @map("candidate_id")
+  candidate   Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  stage       ApplicationStage  @default(APPLIED)
+  status      ApplicationStatus @default(SUBMITTED)
+  cvFileKey   String?           @map("cv_file_key")
+  cvFileUrl   String?           @map("cv_file_url")
+  coverLetter String?           @map("cover_letter")
+  notes       String?
+  appliedAt   DateTime          @default(now()) @map("applied_at")
+  reviewedAt  DateTime?         @map("reviewed_at")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  deletedAt   DateTime?         @map("deleted_at")
+
+  @@unique([jobId, candidateId])
+  @@index([jobId])
+  @@index([candidateId])
+  @@index([status])
+  @@map("applications")
 }
 
 enum Role {
   ADMIN
   RECRUITER
   INTERVIEWER
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+}
+
+enum JobStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  ARCHIVED
+}
+
+enum ApplicationStage {
+  APPLIED
+  SCREENING
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  REVIEWING
+  SHORTLISTED
+  INTERVIEW_SCHEDULED
+  INTERVIEWED
+  OFFERED
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
 }
