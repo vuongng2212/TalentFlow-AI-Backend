@@ -253,6 +253,13 @@ Authorization: Bearer <access_token>
 | `page` | number | Page number (default: 1) |
 | `limit` | number | Items per page (default: 20, max: 100) |
 | `search` | string | Search in title and description |
+| `salaryMin` | number | Filter by minimum salary |
+| `salaryMax` | number | Filter by maximum salary |
+| `skills` | string | Filter by required skills (comma-separated values) |
+| `employmentType` | string | Filter by employment type: `FULL_TIME`, `PART_TIME`, `CONTRACT`, `INTERNSHIP` |
+| `department` | string | Filter by department |
+| `sortBy` | string | Sort by field: `createdAt`, `title`, `salaryMin` (default: `createdAt`) |
+| `sortOrder` | string | Sort order: `asc`, `desc` (default: `desc`) |
 
 **Response** (200):
 ```json
