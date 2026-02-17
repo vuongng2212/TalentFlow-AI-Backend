@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from './redis.service';
 
@@ -9,6 +8,9 @@ jest.mock('ioredis', () => {
     get: jest.fn().mockResolvedValue('test-value'),
     del: jest.fn().mockResolvedValue(1),
     exists: jest.fn().mockResolvedValue(1),
+    incr: jest.fn().mockResolvedValue(1),
+    expire: jest.fn().mockResolvedValue(1),
+    ttl: jest.fn().mockResolvedValue(3600),
     ping: jest.fn().mockResolvedValue('PONG'),
     quit: jest.fn().mockResolvedValue('OK'),
   }));
@@ -21,6 +23,9 @@ describe('RedisService', () => {
     get: jest.Mock;
     del: jest.Mock;
     exists: jest.Mock;
+    incr: jest.Mock;
+    expire: jest.Mock;
+    ttl: jest.Mock;
     ping: jest.Mock;
     quit: jest.Mock;
   };
@@ -135,6 +140,65 @@ describe('RedisService', () => {
       const client = service.getClient();
 
       expect(client).toBeDefined();
+    });
+  });
+
+  describe('incr', () => {
+    it('should increment a key', async () => {
+      const result = await service.incr('counter');
+
+      expect(result).toBe(1);
+      expect(mockRedisClient.incr).toHaveBeenCalledWith('counter');
+    });
+
+    it('should return incremented value', async () => {
+      mockRedisClient.incr.mockResolvedValueOnce(5);
+
+      const result = await service.incr('counter');
+
+      expect(result).toBe(5);
+    });
+  });
+
+  describe('expire', () => {
+    it('should set expiration on key', async () => {
+      const result = await service.expire('key', 3600);
+
+      expect(result).toBe(1);
+      expect(mockRedisClient.expire).toHaveBeenCalledWith('key', 3600);
+    });
+
+    it('should return 0 if key does not exist', async () => {
+      mockRedisClient.expire.mockResolvedValueOnce(0);
+
+      const result = await service.expire('non-existent', 3600);
+
+      expect(result).toBe(0);
+    });
+  });
+
+  describe('ttl', () => {
+    it('should return TTL of key', async () => {
+      const result = await service.ttl('key');
+
+      expect(result).toBe(3600);
+      expect(mockRedisClient.ttl).toHaveBeenCalledWith('key');
+    });
+
+    it('should return -1 if key has no expiration', async () => {
+      mockRedisClient.ttl.mockResolvedValueOnce(-1);
+
+      const result = await service.ttl('key-no-expire');
+
+      expect(result).toBe(-1);
+    });
+
+    it('should return -2 if key does not exist', async () => {
+      mockRedisClient.ttl.mockResolvedValueOnce(-2);
+
+      const result = await service.ttl('non-existent');
+
+      expect(result).toBe(-2);
     });
   });
 });
