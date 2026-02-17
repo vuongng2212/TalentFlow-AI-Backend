@@ -4,11 +4,12 @@ import {
   Get,
   Body,
   Res,
+  Req,
   UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { SignupDto } from './dto/signup.dto';
@@ -38,6 +39,13 @@ interface UserPayload {
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  private extractContext(req: Request) {
+    return {
+      ip: req.ip || req.socket?.remoteAddress,
+      userAgent: req.get('user-agent'),
+    };
+  }
+
   @Public()
   @Post('signup')
   async signup(@Body() signupDto: SignupDto) {
@@ -59,11 +67,14 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() loginDto: LoginDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
+    const context = this.extractContext(req);
     const { accessToken, refreshToken, user } = await this.authService.login(
       loginDto.email,
       loginDto.password,
+      context,
     );
 
     res.cookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, {
@@ -88,10 +99,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async refresh(
     @CurrentUser() user: UserPayload,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
+    const context = this.extractContext(req);
     const { accessToken, refreshToken } = await this.authService.refresh(
       user.id,
+      context,
     );
 
     res.cookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, {
@@ -125,9 +139,11 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async logout(
     @CurrentUser() user: UserPayload,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    await this.authService.logout(user.id, user.tokenId || '');
+    const context = this.extractContext(req);
+    await this.authService.logout(user.id, user.tokenId || '', context);
 
     res.clearCookie(ACCESS_TOKEN_COOKIE_NAME, COOKIE_OPTIONS);
     res.clearCookie(REFRESH_TOKEN_COOKIE_NAME, COOKIE_OPTIONS);
