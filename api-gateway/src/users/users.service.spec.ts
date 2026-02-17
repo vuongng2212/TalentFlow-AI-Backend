@@ -104,4 +104,130 @@ describe('UsersService', () => {
       });
     });
   });
+
+  describe('findById', () => {
+    it('should return a user by id', async () => {
+      const id = 'user-uuid';
+      const expectedUser = {
+        id,
+        email: 'test@example.com',
+        fullName: 'Test User',
+        role: Role.RECRUITER,
+        password: 'hashed',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      };
+
+      const findSpy = jest
+        .spyOn(prisma.user, 'findUnique')
+        .mockResolvedValue(expectedUser);
+
+      const result = await service.findById(id);
+
+      expect(result).toEqual(expectedUser);
+      expect(findSpy).toHaveBeenCalledWith({
+        where: { id },
+      });
+    });
+
+    it('should return null if user not found by id', async () => {
+      const id = 'non-existent-uuid';
+      const findSpy = jest
+        .spyOn(prisma.user, 'findUnique')
+        .mockResolvedValue(null);
+
+      const result = await service.findById(id);
+
+      expect(result).toBeNull();
+      expect(findSpy).toHaveBeenCalledWith({
+        where: { id },
+      });
+    });
+  });
+
+  describe('update', () => {
+    it('should update a user', async () => {
+      const id = 'user-uuid';
+      const updateData = { fullName: 'Updated Name' };
+      const expectedUser = {
+        id,
+        email: 'test@example.com',
+        fullName: 'Updated Name',
+        role: Role.RECRUITER,
+        password: 'hashed',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      };
+
+      const updateSpy = jest
+        .spyOn(prisma.user, 'update')
+        .mockResolvedValue(expectedUser);
+
+      const result = await service.update(id, updateData);
+
+      expect(result).toEqual(expectedUser);
+      expect(updateSpy).toHaveBeenCalledWith({
+        where: { id },
+        data: updateData,
+      });
+    });
+
+    it('should update user role', async () => {
+      const id = 'user-uuid';
+      const updateData = { role: Role.ADMIN };
+      const expectedUser = {
+        id,
+        email: 'test@example.com',
+        fullName: 'Test User',
+        role: Role.ADMIN,
+        password: 'hashed',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      };
+
+      const updateSpy = jest
+        .spyOn(prisma.user, 'update')
+        .mockResolvedValue(expectedUser);
+
+      const result = await service.update(id, updateData);
+
+      expect(result.role).toBe(Role.ADMIN);
+      expect(updateSpy).toHaveBeenCalledWith({
+        where: { id },
+        data: updateData,
+      });
+    });
+  });
+
+  describe('softDelete', () => {
+    it('should soft delete a user', async () => {
+      const id = 'user-uuid';
+      const deletedAt = new Date();
+      const expectedUser = {
+        id,
+        email: 'test@example.com',
+        fullName: 'Test User',
+        role: Role.RECRUITER,
+        password: 'hashed',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt,
+      };
+
+      const updateSpy = jest
+        .spyOn(prisma.user, 'update')
+        .mockResolvedValue(expectedUser);
+
+      const result = await service.softDelete(id);
+
+      expect(result.deletedAt).not.toBeNull();
+      expect(updateSpy).toHaveBeenCalledWith({
+        where: { id },
+        data: { deletedAt: expect.any(Date) },
+      });
+    });
+  });
 });
