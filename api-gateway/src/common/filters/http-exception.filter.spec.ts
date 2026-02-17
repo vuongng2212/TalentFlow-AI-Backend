@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import { HttpExceptionFilter } from './http-exception.filter';
 import { Request, Response } from 'express';
@@ -140,7 +141,9 @@ describe('HttpExceptionFilter', () => {
     });
 
     it('should include requestId from response header', () => {
-      (mockResponse.getHeader as jest.Mock).mockReturnValue('response-header-id');
+      (mockResponse.getHeader as jest.Mock).mockReturnValue(
+        'response-header-id',
+      );
       const exception = new HttpException('Not Found', HttpStatus.NOT_FOUND);
 
       filter.catch(exception, mockArgumentsHost);

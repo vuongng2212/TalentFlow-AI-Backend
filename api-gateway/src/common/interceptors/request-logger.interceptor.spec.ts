@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
 import { CallHandler, ExecutionContext, Logger } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
 import { RequestLoggerInterceptor } from './request-logger.interceptor';
@@ -99,12 +99,7 @@ describe('RequestLoggerInterceptor', () => {
 
     it('should preserve existing x-request-id from request header', (done) => {
       const customId = 'custom-request-123';
-      const mockContext = createMockContext(
-        'GET',
-        '/api/users',
-        200,
-        customId,
-      );
+      const mockContext = createMockContext('GET', '/api/users', 200, customId);
       const mockCallHandler = createMockCallHandler({ data: 'test' });
       const mockResponse = mockContext.switchToHttp().getResponse();
 

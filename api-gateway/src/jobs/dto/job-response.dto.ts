@@ -30,7 +30,7 @@ export class JobResponseDto {
   status: JobStatus;
 
   @ApiProperty({ nullable: true })
-  requirements: any | null;
+  requirements: Record<string, unknown> | null;
 
   @ApiProperty()
   createdById: string;
