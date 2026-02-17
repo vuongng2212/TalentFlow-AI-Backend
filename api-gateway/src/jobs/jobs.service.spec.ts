@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { JobsService } from './jobs.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -104,6 +105,108 @@ describe('JobsService', () => {
           totalPages: 1,
         },
       });
+    });
+
+    it('should filter by salaryMin', async () => {
+      // Arrange
+      const query = { page: 1, limit: 10, salaryMin: 50000 };
+      mockPrismaService.job.findMany.mockResolvedValue([mockJob]);
+      mockPrismaService.job.count.mockResolvedValue(1);
+
+      // Act
+      await service.findAll(query);
+
+      // Assert
+      expect(prisma.job.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            salaryMax: { gte: 50000 },
+          }),
+        }),
+      );
+    });
+
+    it('should filter by salaryMax', async () => {
+      // Arrange
+      const query = { page: 1, limit: 10, salaryMax: 100000 };
+      mockPrismaService.job.findMany.mockResolvedValue([mockJob]);
+      mockPrismaService.job.count.mockResolvedValue(1);
+
+      // Act
+      await service.findAll(query);
+
+      // Assert
+      expect(prisma.job.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            salaryMin: { lte: 100000 },
+          }),
+        }),
+      );
+    });
+
+    it('should filter by salary range', async () => {
+      // Arrange
+      const query = { page: 1, limit: 10, salaryMin: 50000, salaryMax: 150000 };
+      mockPrismaService.job.findMany.mockResolvedValue([mockJob]);
+      mockPrismaService.job.count.mockResolvedValue(1);
+
+      // Act
+      await service.findAll(query);
+
+      // Assert
+      expect(prisma.job.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            salaryMax: { gte: 50000 },
+            salaryMin: { lte: 150000 },
+          }),
+        }),
+      );
+    });
+
+    it('should filter by skills', async () => {
+      // Arrange
+      const query = { page: 1, limit: 10, skills: 'NestJS, TypeScript' };
+      mockPrismaService.job.findMany.mockResolvedValue([mockJob]);
+      mockPrismaService.job.count.mockResolvedValue(1);
+
+      // Act
+      await service.findAll(query);
+
+      // Assert
+      expect(prisma.job.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            requirements: {
+              path: ['skills'],
+              array_contains: ['nestjs', 'typescript'],
+            },
+          }),
+        }),
+      );
+    });
+
+    it('should sort by salaryMin', async () => {
+      // Arrange
+      const query = {
+        page: 1,
+        limit: 10,
+        sortBy: 'salaryMin' as const,
+        sortOrder: 'asc' as const,
+      };
+      mockPrismaService.job.findMany.mockResolvedValue([mockJob]);
+      mockPrismaService.job.count.mockResolvedValue(1);
+
+      // Act
+      await service.findAll(query);
+
+      // Assert
+      expect(prisma.job.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: { salaryMin: 'asc' },
+        }),
+      );
     });
   });
 

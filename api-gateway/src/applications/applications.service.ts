@@ -8,7 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { QueryApplicationsDto } from './dto/query-applications.dto';
-import { Application } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ApplicationsService {
@@ -108,7 +108,7 @@ export class ApplicationsService {
     } = query;
     const skip = (page - 1) * limit;
 
-    const where: any = {
+    const where: Prisma.ApplicationWhereInput = {
       deletedAt: null,
     };
 
@@ -130,7 +130,7 @@ export class ApplicationsService {
           where.candidateId = candidate.id;
         }
       }
-    } else {
+    } else if (userRole !== 'ADMIN') {
       // Regular users see only their applications (via candidate lookup)
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (user) {
