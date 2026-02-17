@@ -5,11 +5,7 @@ import { ApplicationsService } from './applications.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { QueryApplicationsDto } from './dto/query-applications.dto';
-import {
-  ApplicationStatus,
-  ApplicationStage,
-  Role,
-} from '@prisma/client';
+import { ApplicationStatus, ApplicationStage, Role } from '@prisma/client';
 
 describe('ApplicationsController', () => {
   let controller: ApplicationsController;
@@ -34,7 +30,7 @@ describe('ApplicationsController', () => {
     jobId: 'job-1',
     candidateId: 'candidate-1',
     coverLetter: 'I am interested',
-    stage: ApplicationStage.APPLICATION,
+    stage: ApplicationStage.APPLIED,
     status: ApplicationStatus.SUBMITTED,
     notes: null,
     reviewedAt: null,
@@ -124,7 +120,7 @@ describe('ApplicationsController', () => {
         limit: 10,
         jobId: 'job-1',
         status: ApplicationStatus.SUBMITTED,
-        stage: ApplicationStage.APPLICATION,
+        stage: ApplicationStage.APPLIED,
       };
 
       mockApplicationsService.findAll.mockResolvedValue({
@@ -170,7 +166,11 @@ describe('ApplicationsController', () => {
 
       mockApplicationsService.update.mockResolvedValue(updatedApplication);
 
-      const result = await controller.update('app-1', mockRecruiterUser, updateDto);
+      const result = await controller.update(
+        'app-1',
+        mockRecruiterUser,
+        updateDto,
+      );
 
       expect(result).toEqual(updatedApplication);
       expect(service.update).toHaveBeenCalledWith(

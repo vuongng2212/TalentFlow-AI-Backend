@@ -8,7 +8,42 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { QueryApplicationsDto } from './dto/query-applications.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, ApplicationStatus, ApplicationStage } from '@prisma/client';
+
+interface ApplicationWithRelations {
+  id: string;
+  jobId: string;
+  candidateId: string;
+  stage: ApplicationStage;
+  status: ApplicationStatus;
+  cvFileKey: string | null;
+  cvFileUrl: string | null;
+  coverLetter: string | null;
+  notes: string | null;
+  appliedAt: Date;
+  reviewedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+  job: {
+    id: string;
+    title: string;
+    department: string | null;
+    location?: string | null;
+    employmentType?: string | null;
+    createdById: string;
+    createdBy?: {
+      id: string;
+      email: string;
+      fullName: string;
+    };
+  };
+  candidate: {
+    id: string;
+    email: string;
+    fullName: string;
+  };
+}
 
 @Injectable()
 export class ApplicationsService {
@@ -17,7 +52,7 @@ export class ApplicationsService {
   async create(
     userId: string,
     createApplicationDto: CreateApplicationDto,
-  ): Promise<any> {
+  ): Promise<ApplicationWithRelations> {
     const { jobId, ...data } = createApplicationDto;
 
     // Check if job exists and is open
@@ -82,6 +117,7 @@ export class ApplicationsService {
             id: true,
             title: true,
             department: true,
+            createdById: true,
           },
         },
         candidate: {
@@ -202,7 +238,11 @@ export class ApplicationsService {
     };
   }
 
-  async findOne(id: string, userId: string, userRole: string): Promise<any> {
+  async findOne(
+    id: string,
+    userId: string,
+    userRole: string,
+  ): Promise<ApplicationWithRelations> {
     const application = await this.prisma.application.findUnique({
       where: { id },
       include: {
@@ -255,7 +295,7 @@ export class ApplicationsService {
     userId: string,
     userRole: string,
     updateApplicationDto: UpdateApplicationDto,
-  ): Promise<any> {
+  ): Promise<ApplicationWithRelations> {
     const application = await this.findOne(id, userId, userRole);
 
     // Check user's candidate status
@@ -288,7 +328,9 @@ export class ApplicationsService {
       );
     }
 
-    const updateData: any = { ...updateApplicationDto };
+    const updateData: Partial<UpdateApplicationDto> & { reviewedAt?: Date } = {
+      ...updateApplicationDto,
+    };
 
     // Set reviewedAt when status changes
     if (
@@ -306,6 +348,8 @@ export class ApplicationsService {
           select: {
             id: true,
             title: true,
+            department: true,
+            createdById: true,
           },
         },
         candidate: {
