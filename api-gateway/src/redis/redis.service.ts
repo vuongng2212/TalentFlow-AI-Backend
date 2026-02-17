@@ -33,6 +33,18 @@ export class RedisService implements OnModuleDestroy {
     return this.client.exists(key);
   }
 
+  async incr(key: string): Promise<number> {
+    return this.client.incr(key);
+  }
+
+  async expire(key: string, seconds: number): Promise<number> {
+    return this.client.expire(key, seconds);
+  }
+
+  async ttl(key: string): Promise<number> {
+    return this.client.ttl(key);
+  }
+
   async ping(): Promise<string> {
     return this.client.ping();
   }

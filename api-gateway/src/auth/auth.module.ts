@@ -6,11 +6,17 @@ import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
+import { SecurityAuditService } from '../common/services/security-audit.service';
 
 @Module({
   imports: [UsersModule, PassportModule, JwtModule.register({})],
-  providers: [AuthService, JwtStrategy, JwtRefreshStrategy],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    JwtRefreshStrategy,
+    SecurityAuditService,
+  ],
   controllers: [AuthController],
-  exports: [AuthService],
+  exports: [AuthService, SecurityAuditService],
 })
 export class AuthModule {}

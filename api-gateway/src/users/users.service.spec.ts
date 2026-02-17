@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -76,7 +77,16 @@ describe('UsersService', () => {
   describe('findByEmail', () => {
     it('should return a user by email', async () => {
       const email = 'test@example.com';
-      const expectedUser = { id: 'uuid', email };
+      const expectedUser = {
+        id: 'uuid',
+        email,
+        password: 'hashed',
+        role: Role.RECRUITER,
+        fullName: 'Test User',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      };
 
       const findSpy = jest
         .spyOn(prisma.user, 'findUnique')

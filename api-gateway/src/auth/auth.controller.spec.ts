@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { Role } from '@prisma/client';
 
 describe('AuthController', () => {
@@ -17,6 +17,15 @@ describe('AuthController', () => {
   const createMockResponse = (): Pick<Response, 'cookie' | 'clearCookie'> => ({
     cookie: jest.fn(),
     clearCookie: jest.fn(),
+  });
+
+  const createMockRequest = (
+    overrides: Partial<Request> = {},
+  ): Partial<Request> => ({
+    ip: '127.0.0.1',
+    socket: { remoteAddress: '127.0.0.1' } as Request['socket'],
+    get: jest.fn().mockReturnValue('Mozilla/5.0 Test User Agent'),
+    ...overrides,
   });
 
   beforeEach(async () => {
@@ -69,19 +78,90 @@ describe('AuthController', () => {
 
       mockAuthService.login.mockResolvedValue(authResult);
       const response = createMockResponse();
+      const request = createMockRequest();
 
-      const result = await controller.login(dto, response as Response);
+      const result = await controller.login(
+        dto,
+        request as Request,
+        response as Response,
+      );
 
       expect(response.cookie).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
         message: 'Login successful',
         user: authResult.user,
       });
+      expect(mockAuthService.login).toHaveBeenCalledWith(
+        dto.email,
+        dto.password,
+        expect.objectContaining({
+          ip: '127.0.0.1',
+          userAgent: 'Mozilla/5.0 Test User Agent',
+        }),
+      );
+    });
+  });
+
+  describe('refresh', () => {
+    it('should refresh tokens and set cookies', async () => {
+      const user = {
+        id: 'uuid',
+        email: 'test@example.com',
+        role: 'RECRUITER',
+        fullName: 'Test',
+      };
+      const authResult = {
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+      };
+
+      mockAuthService.refresh.mockResolvedValue(authResult);
+      const response = createMockResponse();
+      const request = createMockRequest();
+
+      const result = await controller.refresh(
+        user,
+        request as Request,
+        response as Response,
+      );
+
+      expect(response.cookie).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({
+        message: 'Token refreshed successfully',
+      });
+      expect(mockAuthService.refresh).toHaveBeenCalledWith(
+        user.id,
+        expect.objectContaining({
+          ip: '127.0.0.1',
+        }),
+      );
+    });
+  });
+
+  describe('getProfile', () => {
+    it('should return user profile', () => {
+      const user = {
+        id: 'uuid',
+        email: 'test@example.com',
+        role: 'RECRUITER',
+        fullName: 'Test User',
+      };
+
+      const result = controller.getProfile(user);
+
+      expect(result).toEqual({
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role,
+        },
+      });
     });
   });
 
   describe('logout', () => {
-    it('should clear cookies', async () => {
+    it('should clear cookies and logout', async () => {
       const user = {
         id: 'uuid',
         email: 'test@example.com',
@@ -91,13 +171,38 @@ describe('AuthController', () => {
       };
 
       const response = createMockResponse();
-      await controller.logout(user, response as Response);
+      const request = createMockRequest();
+
+      await controller.logout(user, request as Request, response as Response);
 
       expect(mockAuthService.logout).toHaveBeenCalledWith(
         user.id,
         user.tokenId,
+        expect.objectContaining({
+          ip: '127.0.0.1',
+        }),
       );
       expect(response.clearCookie).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle logout without tokenId', async () => {
+      const user = {
+        id: 'uuid',
+        email: 'test@example.com',
+        role: 'RECRUITER',
+        fullName: 'Test',
+      };
+
+      const response = createMockResponse();
+      const request = createMockRequest();
+
+      await controller.logout(user, request as Request, response as Response);
+
+      expect(mockAuthService.logout).toHaveBeenCalledWith(
+        user.id,
+        '',
+        expect.any(Object),
+      );
     });
   });
 });
