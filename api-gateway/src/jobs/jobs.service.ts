@@ -7,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { QueryJobsDto } from './dto/query-jobs.dto';
-import { Job } from '@prisma/client';
+import { Job, Prisma } from '@prisma/client';
 
 @Injectable()
 export class JobsService {
@@ -40,12 +40,15 @@ export class JobsService {
       status,
       employmentType,
       department,
+      salaryMin,
+      salaryMax,
+      skills,
       sortBy = 'createdAt',
       sortOrder = 'desc',
     } = query;
     const skip = (page - 1) * limit;
 
-    const where: any = {
+    const where: Prisma.JobWhereInput = {
       deletedAt: null,
     };
 
@@ -66,6 +69,24 @@ export class JobsService {
 
     if (department) {
       where.department = { contains: department, mode: 'insensitive' };
+    }
+
+    // Filter by salary range - find jobs where salary range overlaps with requested range
+    if (salaryMin !== undefined) {
+      where.salaryMax = { gte: salaryMin };
+    }
+
+    if (salaryMax !== undefined) {
+      where.salaryMin = { lte: salaryMax };
+    }
+
+    // Filter by skills (JSON array contains)
+    if (skills) {
+      const skillList = skills.split(',').map((s) => s.trim().toLowerCase());
+      where.requirements = {
+        path: ['skills'],
+        array_contains: skillList,
+      };
     }
 
     const [jobs, total] = await Promise.all([

@@ -39,10 +39,35 @@ export class QueryJobsDto {
   @IsString()
   department?: string;
 
-  @ApiPropertyOptional({ enum: ['createdAt', 'title'], default: 'createdAt' })
+  @ApiPropertyOptional({ description: 'Filter by minimum salary', minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  salaryMin?: number;
+
+  @ApiPropertyOptional({ description: 'Filter by maximum salary', minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  salaryMax?: number;
+
+  @ApiPropertyOptional({
+    description: 'Filter by required skills (comma-separated)',
+    example: 'NestJS,TypeScript,PostgreSQL',
+  })
   @IsOptional()
   @IsString()
-  sortBy?: 'createdAt' | 'title' = 'createdAt';
+  skills?: string;
+
+  @ApiPropertyOptional({
+    enum: ['createdAt', 'title', 'salaryMin'],
+    default: 'createdAt',
+  })
+  @IsOptional()
+  @IsString()
+  sortBy?: 'createdAt' | 'title' | 'salaryMin' = 'createdAt';
 
   @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'desc' })
   @IsOptional()
