@@ -89,7 +89,7 @@ Regardless of your tech stack (NestJS, Spring Boot, ASP.NET Core), follow these 
 | **API Gateway** | Throughput (RPS) | 100+ | Prometheus |
 | **API Gateway** | Error Rate | < 1% | Prometheus |
 | **CV Parser** | Processing Time | < 10s | Application Logs |
-| **CV Parser** | Queue Lag | < 5 msgs | BullMQ Dashboard |
+| **CV Parser** | Queue Lag | < 5 msgs | RabbitMQ Management |
 | **Notification** | WebSocket Connections | Monitor | Prometheus |
 | **Database** | Query Time (p95) | < 50ms | Prisma/EF Metrics |
 | **Database** | Connection Pool | < 80% | Postgres Exporter |

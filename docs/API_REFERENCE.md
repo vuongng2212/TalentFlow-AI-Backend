@@ -351,7 +351,7 @@ Content-Type: application/json
   "title": "Senior Backend Developer",
   "description": "We are looking for an experienced backend developer...",
   "requirements": {
-    "skills": ["NestJS", "PostgreSQL", "Spring Boot", "BullMQ"],
+    "skills": ["NestJS", "PostgreSQL", "Spring Boot", "RabbitMQ"],
     "experience": "5+ years"
   },
   "salaryRange": "$120k - $160k",

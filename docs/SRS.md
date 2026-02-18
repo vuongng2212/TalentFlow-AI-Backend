@@ -181,7 +181,7 @@ graph TB
 * **FR-03:** CRUD Job Description thông qua RESTful API với **NestJS Controllers**.
 * **FR-04:** Lưu trữ JD dưới dạng cấu trúc JSON trong PostgreSQL (qua **Prisma ORM**) để AI dễ dàng đối chiếu và parse.
 
-### 3.3. CV Upload & Processing Pipeline (Async with BullMQ)
+### 3.3. CV Upload & Processing Pipeline (Async with RabbitMQ)
 
 **Architecture Flow:**
 ```

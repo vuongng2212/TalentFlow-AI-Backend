@@ -58,7 +58,7 @@ For TalentFlow AI's **Polyglot 3-Service Architecture**:
 | **Notification** | WebSocket Latency | < 50ms | Custom Metrics |
 | **Database** | Query Time (p95) | < 50ms | Prisma/EF Metrics |
 | **Database** | Connection Pool | < 80% | Postgres Exporter |
-| **BullMQ** | Queue Lag | < 5 msgs | Bull Board |
+| **RabbitMQ** | Queue Lag | < 5 msgs | RabbitMQ Management |
 | **Redis** | Memory Usage | < 1GB | Redis Exporter |
 
 ### Business Metrics

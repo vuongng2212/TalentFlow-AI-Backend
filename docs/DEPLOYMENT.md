@@ -63,7 +63,7 @@ graph TB
         API[⚙️ API Gateway<br/>NestJS:3000<br/>api.talentflow.ai]
         Parser[🔧 CV Parser<br/>Spring Boot:8080 OR<br/>ASP.NET Core:5000]
         Notif[📬 Notification<br/>NestJS:3001 OR<br/>ASP.NET Core:5001]
-        Redis[⚡ Redis<br/>:6379<br/>BullMQ + Cache]
+        Redis[⚡ Redis<br/>:6379<br/>Cache only]
     end
 
     %% Database
@@ -132,7 +132,7 @@ graph TB
 └─────────────────────┘    - GraphQL (Phase 2)
       ↓                    - WebSocket Gateway
 ┌─────────────────────┐
-│  Railway Redis      │ → BullMQ Queue + Cache
+│  Railway Redis      │ → Cache only
 │  Serverless         │
 └─────────────────────┘
       ↓
