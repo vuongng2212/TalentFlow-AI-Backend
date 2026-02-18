@@ -5,13 +5,13 @@ import {
   HealthCheck,
   HealthCheckService,
   MemoryHealthIndicator,
-  DiskHealthIndicator,
   HealthIndicator,
   HealthIndicatorResult,
   HealthCheckError,
 } from '@nestjs/terminus';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { QueueService } from '../queue/queue.service';
 
 @Injectable()
 class PrismaHealthIndicator extends HealthIndicator {
@@ -48,21 +48,42 @@ class RedisHealthIndicator extends HealthIndicator {
   }
 }
 
+@Injectable()
+class RabbitMQHealthIndicator extends HealthIndicator {
+  constructor(private readonly queue: QueueService) {
+    super();
+  }
+
+  async isHealthy(key: string): Promise<HealthIndicatorResult> {
+    try {
+      const isHealthy = await this.queue.isHealthy();
+      if (!isHealthy) {
+        throw new Error('RabbitMQ connection is not healthy');
+      }
+      return this.getStatus(key, true);
+    } catch (error) {
+      throw new HealthCheckError('RabbitMQ check failed', error);
+    }
+  }
+}
+
 @ApiTags('health')
 @Controller()
 export class HealthController {
   private prismaHealth: PrismaHealthIndicator;
   private redisHealth: RedisHealthIndicator;
+  private rabbitmqHealth: RabbitMQHealthIndicator;
 
   constructor(
     private health: HealthCheckService,
     private memory: MemoryHealthIndicator,
-    private disk: DiskHealthIndicator,
     private prisma: PrismaService,
     private redis: RedisService,
+    private queue: QueueService,
   ) {
     this.prismaHealth = new PrismaHealthIndicator(this.prisma);
     this.redisHealth = new RedisHealthIndicator(this.redis);
+    this.rabbitmqHealth = new RabbitMQHealthIndicator(this.queue);
   }
 
   /**
@@ -84,11 +105,6 @@ export class HealthController {
   /**
    * Readiness probe - Checks if the application is ready to serve traffic
    * Used by Kubernetes to determine if pod should receive traffic
-   *
-   * TODO: Add dependency checks when available:
-   * - Database (Prisma) health check
-   * - Redis health check
-   * - RabbitMQ queue health check
    */
   @Public()
   @Get('ready')
@@ -105,8 +121,8 @@ export class HealthController {
       // Redis health check
       () => this.redisHealth.isHealthy('redis'),
 
-      // TODO (Slice 3): Add RabbitMQ queue health check
-      // () => this.rabbitmqHealth.isHealthy('queue'),
+      // RabbitMQ health check
+      () => this.rabbitmqHealth.isHealthy('queue'),
     ]);
   }
 }

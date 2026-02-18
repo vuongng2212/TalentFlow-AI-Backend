@@ -4,11 +4,11 @@ import { HealthController } from './health.controller';
 import {
   HealthCheckService,
   MemoryHealthIndicator,
-  DiskHealthIndicator,
   HealthCheckResult,
 } from '@nestjs/terminus';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { QueueService } from '../queue/queue.service';
 
 describe('HealthController', () => {
   let controller: HealthController;
@@ -23,16 +23,16 @@ describe('HealthController', () => {
     checkRSS: jest.fn(),
   };
 
-  const mockDiskHealthIndicator = {
-    checkStorage: jest.fn(),
-  };
-
   const mockPrismaService = {
     $queryRaw: jest.fn(),
   };
 
   const mockRedisService = {
     ping: jest.fn(),
+  };
+
+  const mockQueueService = {
+    isHealthy: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -43,9 +43,9 @@ describe('HealthController', () => {
       providers: [
         { provide: HealthCheckService, useValue: mockHealthCheckService },
         { provide: MemoryHealthIndicator, useValue: mockMemoryHealthIndicator },
-        { provide: DiskHealthIndicator, useValue: mockDiskHealthIndicator },
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: RedisService, useValue: mockRedisService },
+        { provide: QueueService, useValue: mockQueueService },
       ],
     }).compile();
 
@@ -112,6 +112,7 @@ describe('HealthController', () => {
           memory_rss: { status: 'up' },
           database: { status: 'up' },
           redis: { status: 'up' },
+          queue: { status: 'up' },
         },
         error: {},
         details: {
@@ -119,12 +120,14 @@ describe('HealthController', () => {
           memory_rss: { status: 'up' },
           database: { status: 'up' },
           redis: { status: 'up' },
+          queue: { status: 'up' },
         },
       };
 
       mockHealthCheckService.check.mockResolvedValue(mockResult);
       mockPrismaService.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
       mockRedisService.ping.mockResolvedValue('PONG');
+      mockQueueService.isHealthy.mockResolvedValue(true);
 
       const result = await controller.readiness();
 
@@ -132,13 +135,13 @@ describe('HealthController', () => {
       expect(healthCheckService.check).toHaveBeenCalled();
     });
 
-    it('should include database and redis health checks', async () => {
+    it('should include database, redis, and queue health checks', async () => {
       mockPrismaService.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
       mockRedisService.ping.mockResolvedValue('PONG');
+      mockQueueService.isHealthy.mockResolvedValue(true);
 
       mockHealthCheckService.check.mockImplementation(
         async (indicators: (() => Promise<unknown>)[]) => {
-          // Execute all indicators to test they work
           for (const indicator of indicators) {
             try {
               await indicator();
@@ -152,9 +155,9 @@ describe('HealthController', () => {
 
       await controller.readiness();
 
-      // Verify memory checks are included
       expect(mockMemoryHealthIndicator.checkHeap).toHaveBeenCalled();
       expect(mockMemoryHealthIndicator.checkRSS).toHaveBeenCalled();
+      expect(mockQueueService.isHealthy).toHaveBeenCalled();
     });
   });
 });
