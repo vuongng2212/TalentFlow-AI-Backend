@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { EmploymentType, JobStatus } from '@prisma/client';
+import { EmploymentType, JobStatus, Prisma } from '@prisma/client';
 
 export class JobResponseDto {
   @ApiProperty()
@@ -30,7 +30,7 @@ export class JobResponseDto {
   status: JobStatus;
 
   @ApiProperty({ nullable: true })
-  requirements: Record<string, unknown> | null;
+  requirements: Prisma.JsonValue | null;
 
   @ApiProperty()
   createdById: string;
