@@ -18,6 +18,10 @@ export const appConfigSchema = Joi.object({
     'postgresql://localhost:5432/dev',
   ),
   REDIS_URL: requiredInProd(Joi.string().uri(), 'redis://localhost:6379'),
+  RABBITMQ_URL: requiredInProd(
+    Joi.string().uri(),
+    'amqp://rabbitmq:rabbitmq@localhost:5672',
+  ),
 
   JWT_ACCESS_SECRET: requiredInProd(
     Joi.string().min(16),

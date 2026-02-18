@@ -1,27 +1,29 @@
 # Team Decisions & Action Plan
 
 **Ngày quyết định:** 2026-02-01
-**Team:** 2 Full-stack Developers
+**Team:** 3 Full-stack Developers (NestJS, Spring Boot, ASP.NET Core)
 **Dự án:** TalentFlow AI
 
 ---
 
 ## ✅ Các Quyết định Chính Thức
 
-### 1. Message Queue: BullMQ (Redis) ✅
-**Quyết định:** Sử dụng BullMQ (Redis) thay vì Apache Kafka
+### 1. Message Queue: RabbitMQ (AMQP) ✅
+**Quyết định:** Sử dụng RabbitMQ (AMQP) cho polyglot architecture
 **Lý do:**
-- MVP traffic < 1000 CVs/day → Kafka overkill
-- BullMQ đơn giản hơn 10x (no Zookeeper, easy setup)
-- Redis already needed for caching
-- Sufficient features: retry, DLQ, priority queues
-- Can migrate to Kafka later if needed (> 10k CVs/day)
+- Polyglot 3-service architecture (NestJS + Spring Boot + ASP.NET Core)
+- Native support cho Java (Spring AMQP), C# (RabbitMQ.Client), Node.js (amqplib)
+- Built-in DLQ (Dead Letter Queue) cho CV processing retries
+- Excellent Management UI tại http://localhost:15672
+- BullMQ chỉ hỗ trợ Node.js, không phù hợp với polyglot
+
+**Note:** BullMQ vẫn valid cho Node.js-only projects (xem ADR-007)
 
 **Action Items:**
-- [x] Team học BullMQ basics (2 giờ)
-- [x] Follow hướng dẫn setup trong docker-compose.yml
-- [ ] Document BullMQ queue patterns
-- [ ] Setup Bull Board dashboard (queue monitoring)
+- [x] Team học RabbitMQ basics (2-3 giờ)
+- [x] Thêm RabbitMQ vào docker-compose.yml
+- [ ] Document RabbitMQ topology patterns
+- [ ] Setup RabbitMQ Management UI monitoring
 
 ---
 

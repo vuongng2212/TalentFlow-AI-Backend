@@ -1,18 +1,18 @@
 # Kế hoạch 1 tuần (api-gateway)
 
 ## Mục tiêu & Ưu tiên
-- Ưu tiên tuần: Auth/RBAC/JWT; Jobs/Applications CRUD; Upload CV → Cloudflare R2 + BullMQ producer; nền tảng quan sát (health/metrics/logs/queue depth).
+- Ưu tiên tuần: Auth/RBAC/JWT; Jobs/Applications CRUD; Upload CV → Cloudflare R2 + RabbitMQ producer; nền tảng quan sát (health/metrics/logs/queue depth).
 - Lộ trình: dev local → Docker Compose → k8s (kèm ELK + Prometheus/Grafana hook). Định nghĩa hoàn tất: tests (>=80% critical paths), giới hạn rate/size/timeout, docs & API reference cập nhật.
 
 ## Giả định
-- Service: `api-gateway/` (NestJS 10, Node 20, Prisma 5, BullMQ, R2 S3-compatible). Redis cho BullMQ; PostgreSQL; MinIO local/R2 prod; Swagger/OpenAPI sẵn sàng.
+- Service: `api-gateway/` (NestJS 10, Node 20, Prisma 5, RabbitMQ, R2 S3-compatible). RabbitMQ thay cho BullMQ; PostgreSQL; MinIO local/R2 prod; Swagger/OpenAPI sẵn sàng.
 - Biến môi trường: JWT_* (secret/exp), DATABASE_URL, REDIS_URL, R2_*, rate limit, CSRF, upload limits.
 
 ## Sprint slices (1 tuần, thực thi tuần tự)
 ### Slice 0: Nền tảng deploy & observability
 - ConfigModule + schema validate ENV; default rate limit, body size, timeout.
 - Logger JSON + requestId middleware; không log secrets.
-- Health/readiness: DB, Redis, BullMQ; `/health`, `/ready`.
+- Health/readiness: DB, RabbitMQ (optional Redis cache); `/health`, `/ready`.
 - Metrics endpoint (Prometheus) cho HTTP latency/RPS/error, queue depth.
 - CORS/CSRF cấu hình dev/prod; lint/test/build baseline kiểm tra.
 
@@ -28,9 +28,9 @@
 - Tests: unit (services/policies), e2e happy + forbidden.
 - Docs: Swagger tags/schemas.
 
-### Slice 3: Upload CV → R2 + BullMQ
+### Slice 3: Upload CV → R2 + RabbitMQ
 - Validate MIME (PDF/DOCX), size 10MB; sanitize key (uuid); upload R2 (MinIO local), lưu metadata.
-- BullMQ producer payload {candidateId, jobId, fileKey/url}; attempts/backoff, DLQ/failed queue; Redis config.
+- RabbitMQ producer payload {candidateId, jobId, fileKey/url}; use exchanges/queues (e.g., exchange `cv_parser`, queue `cv_parser.jobs`); attempts/backoff, DLQ/failed queue; config via RABBITMQ_URL.
 - Enforce limits/timeouts; response với key/URL; optional presigned URL.
 - Tests: unit (validation, queue payload), e2e happy/invalid.
 - Docs: API contract + queue payload schema.

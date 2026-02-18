@@ -15,7 +15,7 @@
 - [Frontend Deployment (Vercel)](#frontend-deployment-vercel)
 - [Backend Deployment (Railway)](#backend-deployment-railway)
 - [Database Setup (Neon)](#database-setup-neon)
-- [BullMQ Setup (Redis)](#bullmq-setup-redis)
+- [RabbitMQ Setup](#rabbitmq-setup)
 - [Monitoring Setup](#monitoring-setup)
 - [Post-Deployment Verification](#post-deployment-verification)
 - [Rollback Procedure](#rollback-procedure)
@@ -36,7 +36,7 @@
 |------|-------------|---------|
 | **Week 2** | Vercel (Frontend) | Demo #1 - UI prototype |
 | **Week 4** | Railway (Backend) + Neon | Demo #2 - Working API |
-| **Week 6** | Full stack + BullMQ | Demo #3 - CV upload |
+| **Week 6** | Full stack + RabbitMQ | Demo #3 - CV upload |
 | **Week 8** | Production + Monitoring | Demo #4 - MVP launch |
 
 ---
@@ -63,7 +63,7 @@ graph TB
         API[⚙️ API Gateway<br/>NestJS:3000<br/>api.talentflow.ai]
         Parser[🔧 CV Parser<br/>Spring Boot:8080 OR<br/>ASP.NET Core:5000]
         Notif[📬 Notification<br/>NestJS:3001 OR<br/>ASP.NET Core:5001]
-        Redis[⚡ Redis<br/>:6379<br/>BullMQ + Cache]
+        Redis[⚡ Redis<br/>:6379<br/>Cache only]
     end
 
     %% Database
@@ -132,7 +132,7 @@ graph TB
 └─────────────────────┘    - GraphQL (Phase 2)
       ↓                    - WebSocket Gateway
 ┌─────────────────────┐
-│  Railway Redis      │ → BullMQ Queue + Cache
+│  Railway Redis      │ → Cache only
 │  Serverless         │
 └─────────────────────┘
       ↓
@@ -390,69 +390,77 @@ railway run npx prisma db pull
 
 ---
 
-## 📨 BullMQ Setup (Redis Queue)
+## 📨 RabbitMQ Setup
 
-### Step 1: Use Railway Redis Add-on
+### Step 1: Use Railway Redis + RabbitMQ
 
-**Option 1: Railway Redis (Recommended)**
-```bash
-# Railway Dashboard → Project → Add Service → Redis
-# Redis instance created automatically with connection URL
+**Option 1: Add RabbitMQ to Docker Compose (Local Development)**
+```yaml
+# docker-compose.yml
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: talentflow-rabbitmq
+    ports:
+      - "5672:5672"    # AMQP protocol
+      - "15672:15672"  # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: rabbitmq
+      RABBITMQ_DEFAULT_PASS: rabbitmq
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 ```
 
-**Option 2: Upstash Redis (Alternative)**
-1. Đi tới [upstash.com](https://upstash.com)
-2. Create Redis database
+**Option 2: CloudAMQP (Production - Managed RabbitMQ)**
+1. Đi tới [cloudamqp.com](https://cloudamqp.com)
+2. Create instance (Free tier: Little Lemur)
 3. Region: US East (same as Railway)
-4. Plan: Free tier (10K commands/day)
+4. Copy AMQP URL
 
-### Step 2: Get Redis URL
+### Step 2: Get RabbitMQ URL
 
 ```bash
-# Railway Redis:
-REDIS_URL=redis://:password@redis.railway.internal:6379
+# Local Development:
+RABBITMQ_URL=amqp://rabbitmq:rabbitmq@localhost:5672
 
-# Or Upstash Redis:
-REDIS_URL=rediss://default:token@redis.upstash.io:6379
+# Production (CloudAMQP):
+RABBITMQ_URL=amqps://user:password@fox.rmq.cloudamqp.com/vhost
 ```
 
 ### Step 3: Add to Railway Environment Variables
 
 ```bash
 # Railway → Variables (All services)
-REDIS_URL=${{Redis.REDIS_URL}}
+RABBITMQ_URL=amqps://user:password@fox.rmq.cloudamqp.com/vhost
 ```
 
-### Step 4: BullMQ Auto-Configuration
+### Step 4: RabbitMQ Topology
 
-BullMQ automatically creates queues on first use. No manual topic creation needed!
+RabbitMQ exchanges and queues are created by the application on startup:
 
-**Queues created automatically:**
-- `cv.uploaded` - When CV is uploaded
-- `cv.processed` - When CV parsing completes
+**Exchange:** `cv-events` (type: topic)
 
-### Step 5: Monitor Queues (Optional)
+**Queues:**
+- `cv-processing` (routing key: `cv.uploaded`) → CV Parser (Spring Boot)
+- `cv-notifications` (routing key: `cv.*`) → Notification Service (ASP.NET Core)
+- `cv-parsing-dlq` (Dead Letter Queue)
 
-**Install Bull Board dashboard:**
-```typescript
-// api-gateway/src/main.ts
-import { createBullBoard } from '@bull-board/api';
-import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
-import { ExpressAdapter } from '@bull-board/express';
+### Step 5: Monitor Queues
 
-const serverAdapter = new ExpressAdapter();
-createBullBoard({
-  queues: [
-    new BullMQAdapter(cvUploadedQueue),
-    new BullMQAdapter(cvProcessedQueue),
-  ],
-  serverAdapter,
-});
+**RabbitMQ Management UI:**
+- **Local:** http://localhost:15672 (rabbitmq/rabbitmq)
+- **CloudAMQP:** Via CloudAMQP Dashboard
 
-app.use('/admin/queues', serverAdapter.getRouter());
-```
-
-**Access:** http://localhost:3000/admin/queues
+**Features:**
+- View queue depths
+- Monitor message rates
+- Check consumer connections
+- Purge/delete queues if needed
 
 ---
 
@@ -636,13 +644,10 @@ JWT_SECRET=<generate-with-openssl-rand-base64-64>
 JWT_ACCESS_EXPIRATION=15m
 JWT_REFRESH_EXPIRATION=7d
 
-# Kafka (Upstash)
-KAFKA_BROKERS=creative-fox-12345-us1-kafka.upstash.io:9092
-KAFKA_USERNAME=Y3JlYXRpdmUtZm94...
-KAFKA_PASSWORD=YourStrongPasswordHere
-KAFKA_SASL_MECHANISM=SCRAM-SHA-256
+# RabbitMQ
+RABBITMQ_URL=amqp://rabbitmq:rabbitmq@localhost:5672
 
-# Redis (Upstash)
+# Redis (for caching)
 REDIS_URL=rediss://default:token@us1-token-12345.upstash.io:6379
 
 # S3 (AWS)
@@ -737,44 +742,45 @@ curl https://api.talentflow.ai/health
 
 ---
 
-### Week 6: Kafka + AI Worker
+### Week 6: RabbitMQ + CV Parser
 
-#### A. Setup Upstash Kafka
+#### A. Setup RabbitMQ
 
 ```bash
-# 1. Create cluster (Web UI)
-# 2. Create topics:
-#    - cv.uploaded
-#    - cv.processed
-# 3. Copy credentials to Railway
+# Local: Add to docker-compose.yml (see RabbitMQ Setup section)
+docker-compose up -d rabbitmq
+
+# Production: Create CloudAMQP instance
+# Copy AMQP URL to Railway environment variables
 ```
 
-#### B. Deploy AI Worker
+#### B. Deploy CV Parser (Spring Boot)
 
 ```bash
 # Railway → Add New Service
 # Select same repo: talentflow-backend
-# Root directory: /apps/ai-worker
+# Root directory: /cv-parser
 
-# Start command:
-node dist/apps/ai-worker/main.js
+# Build configuration (detected automatically for Spring Boot)
+# Start command: java -jar target/cv-parser.jar
 
 # Deploy
 git push origin main
 ```
 
-#### C. Test Kafka Pipeline
+#### C. Test RabbitMQ Pipeline
 
 ```bash
 # Upload a test CV via frontend
-# Watch Railway logs for AI Worker:
-railway logs --service ai-worker --follow
+# Watch Railway logs for CV Parser:
+railway logs --service cv-parser --follow
 
 # Expected logs:
-[Kafka] Consumed message from cv.uploaded
+[RabbitMQ] Consumed message from cv.uploaded queue
+[Parser] Downloading CV from R2...
 [Parser] Extracting text from PDF...
 [Parser] Text extracted: 1250 characters
-[Kafka] Published message to cv.processed
+[RabbitMQ] Published message to cv.parsed queue
 ```
 
 ---
@@ -831,7 +837,7 @@ curl https://api.talentflow.ai/api/v1/jobs
 # Expected: Job list (may be empty)
 
 # 3. Kafka Status
-# Railway logs should show: [Kafka] Connected to broker
+# Railway logs should show: [RabbitMQ] Connected to broker
 
 # 4. Frontend Loads
 curl -I https://app.talentflow.ai
@@ -940,7 +946,7 @@ railway run psql $DATABASE_URL < previous_migration.sql
 | **Error Rate** | < 1% | Alert if > 5% |
 | **CPU Usage** | < 70% | Alert if > 85% |
 | **Memory Usage** | < 80% | Alert if > 90% |
-| **Kafka Consumer Lag** | < 1000 msgs | Alert if > 5000 |
+| **RabbitMQ Consumer Lag** | < 1000 msgs | Alert if > 5000 |
 | **Database Connections** | < 80% pool | Alert if > 90% |
 
 ### Grafana Dashboards
@@ -955,7 +961,7 @@ railway run psql $DATABASE_URL < previous_migration.sql
 - CPU usage (%)
 - Memory usage (%)
 - Database connections
-- Kafka consumer lag
+- RabbitMQ consumer lag
 
 **Dashboard 3: Business Metrics**
 - Active users
@@ -983,11 +989,11 @@ groups:
         annotations:
           summary: "API response time > 1s"
 
-      - alert: KafkaConsumerLag
-        expr: kafka_consumer_lag > 5000
+      - alert: RabbitMQConsumerLag
+        expr: rabbitmq_queue_messages > 5000
         for: 5m
         annotations:
-          summary: "Kafka consumer lag > 5000 messages"
+          summary: "RabbitMQ queue depth > 5000 messages"
 ```
 
 ---
@@ -1093,14 +1099,16 @@ railway run npx prisma migrate reset --force
 railway run npx prisma migrate deploy
 ```
 
-### Kafka Connection Fails
+### RabbitMQ Connection Fails
 
 ```bash
-# Test Kafka connection
-railway run node -e "console.log(process.env.KAFKA_BROKERS)"
+# Test RabbitMQ connection
+railway run node -e "console.log(process.env.RABBITMQ_URL)"
 
-# Check credentials
-# Verify SASL mechanism matches Upstash settings
+# Check RabbitMQ Management UI is accessible
+curl http://localhost:15672/api/overview
+
+# Verify credentials match docker-compose.yml or CloudAMQP settings
 ```
 
 ---

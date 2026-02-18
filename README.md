@@ -48,15 +48,15 @@ We use a **Flexible Polyglot 3-Service Architecture** that lets you choose the b
 │  - JWT Authentication + RBAC                        │
 │  - Jobs/Candidates CRUD                             │
 │  - File upload to Cloudflare R2                     │
-│  - BullMQ Producer                                  │
+│  - RabbitMQ Producer                                 │
 └──────┬─────────────────────────┬────────────────────┘
        │                         │
-       │ BullMQ (Redis)         │ PostgreSQL (Shared)
+       │ RabbitMQ (AMQP)        │ PostgreSQL (Shared)
        │                         │
 ┌──────▼────────────────────────┐  ┌──────▼──────────────────────┐
 │ Service 2: CV Parser          │  │ Service 3: Notification      │
-│ (Spring Boot OR ASP.NET Core) │  │ (NestJS OR ASP.NET Core)     │
-│ - BullMQ Consumer             │  │ - BullMQ Consumer            │
+│ (Spring Boot)                 │  │ (ASP.NET Core)               │
+│ - RabbitMQ Consumer           │  │ - RabbitMQ Consumer          │
 │ - PDF/DOCX parsing            │  │ - WebSocket real-time        │
 │ - Tesseract OCR               │  │ - Email notifications        │
 │ - AI Score (LLM API)          │  │                              │
@@ -85,7 +85,7 @@ We use a **Flexible Polyglot 3-Service Architecture** that lets you choose the b
 | **Framework** | NestJS | 10.x |
 | **Language** | TypeScript | 5.x |
 | **ORM** | Prisma | 5.x |
-| **Queue** | BullMQ | 4.x |
+| **Queue** | amqplib (RabbitMQ) | 0.10.x |
 | **Auth** | Passport + JWT | - |
 | **Testing** | Jest | 29.x |
 
@@ -99,7 +99,7 @@ We use a **Flexible Polyglot 3-Service Architecture** that lets you choose the b
 | **PDF Parsing** | Apache PDFBox | 3.x |
 | **DOCX Parsing** | Apache POI | 5.x |
 | **OCR** | Tesseract | 5.x |
-| **Queue** | BullMQ (via Redis) | - |
+| **Queue** | Spring AMQP (RabbitMQ) | 3.x |
 | **Testing** | JUnit 5 + Mockito | - |
 
 **When to choose Spring Boot:**
@@ -116,7 +116,7 @@ We use a **Flexible Polyglot 3-Service Architecture** that lets you choose the b
 | **PDF Parsing** | iTextSharp / PDFium | Latest |
 | **DOCX Parsing** | DocumentFormat.OpenXml | 3.x |
 | **OCR** | Tesseract (via wrapper) | 5.x |
-| **Queue** | StackExchange.Redis | Latest |
+| **Queue** | RabbitMQ.Client | 6.x |
 | **ORM** | Entity Framework Core | 8.x |
 | **Testing** | xUnit + Moq | - |
 
@@ -162,7 +162,7 @@ We use a **Flexible Polyglot 3-Service Architecture** that lets you choose the b
 | Component | Technology | Version |
 |-----------|------------|---------|
 | **Database** | PostgreSQL | 16.x |
-| **Queue** | BullMQ (Redis) | 7.x |
+| **Queue** | RabbitMQ (AMQP) | 3.x |
 | **Storage** | Cloudflare R2 | - |
 | **Cache** | Redis | 7.x |
 
@@ -271,7 +271,10 @@ JWT_SECRET="your-super-secret-key-change-this"
 JWT_ACCESS_EXPIRATION="15m"
 JWT_REFRESH_EXPIRATION="7d"
 
-# Redis (BullMQ + Cache)
+# RabbitMQ (Message Queue for polyglot services)
+RABBITMQ_URL="amqp://rabbitmq:rabbitmq@localhost:5672"
+
+# Redis (Cache only)
 REDIS_URL="redis://localhost:6379"
 
 # Cloudflare R2 Storage
@@ -306,6 +309,7 @@ docker-compose ps
 You should see:
 - ✅ `postgres` (port 5432)
 - ✅ `redis` (port 6379)
+- ✅ `rabbitmq` (ports 5672, 15672)
 
 ### 4. Setup Each Service
 
@@ -437,7 +441,7 @@ talentflow-backend/  (Single Git Repository)
 ├── cv-parser/                    # Service 2: CV Parser (Spring Boot OR ASP.NET Core)
 │   ├── src/main/java/
 │   │   └── com/talentflow/parser/
-│   │       ├── consumer/         # BullMQ consumer
+│   │       ├── consumer/         # RabbitMQ consumer
 │   │       ├── service/
 │   │       │   ├── PdfParserService.java
 │   │       │   ├── TesseractService.java
@@ -683,8 +687,9 @@ mvn test
 | [ADR-002](docs/adr/ADR-002-kafka-message-queue.md) | Apache Kafka | ❌ SUPERSEDED |
 | [ADR-003](docs/adr/ADR-003-prisma-orm.md) | Prisma ORM | ✅ Active |
 | [ADR-006](docs/adr/ADR-006-hybrid-microservices.md) | **3-Service Architecture** | ✅ **CURRENT** |
-| [ADR-007](docs/adr/ADR-007-bullmq-over-kafka.md) | **BullMQ Queue** | ✅ **CURRENT** |
+| [ADR-007](docs/adr/ADR-007-bullmq-over-kafka.md) | **BullMQ Queue** | ⚠️ Partial (Node.js only) |
 | [ADR-008](docs/adr/ADR-008-cloudflare-r2.md) | **Cloudflare R2 Storage** | ✅ **CURRENT** |
+| [ADR-009](docs/adr/ADR-009-rabbitmq-polyglot.md) | **RabbitMQ (Polyglot)** | ✅ **CURRENT** |
 
 ---
 
@@ -728,14 +733,17 @@ netstat -ano | findstr :8080  # Windows
 tesseract --version
 ```
 
-### BullMQ queue issues
+### RabbitMQ queue issues
 
 ```bash
-# Check Redis connection
-redis-cli ping  # Should return "PONG"
+# Check RabbitMQ is running
+docker-compose ps rabbitmq
 
-# Monitor queue in Bull Board (if installed)
-# Navigate to: http://localhost:3000/admin/queues
+# Check RabbitMQ Management UI
+# Navigate to: http://localhost:15672 (rabbitmq/rabbitmq)
+
+# View RabbitMQ logs
+docker-compose logs rabbitmq
 ```
 
 ---
