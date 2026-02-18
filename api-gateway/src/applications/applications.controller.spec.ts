@@ -51,6 +51,7 @@ describe('ApplicationsController', () => {
 
   const mockApplicationsService = {
     create: jest.fn(),
+    createWithCv: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
     update: jest.fn(),
@@ -91,6 +92,36 @@ describe('ApplicationsController', () => {
 
       expect(result).toEqual(mockApplication);
       expect(service.create).toHaveBeenCalledWith(mockUser.id, createDto);
+    });
+  });
+
+  describe('uploadCv', () => {
+    it('should upload CV and create application', async () => {
+      const file = {
+        originalname: 'resume.pdf',
+        mimetype: 'application/pdf',
+        buffer: Buffer.from('pdf-content'),
+      } as Express.Multer.File;
+
+      const dto = {
+        jobId: 'job-1',
+        coverLetter: 'I am interested',
+      };
+
+      const expected = {
+        applicationId: 'app-1',
+        fileKey: 'cvs/key.pdf',
+        fileUrl: 'http://localhost/file.pdf',
+        status: 'processing',
+        message: 'CV uploaded successfully. Processing started.',
+      };
+
+      mockApplicationsService.createWithCv.mockResolvedValue(expected);
+
+      const result = await controller.uploadCv(mockUser, file, dto);
+
+      expect(result).toEqual(expected);
+      expect(service.createWithCv).toHaveBeenCalledWith(mockUser.id, file, dto);
     });
   });
 

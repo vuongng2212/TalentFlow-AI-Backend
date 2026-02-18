@@ -9,6 +9,8 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,13 +18,19 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApplicationsService } from './applications.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { QueryApplicationsDto } from './dto/query-applications.dto';
 import { ApplicationResponseDto } from './dto/application-response.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { UploadCvDto } from './dto/upload-cv.dto';
+import { UploadCvResponseDto } from './dto/upload-cv-response.dto';
+import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 
 interface UserPayload {
   id: string;
@@ -55,6 +63,55 @@ export class ApplicationsController {
       user.id,
       createApplicationDto,
     ) as Promise<ApplicationResponseDto>;
+  }
+
+  @Post('upload')
+  @ApiOperation({ summary: 'Apply to a job with CV upload' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file', 'jobId'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+        jobId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        coverLetter: {
+          type: 'string',
+          maxLength: 2000,
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Application with CV submitted successfully',
+    type: UploadCvResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid file type or file too large',
+  })
+  @ApiResponse({ status: 404, description: 'Job not found' })
+  @ApiResponse({ status: 409, description: 'Already applied to this job' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+      },
+    }),
+  )
+  async uploadCv(
+    @CurrentUser() user: UserPayload,
+    @UploadedFile(FileValidationPipe) file: Express.Multer.File,
+    @Body() dto: UploadCvDto,
+  ): Promise<UploadCvResponseDto> {
+    return this.applicationsService.createWithCv(user.id, file, dto);
   }
 
   @Get()
