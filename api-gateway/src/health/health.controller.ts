@@ -88,7 +88,7 @@ export class HealthController {
    * TODO: Add dependency checks when available:
    * - Database (Prisma) health check
    * - Redis health check
-   * - BullMQ queue health check
+   * - RabbitMQ queue health check
    */
   @Public()
   @Get('ready')
@@ -105,8 +105,8 @@ export class HealthController {
       // Redis health check
       () => this.redisHealth.isHealthy('redis'),
 
-      // TODO (Slice 3): Add BullMQ queue health check
-      // () => this.bullmqHealth.isHealthy('queue'),
+      // TODO (Slice 3): Add RabbitMQ queue health check
+      // () => this.rabbitmqHealth.isHealthy('queue'),
     ]);
   }
 }
