@@ -157,7 +157,61 @@ describe('HealthController', () => {
 
       expect(mockMemoryHealthIndicator.checkHeap).toHaveBeenCalled();
       expect(mockMemoryHealthIndicator.checkRSS).toHaveBeenCalled();
+      expect(mockPrismaService.$queryRaw).toHaveBeenCalled();
+      expect(mockRedisService.ping).toHaveBeenCalled();
       expect(mockQueueService.isHealthy).toHaveBeenCalled();
+    });
+
+    it('should propagate readiness failures from dependency indicators', async () => {
+      mockHealthCheckService.check.mockImplementation(
+        async (indicators: (() => Promise<unknown>)[]) => {
+          for (const indicator of indicators) {
+            await indicator();
+          }
+          return { status: 'ok', info: {}, error: {}, details: {} };
+        },
+      );
+      mockPrismaService.$queryRaw.mockRejectedValue(
+        new Error('db unavailable'),
+      );
+      mockRedisService.ping.mockResolvedValue('PONG');
+      mockQueueService.isHealthy.mockResolvedValue(true);
+
+      await expect(controller.readiness()).rejects.toThrow('Prisma check failed');
+    });
+
+    it('should fail when redis does not return PONG', async () => {
+      mockHealthCheckService.check.mockImplementation(
+        async (indicators: (() => Promise<unknown>)[]) => {
+          for (const indicator of indicators) {
+            await indicator();
+          }
+          return { status: 'ok', info: {}, error: {}, details: {} };
+        },
+      );
+      mockPrismaService.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
+      mockRedisService.ping.mockResolvedValue('NOT_PONG');
+      mockQueueService.isHealthy.mockResolvedValue(true);
+
+      await expect(controller.readiness()).rejects.toThrow('Redis check failed');
+    });
+
+    it('should fail when queue is unhealthy', async () => {
+      mockHealthCheckService.check.mockImplementation(
+        async (indicators: (() => Promise<unknown>)[]) => {
+          for (const indicator of indicators) {
+            await indicator();
+          }
+          return { status: 'ok', info: {}, error: {}, details: {} };
+        },
+      );
+      mockPrismaService.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
+      mockRedisService.ping.mockResolvedValue('PONG');
+      mockQueueService.isHealthy.mockResolvedValue(false);
+
+      await expect(controller.readiness()).rejects.toThrow(
+        'RabbitMQ check failed',
+      );
     });
   });
 });
