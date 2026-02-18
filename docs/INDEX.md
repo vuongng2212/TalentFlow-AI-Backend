@@ -1,8 +1,8 @@
 # 📚 Documentation Index - TalentFlow AI
 
-**Last Updated:** 2026-02-03
+**Last Updated:** 2026-02-18
 **Status:** Clean & Organized
-**Architecture:** Polyglot 3-Service (NestJS + Spring Boot/ASP.NET Core)
+**Architecture:** Polyglot 3-Service (NestJS + Spring Boot + ASP.NET Core)
 
 ---
 
@@ -44,13 +44,14 @@ Bạn cần hiểu **quyết định kiến trúc** và **lý do**?
 
 **🟢 Active ADRs (Current Architecture):**
 1. ⭐ [**ADR-006: Polyglot 3-Service Architecture**](./adr/ADR-006-hybrid-microservices.md) - **CORE ARCHITECTURE**
-2. ✅ [**ADR-007: BullMQ over Kafka**](./adr/ADR-007-bullmq-over-kafka.md) - Message Queue strategy
+2. ⭐ [**ADR-009: RabbitMQ for Polyglot**](./adr/ADR-009-rabbitmq-polyglot.md) - **Message Queue** 🆕
 3. ✅ [**ADR-008: Cloudflare R2 Storage**](./adr/ADR-008-cloudflare-r2.md) - File storage strategy
 4. ✅ [**ADR-003: Prisma ORM**](./adr/ADR-003-prisma-orm.md) - Database ORM choice
 5. ✅ [**ADR-004: Deployment Strategy**](./adr/ADR-004-deployment-strategy.md) - Vercel + Railway
 6. ✅ [**ADR-005: Separate Repos**](./adr/ADR-005-separate-repos.md) - Frontend/Backend separation
 
-**⚠️ Superseded ADRs (Historical Reference Only):**
+**⚠️ Superseded/Partial ADRs (Historical Reference):**
+- ⚠️ [**ADR-007: BullMQ over Kafka**](./adr/ADR-007-bullmq-over-kafka.md) → Partially superseded by ADR-009 (still valid for Node.js-only)
 - ⚠️ [**ADR-001: NestJS Monorepo**](./adr/ADR-001-nestjs-monorepo.md) → Superseded by ADR-006
 - ⚠️ [**ADR-002: Apache Kafka**](./adr/ADR-002-kafka-message-queue.md) → Superseded by ADR-007
 
@@ -139,8 +140,9 @@ talentflow-backend/
             ├── 🟢 ADR-004-deployment-strategy.md (Active)
             ├── 🟢 ADR-005-separate-repos.md (Active)
             ├── ⭐ ADR-006-hybrid-microservices.md (CURRENT ARCHITECTURE)
-            ├── 🟢 ADR-007-bullmq-over-kafka.md (Active)
+            ├── ⚠️ ADR-007-bullmq-over-kafka.md (Partial - Node.js only)
             ├── 🟢 ADR-008-cloudflare-r2.md (Active)
+            ├── ⭐ ADR-009-rabbitmq-polyglot.md (CURRENT - Message Queue) 🆕
             ├── ⚠️ ADR-001-nestjs-monorepo.md (SUPERSEDED → See ADR-006)
             └── ⚠️ ADR-002-kafka-message-queue.md (SUPERSEDED → See ADR-007)
 ```
@@ -220,17 +222,18 @@ talentflow-backend/
 13. DEPLOYMENT.md - Deployment guide
 14. TESTING_STRATEGY.md - Testing strategies
 
-#### Architecture Decisions - Active (6):
+#### Architecture Decisions - Active (7):
 11. ⭐ ADR-006 - **Polyglot 3-Service** (CURRENT)
-12. ADR-007 - **BullMQ Queue** (CURRENT)
+12. ⭐ ADR-009 - **RabbitMQ Queue** (CURRENT) 🆕
 13. ADR-008 - **Cloudflare R2** (CURRENT)
 14. ADR-003 - Prisma ORM
 15. ADR-004 - Deployment Strategy
 16. ADR-005 - Separate FE/BE Repos
+17. ⚠️ ADR-007 - **BullMQ** (Node.js-only, see ADR-009 for polyglot)
 
 #### Architecture Decisions - Superseded (2):
-17. ⚠️ ADR-001 - NestJS Monorepo (Historical - See ADR-006)
-18. ⚠️ ADR-002 - Apache Kafka (Historical - See ADR-007)
+18. ⚠️ ADR-001 - NestJS Monorepo (Historical - See ADR-006)
+19. ⚠️ ADR-002 - Apache Kafka (Historical - See ADR-007)
 
 ---
 
@@ -258,7 +261,7 @@ talentflow-backend/
 
 **Quick Architecture Reference:**
 📖 **Current Architecture:** [ADR-006: Polyglot 3-Service](./adr/ADR-006-hybrid-microservices.md)
-📖 **Queue:** [ADR-007: BullMQ](./adr/ADR-007-bullmq-over-kafka.md)
+📖 **Queue (Polyglot):** [ADR-009: RabbitMQ](./adr/ADR-009-rabbitmq-polyglot.md) 🆕
 📖 **Storage:** [ADR-008: Cloudflare R2](./adr/ADR-008-cloudflare-r2.md)
 
 ---

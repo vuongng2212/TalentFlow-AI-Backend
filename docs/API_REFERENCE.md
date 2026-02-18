@@ -32,11 +32,11 @@
 sequenceDiagram
     participant F as Frontend<br/>(Next.js)
     participant A as API Gateway<br/>(NestJS)
-    participant Q as BullMQ<br/>(Redis Queue)
-    participant P as CV Parser<br/>(Spring Boot/ASP.NET)
+    participant Q as RabbitMQ<br/>(AMQP Queue)
+    participant P as CV Parser<br/>(Spring Boot)
     participant D as Database<br/>(PostgreSQL)
     participant R as Storage<br/>(Cloudflare R2)
-    participant N as Notification<br/>(NestJS/ASP.NET)
+    participant N as Notification<br/>(ASP.NET Core)
     participant AI as Claude AI
 
     %% Upload Phase

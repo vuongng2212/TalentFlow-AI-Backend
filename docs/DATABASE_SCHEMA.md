@@ -3,7 +3,7 @@
 **Project:** TalentFlow AI
 **ORM:** Prisma
 **Database:** PostgreSQL 16 (Shared by all 3 services)
-**Architecture:** Polyglot 3-Service (NestJS + Spring Boot + NestJS)
+**Architecture:** Polyglot 3-Service (NestJS + Spring Boot + ASP.NET Core)
 **Last Updated:** 2026-02-02
 
 ---
@@ -45,7 +45,7 @@
 **Service Ownership Rules:**
 - ✅ **API Gateway (NestJS):** Owns `users`, `jobs`, `applications`, `interviews`, `candidate_notes`, `audit_logs`
 - ✅ **CV Parser (Spring Boot):** Owns `candidates` table (writes `resume_text`, `ai_score`)
-- ✅ **Notification Service (NestJS):** Stateless (no table ownership, reads from Redis cache)
+- ✅ **Notification Service (ASP.NET Core):** Stateless (no table ownership, reads from Redis cache)
 - ⚠️ **Cross-service reads OK, cross-service writes FORBIDDEN** (except CV Parser updates `candidates`)
 
 ---
