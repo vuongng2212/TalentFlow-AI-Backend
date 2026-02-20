@@ -20,7 +20,10 @@ describe('appConfigSchema', () => {
   it('should allow test environment with fallback JWT secrets', () => {
     const { error, value } = appConfigSchema.validate({
       NODE_ENV: 'test',
-    });
+    }) as {
+      error: unknown;
+      value: { JWT_ACCESS_SECRET: string; JWT_REFRESH_SECRET: string };
+    };
 
     expect(error).toBeUndefined();
     expect(value.JWT_ACCESS_SECRET).toBe('test-access-secret-change-me');

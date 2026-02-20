@@ -20,7 +20,7 @@ jest.mock('@aws-sdk/client-s3', () => {
 });
 
 jest.mock('@aws-sdk/s3-request-presigner', () => ({
-  getSignedUrl: (...args: unknown[]) => mockGetSignedUrl(...args),
+  getSignedUrl: (...args: unknown[]): unknown => mockGetSignedUrl(...args),
 }));
 
 describe('StorageService', () => {
@@ -204,7 +204,9 @@ describe('StorageService', () => {
       'application/pdf',
     );
 
-    expect(result.url).toBe('http://localhost:9000/talentflow-cvs/cvs/file.pdf');
+    expect(result.url).toBe(
+      'http://localhost:9000/talentflow-cvs/cvs/file.pdf',
+    );
   });
 
   it('should initialize without credentials when keys are missing', async () => {
