@@ -1,11 +1,12 @@
 # PART 2: SOFTWARE REQUIREMENTS SPECIFICATION (SRS)
 
 **Project Name:** TalentFlow AI
-**Architecture Pattern:** Polyglot 3-Service Architecture (NestJS + Spring Boot + NestJS)
-**Last Updated:** 2026-02-02
+**Architecture Pattern:** Polyglot 3-Service Architecture (NestJS + Spring Boot + ASP.NET Core)
+**Last Updated:** 2026-02-18
 
 > ⚠️ **IMPORTANT:** This document describes the **CURRENT** architecture (Polyglot 3-Service).
 > For historical context on the previous NestJS Monorepo approach, see [ADR-001](./adr/ADR-001-nestjs-monorepo.md) (SUPERSEDED).
+> For message broker decision, see [ADR-009](./adr/ADR-009-rabbitmq-polyglot.md) (RabbitMQ for polyglot).
 
 ## 1. System Architecture Overview
 
@@ -14,14 +15,14 @@ Hệ thống sử dụng kiến trúc **Polyglot 3-Service** trong **single repo
 * **Single Repository Structure:** 3 services trong 1 Git repository (`api-gateway/`, `cv-parser/`, `notification-service/`) để dễ quản lý.
 * **Polyglot Services:** Mỗi service dùng tech stack phù hợp nhất:
   - **Service 1 (API Gateway):** NestJS - REST API, Auth, CRUD
-  - **Service 2 (CV Parser):** Spring Boot OR ASP.NET Core - CPU-intensive PDF/OCR processing
-  - **Service 3 (Notification):** NestJS OR ASP.NET Core - WebSocket, Email
+  - **Service 2 (CV Parser):** Spring Boot - CPU-intensive PDF/OCR processing
+  - **Service 3 (Notification):** ASP.NET Core - WebSocket, Email
 * **Clean Architecture Layers:**
   - **Domain Layer:** Entities, Use Cases, Business Rules - core business logic không phụ thuộc framework.
   - **Application Layer:** Service Interfaces, DTOs, Application Logic - orchestrate use cases.
-  - **Infrastructure Layer:** Database (Prisma/EF Core), External APIs, Message Queue (BullMQ) - implementation details.
+  - **Infrastructure Layer:** Database (Prisma/EF Core), External APIs, Message Queue (RabbitMQ) - implementation details.
   - **Presentation Layer:** REST Controllers, WebSocket Gateways - handle HTTP/WS requests.
-* **Communication:** Async queue-based architecture với **BullMQ (Redis)** để đảm bảo simplicity và reliability cho MVP.
+* **Communication:** Async queue-based architecture với **RabbitMQ (AMQP)** để đảm bảo polyglot support và reliability cho MVP.
 
 ### C4 Model: Context Diagram
 
@@ -74,11 +75,11 @@ graph TB
     %% Backend Services
     subgraph "TalentFlow AI System"
         APIGateway[⚙️ API Gateway<br/>NestJS TypeScript<br/>REST API, Auth, CRUD]
-        CVParser[🔧 CV Parser Service<br/>Spring Boot Java OR ASP.NET Core C#<br/>PDF/OCR Processing, AI Scoring]
-        Notification[📬 Notification Service<br/>NestJS TypeScript OR ASP.NET Core C#<br/>WebSocket, Email]
+        CVParser[🔧 CV Parser Service<br/>Spring Boot Java<br/>PDF/OCR Processing, AI Scoring]
+        Notification[📬 Notification Service<br/>ASP.NET Core C#<br/>WebSocket, Email]
 
         Database[(🗄️ PostgreSQL<br/>Neon Serverless<br/>Users, Jobs, CVs, Applications)]
-        Queue[🔄 Message Queue<br/>BullMQ + Redis<br/>Async Event Processing]
+        Queue[🔄 Message Queue<br/>RabbitMQ AMQP<br/>Async Event Processing]
         Cache[⚡ Redis Cache<br/>Session, Rate Limiting]
     end
 
@@ -123,10 +124,10 @@ graph TB
 **Container Diagram Legend:**
 - **Frontend:** Next.js 16 web application for recruiters
 - **API Gateway:** NestJS service handling HTTP requests, authentication, CRUD
-- **CV Parser:** Spring Boot/ASP.NET service for CPU-intensive PDF parsing & OCR
-- **Notification:** NestJS/ASP.NET service for real-time WebSocket & email
+- **CV Parser:** Spring Boot service for CPU-intensive PDF parsing & OCR
+- **Notification:** ASP.NET Core service for real-time WebSocket & email
 - **Database:** PostgreSQL for relational data (users, jobs, applications)
-- **Queue:** BullMQ (Redis) for async communication between services
+- **Queue:** RabbitMQ (AMQP) for async communication between services
 - **External:** Cloudflare R2 for file storage, Claude AI for CV processing
 
 ### ASCII Architecture Diagram (Legacy)
@@ -142,8 +143,7 @@ graph TB
 ┌──────▼───────────┐  ┌─────────▼───────────┐
 │ Service 2:       │  │ Service 3:          │
 │ CV Parser        │  │ Notification        │
-│ (Spring Boot OR  │  │ (NestJS OR          │
-│  ASP.NET Core)   │  │  ASP.NET Core)      │
+│ (Spring Boot)    │  │ (ASP.NET Core)      │
 │ - Tesseract OCR  │  │ - WebSocket         │
 │ - PDF parsing    │  │ - Email             │
 └──────────────────┘  └─────────────────────┘
@@ -157,11 +157,11 @@ graph TB
 | --- | --- | --- |
 | **Frontend** | **Next.js 16** | TypeScript, App Router, React Server Components, Server Actions, TailwindCSS, Shadcn/UI, React Query. |
 | **Backend Service 1** | **NestJS** | API Gateway - REST API, Auth (JWT + Passport), CRUD operations, BullMQ producer. |
-| **Backend Service 2** | **Spring Boot 3.x** | CV Parser - PDF/DOCX parsing (Apache PDFBox/POI), Tesseract OCR, LLM integration, BullMQ consumer. |
-| **Backend Service 3** | **NestJS** | Notification Service - WebSocket (Socket.io), Email (SendGrid/Resend), BullMQ consumer. |
-| **ORM** | **Prisma** | Type-safe database client, migrations, schema management (used by NestJS services). |
+| **Backend Service 2** | **Spring Boot 3.x** | CV Parser - PDF/DOCX parsing (Apache PDFBox/POI), Tesseract OCR, LLM integration, RabbitMQ consumer. |
+| **Backend Service 3** | **ASP.NET Core 8** | Notification Service - WebSocket (SignalR), Email (SendGrid/Resend), RabbitMQ consumer. |
+| **ORM** | **Prisma / EF Core** | Type-safe database client, migrations, schema management. |
 | **Database** | **PostgreSQL 16** | Primary relational database for structured data (shared by all services with logical separation). |
-| **Queue** | **BullMQ (Redis)** | Job queue for async communication between services, retry logic, DLQ support. |
+| **Queue** | **RabbitMQ** | AMQP message broker for async communication between services, DLQ support, routing patterns. |
 | **Storage** | **Cloudflare R2** | S3-compatible object storage for CV files (FREE egress saves $33k vs AWS S3). |
 | **Cache** | **Redis 7.x** | BullMQ queue storage + session caching + rate limiting. |
 | **Vector DB** | **Weaviate / Qdrant** | (Phase 2) Embeddings storage for Semantic Search and AI matching. |
@@ -181,7 +181,7 @@ graph TB
 * **FR-03:** CRUD Job Description thông qua RESTful API với **NestJS Controllers**.
 * **FR-04:** Lưu trữ JD dưới dạng cấu trúc JSON trong PostgreSQL (qua **Prisma ORM**) để AI dễ dàng đối chiếu và parse.
 
-### 3.3. CV Upload & Processing Pipeline (Async with BullMQ)
+### 3.3. CV Upload & Processing Pipeline (Async with RabbitMQ)
 
 **Architecture Flow:**
 ```
@@ -189,18 +189,18 @@ Frontend (Next.js 16)
   -> Service 1: API Gateway (NestJS - Upload Controller)
     -> Cloudflare R2 Storage
     -> PostgreSQL (Metadata via Prisma)
-    -> BullMQ Producer: Queue "cv.uploaded"
+    -> RabbitMQ Producer: Queue "cv.uploaded"
 
-Service 2: CV Parser (Spring Boot - BullMQ Consumer)
+Service 2: CV Parser (Spring Boot - RabbitMQ Consumer)
   -> Download CV from R2
   -> PDF Parsing (Apache PDFBox / Tika)
   -> DOCX Parsing (Apache POI)
   -> Tesseract OCR (for scanned PDFs)
   -> LLM Extraction & Scoring (Anthropic Claude API)
   -> Update PostgreSQL (resume_text, ai_score)
-  -> BullMQ Producer: Queue "cv.processed"
+  -> RabbitMQ Producer: Queue "cv.parsed"
 
-Service 3: Notification (NestJS - BullMQ Consumer)
+Service 3: Notification (ASP.NET Core - RabbitMQ Consumer)
   -> WebSocket notification to Frontend (recruiter dashboard)
   -> Email notification (SendGrid/Resend)
 ```
@@ -211,9 +211,9 @@ Service 3: Notification (NestJS - BullMQ Consumer)
 
 * **FR-06 (Storage):** API Gateway (NestJS) validate file (size, type), upload lên **Cloudflare R2** bằng R2 SDK (S3-compatible), lưu metadata (file_url, candidate_id, job_id, status) vào **PostgreSQL** qua **Prisma**.
 
-* **FR-07 (Async Trigger):** API Gateway emit job `cv.uploaded` (payload: `{candidateId, fileUrl, jobId}`) vào **BullMQ Queue**: `cv.uploaded` sử dụng **BullMQ** library.
+* **FR-07 (Async Trigger):** API Gateway emit job `cv.uploaded` (payload: `{candidateId, fileUrl, jobId}`) vào **RabbitMQ Exchange**: `cv-events` sử dụng **amqplib** library.
 
-* **FR-08 (AI Processing):** **Service 2: CV Parser (Spring Boot)** consume BullMQ queue `cv.uploaded`:
+* **FR-08 (AI Processing):** **Service 2: CV Parser (Spring Boot)** consume RabbitMQ queue `cv-processing`:
   - Tải file từ Cloudflare R2.
   - Sử dụng **Apache PDFBox/Tika** (PDF) hoặc **Apache POI** (DOCX) để extract text.
   - Tesseract OCR cho scanned PDFs.
@@ -229,10 +229,10 @@ Service 3: Notification (NestJS - BullMQ Consumer)
     ```
   - Gọi **OpenAI Embeddings API** để generate vector representation.
   - Lưu vector vào **Weaviate/Qdrant** với metadata (Phase 2).
-  - Emit job `cv.processed` (payload: `{candidateId, extractedData, score}`) vào **BullMQ Queue**: `cv.processed`.
+  - Emit job `cv.parsed` (payload: `{candidateId, extractedData, score}`) vào **RabbitMQ Exchange**: `cv-events`.
 
-* **FR-09 (Update & Notification):** **Service 3: Notification (NestJS)** nhận job `cv.processed` từ BullMQ, sau đó:
-  - Gửi notification tới Frontend qua **WebSocket Gateway**.
+* **FR-09 (Update & Notification):** **Service 3: Notification (ASP.NET Core)** nhận job `cv.parsed` từ RabbitMQ, sau đó:
+  - Gửi notification tới Frontend qua **SignalR WebSocket Gateway**.
   - Gửi email notification tới recruiter (optional).
   - Update UI Kanban board real-time.
 
@@ -376,19 +376,16 @@ talentflow-backend/  (Single Git Repository)
 │   ├── pom.xml (or build.gradle)
 │   └── application.yml
 │
-├── notification-service/         # Service 3: NestJS Notification
-│   ├── src/
-│   │   ├── main.ts
-│   │   ├── app.module.ts
-│   │   ├── consumers/
-│   │   │   └── cv-processed.consumer.ts
-│   │   ├── gateways/
-│   │   │   └── websocket.gateway.ts
-│   │   └── services/
-│   │       └── email.service.ts
-│   ├── test/
-│   ├── package.json
-│   └── tsconfig.json
+├── notification-service/         # Service 3: ASP.NET Core Notification
+│   ├── Controllers/
+│   │   └── NotificationController.cs
+│   ├── Hubs/
+│   │   └── NotificationHub.cs      # SignalR WebSocket
+│   ├── Services/
+│   │   ├── RabbitMQConsumer.cs
+│   │   └── EmailService.cs
+│   ├── Program.cs
+│   └── appsettings.json
 │
 ├── shared/                       # Shared code
 │   ├── types/                    # TypeScript types (for NestJS services)
@@ -410,20 +407,19 @@ talentflow-backend/  (Single Git Repository)
 - Authentication & Authorization (JWT + RBAC)
 - Database CRUD operations (Prisma)
 - File upload to Cloudflare R2
-- BullMQ Producer (emit jobs to queue)
+- RabbitMQ Producer (emit jobs to queue)
 
 #### **Service 2: CV Parser (Spring Boot)** - Port 8080
-- BullMQ Consumer (listen `cv.uploaded` queue)
+- RabbitMQ Consumer (listen `cv-processing` queue)
 - CPU-intensive file processing (PDF/DOCX/OCR)
 - LLM integration (Anthropic Claude)
-- Database updates (Spring Data JPA or Prisma bridge)
-- BullMQ Producer (emit `cv.processed` jobs)
+- Database updates (Spring Data JPA)
+- RabbitMQ Producer (emit `cv.parsed` events)
 
-#### **Service 3: Notification (NestJS)** - Port 3001
-- BullMQ Consumer (listen `cv.processed` queue)
-- WebSocket server for real-time updates
+#### **Service 3: Notification (ASP.NET Core)** - Port 5000
+- RabbitMQ Consumer (listen `cv-notifications` queue)
+- WebSocket server (SignalR) for real-time updates
 - Email notifications (SendGrid/Resend)
-- Email service integration (SendGrid/SES)
 - SMS notifications (optional)
 
 #### **libs/common**
@@ -466,23 +462,16 @@ export class CandidateService {
   async processCVUpload(file: File) {
     // Business logic
     const url = await this.r2Service.upload(file);
-    await this.bullMQService.addJob('cv.uploaded', { url });
+    await this.queueService.publishCvUploaded({ url });
   }
 }
 
 // Infrastructure Layer
 @Injectable()
-export class R2Service {
-  async upload(file: File): Promise<string> {
-    // Cloudflare R2 SDK implementation
-    return r2Url;
-  }
-}
-
-@Injectable()
-export class BullMQService {
-  async addJob(queueName: string, data: any) {
-    await this.cvQueue.add(queueName, data);
+export class QueueService {
+  async publishCvUploaded(data: CvUploadedEvent) {
+    // RabbitMQ publish implementation
+    this.channel.publish('cv-events', 'cv.uploaded', Buffer.from(JSON.stringify(data)));
   }
 }
 
@@ -501,8 +490,12 @@ export class R2Service {
 @Service
 public class CvProcessorService {
 
-  @Async
-  public void processCv(String candidateId, String cvUrl, String jobId) {
+  @RabbitListener(queues = "cv-processing")
+  public void processCv(CvUploadedEvent event) {
+    String candidateId = event.getCandidateId();
+    String cvUrl = event.getFileUrl();
+    String jobId = event.getJobId();
+
     // 1. Download from R2
     byte[] pdfBytes = r2Client.download(cvUrl);
 
@@ -516,7 +509,8 @@ public class CvProcessorService {
     candidateRepo.updateScore(candidateId, score);
 
     // 5. Emit to notification queue
-    bullMQProducer.addJob("cv.processed", new CvProcessedEvent(candidateId, score));
+    rabbitTemplate.convertAndSend("cv-events", "cv.parsed",
+        new CvParsedEvent(candidateId, score));
   }
 }
 ```
@@ -536,7 +530,10 @@ notification-service/.env
 # Database (Shared)
 DATABASE_URL="postgresql://postgres:password@localhost:5432/talentflow_dev"
 
-# BullMQ (Redis Queue)
+# RabbitMQ (Message Queue)
+RABBITMQ_URL="amqp://rabbitmq:rabbitmq@localhost:5672"
+
+# Redis (Cache only - not for queue)
 REDIS_URL="redis://localhost:6379"
 
 # Cloudflare R2 Storage
@@ -560,7 +557,7 @@ JWT_REFRESH_EXPIRATION="7d"
 # Service Ports
 API_GATEWAY_PORT=3000
 CV_PARSER_PORT=8080
-NOTIFICATION_PORT=3001
+NOTIFICATION_PORT=5000
 ```
 
 ### 6.5. Development Commands

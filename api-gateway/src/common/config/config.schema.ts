@@ -7,6 +7,13 @@ const requiredInProd = (schema: Joi.AnySchema, fallback: string) =>
     otherwise: schema.default(fallback),
   });
 
+const requiredOutsideTest = (schema: Joi.AnySchema, fallback: string) =>
+  schema.when('NODE_ENV', {
+    is: 'test',
+    then: schema.default(fallback),
+    otherwise: schema.required(),
+  });
+
 export const appConfigSchema = Joi.object({
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test')
@@ -18,23 +25,28 @@ export const appConfigSchema = Joi.object({
     'postgresql://localhost:5432/dev',
   ),
   REDIS_URL: requiredInProd(Joi.string().uri(), 'redis://localhost:6379'),
+  RABBITMQ_URL: requiredInProd(
+    Joi.string().uri(),
+    'amqp://rabbitmq:rabbitmq@localhost:5672',
+  ),
 
-  JWT_ACCESS_SECRET: requiredInProd(
+  JWT_ACCESS_SECRET: requiredOutsideTest(
     Joi.string().min(16),
     'test-access-secret-change-me',
   ),
-  JWT_REFRESH_SECRET: requiredInProd(
+  JWT_REFRESH_SECRET: requiredOutsideTest(
     Joi.string().min(16),
     'test-refresh-secret-change-me',
   ),
   JWT_ACCESS_EXPIRATION: Joi.string().default('15m'),
   JWT_REFRESH_EXPIRATION: Joi.string().default('7d'),
 
+  R2_ENDPOINT: Joi.string().uri().allow('', null).default(null),
   R2_ACCOUNT_ID: Joi.string().allow('', null).default(null),
   R2_ACCESS_KEY_ID: Joi.string().allow('', null).default(null),
   R2_SECRET_ACCESS_KEY: Joi.string().allow('', null).default(null),
-  R2_BUCKET: Joi.string().allow('', null).default(null),
-  R2_PUBLIC_URL: Joi.string().allow('', null).default(null),
+  R2_BUCKET: Joi.string().default('talentflow-cvs'),
+  R2_PUBLIC_URL: Joi.string().uri().allow('', null).default(null),
 
   RATE_LIMIT_TTL_SEC: Joi.number().integer().min(1).default(60),
   RATE_LIMIT_MAX: Joi.number().integer().min(1).default(100),

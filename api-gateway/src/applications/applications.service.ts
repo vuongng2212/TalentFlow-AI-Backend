@@ -1,23 +1,72 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { QueryApplicationsDto } from './dto/query-applications.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, ApplicationStatus, ApplicationStage } from '@prisma/client';
+import { StorageService } from '../storage/storage.service';
+import { QueueService } from '../queue/queue.service';
+import { UploadCvDto } from './dto/upload-cv.dto';
+import { UploadCvResponseDto } from './dto/upload-cv-response.dto';
+import { generateCvFileKey } from '../common/utils/file-key.util';
+import { sanitizeError } from '../common/utils/sanitize.util';
+
+interface ApplicationWithRelations {
+  id: string;
+  jobId: string;
+  candidateId: string;
+  stage: ApplicationStage;
+  status: ApplicationStatus;
+  cvFileKey: string | null;
+  cvFileUrl: string | null;
+  coverLetter: string | null;
+  notes: string | null;
+  appliedAt: Date;
+  reviewedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+  job: {
+    id: string;
+    title: string;
+    department: string | null;
+    location?: string | null;
+    employmentType?: string | null;
+    createdById: string;
+    createdBy?: {
+      id: string;
+      email: string;
+      fullName: string;
+    };
+  };
+  candidate: {
+    id: string;
+    email: string;
+    fullName: string;
+  };
+}
 
 @Injectable()
 export class ApplicationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ApplicationsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storageService: StorageService,
+    private readonly queueService: QueueService,
+  ) {}
 
   async create(
     userId: string,
     createApplicationDto: CreateApplicationDto,
-  ): Promise<any> {
+  ): Promise<ApplicationWithRelations> {
     const { jobId, ...data } = createApplicationDto;
 
     // Check if job exists and is open
@@ -82,6 +131,7 @@ export class ApplicationsService {
             id: true,
             title: true,
             department: true,
+            createdById: true,
           },
         },
         candidate: {
@@ -93,6 +143,192 @@ export class ApplicationsService {
         },
       },
     });
+  }
+
+  async createWithCv(
+    userId: string,
+    file: Express.Multer.File,
+    dto: UploadCvDto,
+  ): Promise<UploadCvResponseDto> {
+    const { jobId, coverLetter } = dto;
+
+    await this.findOpenJobOrThrow(jobId);
+    const candidate = await this.findOrCreateCandidateOrThrow(userId);
+    await this.ensureNoDuplicateApplication(jobId, candidate.id);
+
+    const { fileKey, uploadUrl } = await this.uploadCvOrThrow(file);
+
+    let applicationId: string | null = null;
+
+    try {
+      const application = await this.prisma.application.create({
+        data: {
+          jobId,
+          candidateId: candidate.id,
+          coverLetter,
+          cvFileKey: fileKey,
+          cvFileUrl: uploadUrl,
+        },
+      });
+
+      applicationId = application.id;
+
+      await this.queueService.publishCvUploaded({
+        candidateId: candidate.id,
+        applicationId: application.id,
+        jobId,
+        fileKey,
+        fileUrl: uploadUrl,
+        mimeType: file.mimetype,
+        uploadedAt: new Date().toISOString(),
+      });
+
+      return this.buildUploadResponse(application.id, fileKey, uploadUrl);
+    } catch (error) {
+      this.logger.error(
+        `Failed to process CV upload for job ${jobId}, candidate ${candidate.id}, file ${fileKey}`,
+        sanitizeError(error),
+      );
+      await this.rollbackCreateWithCv(applicationId, fileKey);
+      throw new InternalServerErrorException('Failed to process CV upload');
+    }
+  }
+
+  private async findOpenJobOrThrow(jobId: string) {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+    });
+
+    if (!job || job.deletedAt) {
+      throw new NotFoundException(`Job with ID ${jobId} not found`);
+    }
+
+    if (job.status !== 'OPEN') {
+      throw new ForbiddenException('Cannot apply to a job that is not open');
+    }
+
+    return job;
+  }
+
+  private async findOrCreateCandidateOrThrow(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const candidate = await this.prisma.candidate.findUnique({
+      where: { email: user.email },
+    });
+
+    if (candidate) {
+      return candidate;
+    }
+
+    return this.prisma.candidate.create({
+      data: {
+        email: user.email,
+        fullName: user.fullName,
+      },
+    });
+  }
+
+  private async ensureNoDuplicateApplication(
+    jobId: string,
+    candidateId: string,
+  ): Promise<void> {
+    const existingApplication = await this.prisma.application.findFirst({
+      where: {
+        jobId,
+        candidateId,
+        deletedAt: null,
+      },
+    });
+
+    if (existingApplication) {
+      throw new ConflictException('You have already applied to this job');
+    }
+  }
+
+  private async uploadCvOrThrow(
+    file: Express.Multer.File,
+  ): Promise<{ fileKey: string; uploadUrl: string }> {
+    const fileKey = generateCvFileKey(file.originalname);
+
+    try {
+      const uploadResult = await this.storageService.upload(
+        file.buffer,
+        fileKey,
+        file.mimetype,
+      );
+
+      return {
+        fileKey,
+        uploadUrl: uploadResult.url,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to upload CV file ${fileKey}`,
+        sanitizeError(error),
+      );
+      throw new InternalServerErrorException('Failed to upload CV file');
+    }
+  }
+
+  private async buildUploadResponse(
+    applicationId: string,
+    fileKey: string,
+    uploadUrl: string,
+  ): Promise<UploadCvResponseDto> {
+    let presignedUrl: string | undefined;
+
+    try {
+      presignedUrl = await this.storageService.getSignedUrl(fileKey);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to generate presigned URL for file ${fileKey}`,
+        sanitizeError(error),
+      );
+      presignedUrl = undefined;
+    }
+
+    return {
+      applicationId,
+      fileKey,
+      fileUrl: uploadUrl,
+      presignedUrl,
+      status: 'processing',
+      message: 'CV uploaded successfully. Processing started.',
+    };
+  }
+
+  private async rollbackCreateWithCv(
+    applicationId: string | null,
+    fileKey: string,
+  ): Promise<void> {
+    if (applicationId) {
+      try {
+        await this.prisma.application.delete({
+          where: { id: applicationId },
+        });
+      } catch (error) {
+        this.logger.error(
+          `Failed to rollback application ${applicationId}`,
+          sanitizeError(error),
+        );
+      }
+    }
+
+    try {
+      await this.storageService.delete(fileKey);
+    } catch (error) {
+      this.logger.error(
+        `Failed to rollback uploaded file ${fileKey}`,
+        sanitizeError(error),
+      );
+    }
   }
 
   async findAll(userId: string, userRole: string, query: QueryApplicationsDto) {
@@ -202,7 +438,11 @@ export class ApplicationsService {
     };
   }
 
-  async findOne(id: string, userId: string, userRole: string): Promise<any> {
+  async findOne(
+    id: string,
+    userId: string,
+    userRole: string,
+  ): Promise<ApplicationWithRelations> {
     const application = await this.prisma.application.findUnique({
       where: { id },
       include: {
@@ -255,7 +495,7 @@ export class ApplicationsService {
     userId: string,
     userRole: string,
     updateApplicationDto: UpdateApplicationDto,
-  ): Promise<any> {
+  ): Promise<ApplicationWithRelations> {
     const application = await this.findOne(id, userId, userRole);
 
     // Check user's candidate status
@@ -288,7 +528,9 @@ export class ApplicationsService {
       );
     }
 
-    const updateData: any = { ...updateApplicationDto };
+    const updateData: Partial<UpdateApplicationDto> & { reviewedAt?: Date } = {
+      ...updateApplicationDto,
+    };
 
     // Set reviewedAt when status changes
     if (
@@ -306,6 +548,8 @@ export class ApplicationsService {
           select: {
             id: true,
             title: true,
+            department: true,
+            createdById: true,
           },
         },
         candidate: {

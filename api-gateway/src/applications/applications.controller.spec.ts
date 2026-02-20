@@ -5,11 +5,7 @@ import { ApplicationsService } from './applications.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { QueryApplicationsDto } from './dto/query-applications.dto';
-import {
-  ApplicationStatus,
-  ApplicationStage,
-  Role,
-} from '@prisma/client';
+import { ApplicationStatus, ApplicationStage, Role } from '@prisma/client';
 
 describe('ApplicationsController', () => {
   let controller: ApplicationsController;
@@ -34,7 +30,7 @@ describe('ApplicationsController', () => {
     jobId: 'job-1',
     candidateId: 'candidate-1',
     coverLetter: 'I am interested',
-    stage: ApplicationStage.APPLICATION,
+    stage: ApplicationStage.APPLIED,
     status: ApplicationStatus.SUBMITTED,
     notes: null,
     reviewedAt: null,
@@ -55,6 +51,7 @@ describe('ApplicationsController', () => {
 
   const mockApplicationsService = {
     create: jest.fn(),
+    createWithCv: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
     update: jest.fn(),
@@ -98,6 +95,36 @@ describe('ApplicationsController', () => {
     });
   });
 
+  describe('uploadCv', () => {
+    it('should upload CV and create application', async () => {
+      const file = {
+        originalname: 'resume.pdf',
+        mimetype: 'application/pdf',
+        buffer: Buffer.from('pdf-content'),
+      } as Express.Multer.File;
+
+      const dto = {
+        jobId: 'job-1',
+        coverLetter: 'I am interested',
+      };
+
+      const expected = {
+        applicationId: 'app-1',
+        fileKey: 'cvs/key.pdf',
+        fileUrl: 'http://localhost/file.pdf',
+        status: 'processing',
+        message: 'CV uploaded successfully. Processing started.',
+      };
+
+      mockApplicationsService.createWithCv.mockResolvedValue(expected);
+
+      const result = await controller.uploadCv(mockUser, file, dto);
+
+      expect(result).toEqual(expected);
+      expect(service.createWithCv).toHaveBeenCalledWith(mockUser.id, file, dto);
+    });
+  });
+
   describe('findAll', () => {
     it('should return paginated applications', async () => {
       const query: QueryApplicationsDto = { page: 1, limit: 10 };
@@ -124,7 +151,7 @@ describe('ApplicationsController', () => {
         limit: 10,
         jobId: 'job-1',
         status: ApplicationStatus.SUBMITTED,
-        stage: ApplicationStage.APPLICATION,
+        stage: ApplicationStage.APPLIED,
       };
 
       mockApplicationsService.findAll.mockResolvedValue({
@@ -170,7 +197,11 @@ describe('ApplicationsController', () => {
 
       mockApplicationsService.update.mockResolvedValue(updatedApplication);
 
-      const result = await controller.update('app-1', mockRecruiterUser, updateDto);
+      const result = await controller.update(
+        'app-1',
+        mockRecruiterUser,
+        updateDto,
+      );
 
       expect(result).toEqual(updatedApplication);
       expect(service.update).toHaveBeenCalledWith(

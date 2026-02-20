@@ -52,15 +52,15 @@ talentflow-backend/  (Single Git Repository)
 │  - JWT Authentication + RBAC                        │
 │  - Jobs/Candidates CRUD                             │
 │  - File upload to Cloudflare R2                     │
-│  - BullMQ Producer (emit events)                    │
+│  - RabbitMQ Producer (emit events)                  │
 └──────┬─────────────────────────┬────────────────────┘
        │                         │
-       │ BullMQ (Redis)         │ PostgreSQL (Shared)
+       │ RabbitMQ (AMQP)        │ PostgreSQL (Shared)
        │                         │
 ┌──────▼────────────────┐  ┌────▼────────────────────┐
 │ Service 2: CV Parser  │  │ Service 3: Notification │
-│   (Spring Boot)       │  │      (NestJS)           │
-│ - BullMQ Consumer     │  │ - BullMQ Consumer       │
+│   (Spring Boot)       │  │      (ASP.NET Core)     │
+│ - RabbitMQ Consumer   │  │ - RabbitMQ Consumer     │
 │ - PDF/DOCX parsing    │  │ - WebSocket real-time   │
 │ - Tesseract OCR       │  │ - Email notifications   │
 │ - AI Score (LLM API)  │  │                         │
@@ -76,25 +76,25 @@ talentflow-backend/  (Single Git Repository)
   - Authentication & Authorization (JWT + RBAC)
   - Jobs, Candidates, Applications CRUD
   - File upload endpoint → Cloudflare R2
-  - BullMQ Producer (emit events to queue)
+  - RabbitMQ Producer (emit events to queue)
   - Prisma ORM (database access)
 
 #### **Service 2: CV Parser (Spring Boot)** 🟡
 - **Location:** `/cv-parser`
 - **Responsibilities:**
-  - BullMQ Consumer (listen `cv.uploaded` queue)
+  - RabbitMQ Consumer (listen `cv.uploaded` queue)
   - PDF parsing (Apache PDFBox / Tika)
   - DOCX parsing (Apache POI)
   - OCR with Tesseract (for scanned PDFs)
   - Rule-based filtering or Vector embedding
   - LLM evaluation (OpenAI/Anthropic API)
   - Database update via Prisma or direct access
-  - Emit `cv.processed` event
+  - Emit `cv.parsed` event
 
-#### **Service 3: Notification (NestJS)** 🟢
+#### **Service 3: Notification (ASP.NET Core)** 🔵
 - **Location:** `/notification-service`
 - **Responsibilities:**
-  - BullMQ Consumer (listen `cv.processed` queue)
+  - RabbitMQ Consumer (listen `cv.parsed`, `cv.failed` queues)
   - WebSocket server (real-time notifications to recruiters)
   - Email service (SendGrid/Resend)
 
@@ -171,10 +171,10 @@ talentflow-backend/  (Single Git Repository)
 Frontend ↔ API Gateway: REST API (HTTPS)
 ```
 
-**2. Asynchronous (BullMQ - Redis Queue):**
+**2. Asynchronous (RabbitMQ - AMQP Queue):**
 ```
-API Gateway → CV Parser: BullMQ queue "cv.uploaded"
-CV Parser → Notification: BullMQ queue "cv.processed"
+API Gateway → CV Parser: RabbitMQ queue "cv.uploaded"
+CV Parser → Notification: RabbitMQ queue "cv.parsed" / "cv.failed"
 ```
 
 **3. Real-time (WebSocket):**
@@ -191,7 +191,7 @@ Notification Service → Frontend: WebSocket events
    - Validate file (PDF/DOCX, max 10MB)
    - Upload to Cloudflare R2
    - Create Candidate + Application in DB
-   - Emit "cv.uploaded" to BullMQ
+   - Emit "cv.uploaded" to RabbitMQ
    - Response: { candidateId, status: "processing" }
    ↓
 3. CV Parser Service consumes queue
@@ -200,7 +200,7 @@ Notification Service → Frontend: WebSocket events
    - Parse structured data
    - Calculate AI Score
    - Update database
-   - Emit "cv.processed" to BullMQ
+   - Emit "cv.parsed" to RabbitMQ
    ↓
 4. Notification Service consumes queue
    - Send WebSocket to Frontend
@@ -221,8 +221,9 @@ Notification Service → Frontend: WebSocket events
   - Notification Service: stateless (reads from Redis cache)
 
 **Queue:**
-- **BullMQ** (Redis-based) - async communication between services
-- See [ADR-007](./ADR-007-bullmq-over-kafka.md) for queue design
+- **RabbitMQ** (AMQP-based) - async communication between services
+- See [ADR-009](./ADR-009-rabbitmq-polyglot.md) for queue design (polyglot)
+- See [ADR-007](./ADR-007-bullmq-over-kafka.md) for Node.js-only alternative
 
 **Storage:**
 - **Cloudflare R2** (S3-compatible) - CV file storage
@@ -317,12 +318,12 @@ This architecture follows SOLID principles:
 - Structured logging with correlation IDs
 
 **Network:**
-- BullMQ is Redis-based (very fast)
+- RabbitMQ is AMQP-based (reliable messaging)
 - Connection pooling for database
 - Acceptable latency for MVP scale
 
 **Consistency:**
-- BullMQ retry logic (3 attempts)
+- RabbitMQ retry logic with DLQ
 - Idempotent message handlers
 - Database transactions where needed
 
@@ -347,11 +348,11 @@ talentflow-backend/
 │   ├── pom.xml (or build.gradle)
 │   └── application.yml
 │
-├── notification-service/     # NestJS service
-│   ├── src/
-│   ├── test/
-│   ├── package.json
-│   └── tsconfig.json
+├── notification-service/     # Service 3: ASP.NET Core Notification
+│   ├── Controllers/
+│   ├── Services/
+│   ├── Program.cs
+│   └── appsettings.json
 │
 ├── shared/                   # Shared code
 │   ├── types/                # TypeScript types
@@ -479,8 +480,9 @@ talentflow-backend/
 ## Related Decisions
 
 - [ADR-001: NestJS Monorepo](./ADR-001-nestjs-monorepo.md) - **Superseded**
-- [ADR-007: BullMQ over Kafka](./ADR-007-bullmq-over-kafka.md) - Queue technology
+- [ADR-007: BullMQ over Kafka](./ADR-007-bullmq-over-kafka.md) - Queue technology (Node.js-only)
 - [ADR-008: Cloudflare R2 Storage](./ADR-008-cloudflare-r2.md) - File storage
+- [ADR-009: RabbitMQ for Polyglot](./ADR-009-rabbitmq-polyglot.md) - Queue technology (polyglot)
 
 ---
 
@@ -493,5 +495,5 @@ talentflow-backend/
 
 ---
 
-**Last Updated:** 2026-02-02
+**Last Updated:** 2026-02-18
 **Next Review:** After MVP launch (Week 8)

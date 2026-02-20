@@ -1,13 +1,16 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+
 /* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApplicationsService } from './applications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
+import { QueueService } from '../queue/queue.service';
 import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import {
   ApplicationStage,
@@ -28,6 +31,7 @@ describe('ApplicationsService', () => {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
       count: jest.fn(),
     },
     job: {
@@ -110,6 +114,17 @@ describe('ApplicationsService', () => {
     deletedAt: null,
   };
 
+  const mockStorageService = {
+    upload: jest.fn(),
+    getSignedUrl: jest.fn(),
+    delete: jest.fn(),
+  };
+
+  const mockQueueService = {
+    publishCvUploaded: jest.fn(),
+    isHealthy: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -117,6 +132,14 @@ describe('ApplicationsService', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: StorageService,
+          useValue: mockStorageService,
+        },
+        {
+          provide: QueueService,
+          useValue: mockQueueService,
         },
       ],
     }).compile();
@@ -259,6 +282,102 @@ describe('ApplicationsService', () => {
       await expect(service.create('user-1', createDto)).rejects.toThrow(
         ConflictException,
       );
+    });
+  });
+
+  describe('createWithCv', () => {
+    const mockFile = {
+      originalname: 'resume.pdf',
+      mimetype: 'application/pdf',
+      size: 1024,
+      buffer: Buffer.from('pdf-content'),
+    } as Express.Multer.File;
+
+    it('should upload CV, create application, and publish queue event', async () => {
+      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.candidate.findUnique.mockResolvedValue(mockCandidate);
+      mockPrismaService.application.findFirst.mockResolvedValue(null);
+      mockStorageService.upload.mockResolvedValue({
+        key: 'cvs/file.pdf',
+        url: 'http://localhost:9000/talentflow-cvs/cvs/file.pdf',
+      });
+      mockStorageService.delete.mockResolvedValue(undefined);
+      mockPrismaService.application.create.mockResolvedValue({
+        ...mockApplication,
+        cvFileKey: 'cvs/file.pdf',
+        cvFileUrl: 'http://localhost:9000/talentflow-cvs/cvs/file.pdf',
+      });
+      mockQueueService.publishCvUploaded.mockResolvedValue(undefined);
+      mockStorageService.getSignedUrl.mockResolvedValue('https://signed-url');
+
+      const result = await service.createWithCv('user-1', mockFile, {
+        jobId: 'job-1',
+        coverLetter: 'I am interested',
+      });
+
+      expect(mockStorageService.upload).toHaveBeenCalledWith(
+        mockFile.buffer,
+        expect.stringMatching(/^cvs\/[0-9a-f-]{36}\.pdf$/),
+        'application/pdf',
+      );
+      expect(mockQueueService.publishCvUploaded).toHaveBeenCalled();
+      expect(result).toEqual(
+        expect.objectContaining({
+          applicationId: 'app-1',
+          status: 'processing',
+          message: 'CV uploaded successfully. Processing started.',
+          presignedUrl: 'https://signed-url',
+        }),
+      );
+    });
+
+    it('should throw InternalServerErrorException when upload fails', async () => {
+      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.candidate.findUnique.mockResolvedValue(mockCandidate);
+      mockPrismaService.application.findFirst.mockResolvedValue(null);
+      mockStorageService.upload.mockRejectedValue(new Error('upload failed'));
+
+      await expect(
+        service.createWithCv('user-1', mockFile, { jobId: 'job-1' }),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+
+    it('should rollback created application and file when queue publish fails', async () => {
+      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.candidate.findUnique.mockResolvedValue(mockCandidate);
+      mockPrismaService.application.findFirst.mockResolvedValue(null);
+      mockStorageService.upload.mockResolvedValue({
+        key: 'cvs/file.pdf',
+        url: 'http://localhost:9000/talentflow-cvs/cvs/file.pdf',
+      });
+      mockPrismaService.application.create.mockResolvedValue({
+        ...mockApplication,
+        cvFileKey: 'cvs/file.pdf',
+        cvFileUrl: 'http://localhost:9000/talentflow-cvs/cvs/file.pdf',
+      });
+      mockQueueService.publishCvUploaded.mockRejectedValue(
+        new Error('queue failed'),
+      );
+      mockPrismaService.application.delete.mockResolvedValue(undefined);
+      mockStorageService.delete.mockResolvedValue(undefined);
+
+      const resultPromise = service.createWithCv('user-1', mockFile, {
+        jobId: 'job-1',
+      });
+
+      await expect(resultPromise).rejects.toThrow(InternalServerErrorException);
+      await expect(resultPromise).rejects.toThrow(
+        'Failed to process CV upload',
+      );
+      await expect(resultPromise).rejects.not.toThrow('queue failed');
+
+      expect(mockPrismaService.application.delete).toHaveBeenCalledWith({
+        where: { id: 'app-1' },
+      });
+      expect(mockStorageService.delete).toHaveBeenCalled();
     });
   });
 

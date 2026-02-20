@@ -13,6 +13,9 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ApplicationsModule } from './applications/applications.module';
+import { StorageModule } from './storage/storage.module';
+import { QueueModule } from './queue/queue.module';
+import { LoggerModule } from './common/logger';
 import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
 import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -21,6 +24,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
 @Module({
   imports: [
     AppConfigModule,
+    LoggerModule,
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -42,6 +46,8 @@ import { RolesGuard } from './auth/guards/roles.guard';
     UsersModule,
     JobsModule,
     ApplicationsModule,
+    StorageModule,
+    QueueModule,
   ],
   controllers: [AppController],
   providers: [

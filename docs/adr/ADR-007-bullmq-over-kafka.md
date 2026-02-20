@@ -1,9 +1,12 @@
 # ADR-007: Use BullMQ Instead of Apache Kafka
 
-**Status:** Accepted
+**Status:** Accepted (Partially Superseded)
 **Date:** 2026-02-02
 **Deciders:** Team (3 developers)
 **Supersedes:** [ADR-002: Apache Kafka](./ADR-002-kafka-message-queue.md)
+**Superseded by:** [ADR-009: RabbitMQ for Polyglot](./ADR-009-rabbitmq-polyglot.md) - for polyglot architectures only
+
+> ⚠️ **Note:** This ADR remains valid for **Node.js-only projects**. For **polyglot architectures** (NestJS + Spring Boot + ASP.NET), see [ADR-009](./ADR-009-rabbitmq-polyglot.md) which recommends RabbitMQ instead.
 
 ---
 

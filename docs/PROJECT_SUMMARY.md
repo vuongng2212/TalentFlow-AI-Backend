@@ -1,6 +1,6 @@
 # TalentFlow AI - Tổng Quan Dự Án
 
-**Cập nhật:** 2026-02-02
+**Cập nhật:** 2026-02-18
 **Team:** 3 Full-stack Developers (NestJS, Spring Boot, ASP.NET Core)
 **Trạng thái:** ✅ Sẵn sàng phát triển - **ARCHITECTURE UPDATED**
 
@@ -37,9 +37,10 @@
 5. **adr/ADR-003-prisma-orm.md** - Quyết định dùng Prisma ORM ✅
 6. **adr/ADR-004-deployment-strategy.md** - Chiến lược triển khai
 7. **adr/ADR-005-separate-repos.md** - Tách repos Frontend/Backend ✅
-8. **adr/ADR-006-hybrid-microservices.md** - **Hybrid Microservices Architecture** 🆕
-9. **adr/ADR-007-bullmq-over-kafka.md** - **BullMQ thay vì Kafka** 🆕
-10. **adr/ADR-008-cloudflare-r2.md** - **Cloudflare R2 Storage** 🆕
+8. **adr/ADR-006-hybrid-microservices.md** - **Hybrid Microservices Architecture** ✅
+9. **adr/ADR-007-bullmq-over-kafka.md** - **BullMQ thay vì Kafka** (Node.js-only)
+10. **adr/ADR-008-cloudflare-r2.md** - **Cloudflare R2 Storage** ✅
+11. **adr/ADR-009-rabbitmq-polyglot.md** - **RabbitMQ cho Polyglot** 🆕
 
 #### Hướng Dẫn Phát Triển
 8. **README.md** - Hướng dẫn setup nhanh
@@ -57,19 +58,19 @@
 
 ---
 
-## 🏗️ KIẾN TRÚC MỚI (Updated 2026-02-02)
+## 🏗️ KIẾN TRÚC MỚI (Updated 2026-02-18)
 
 ### **Hybrid Microservices Architecture**
 
 **Thay đổi từ kiến trúc cũ:**
 - ❌ **Cũ:** NestJS Monorepo + Apache Kafka
-- ✅ **Mới:** 3 Services (1 repo) + BullMQ (Redis Queue)
+- ✅ **Mới:** 3 Services (1 repo) + RabbitMQ (AMQP Message Broker)
 
 **Lý do thay đổi:**
-1. Team 3 người với tech stack đa dạng (NestJS, Spring Boot)
+1. Team 3 người với tech stack đa dạng (NestJS, Spring Boot, ASP.NET Core)
 2. Frontend đã hoàn thành → Chỉ cần tích hợp API
 3. Tesseract OCR + PDF parsing blocking event loop → Cần Spring Boot service riêng
-4. BullMQ đơn giản hơn Kafka 10x cho MVP (< 1000 CVs/day)
+4. RabbitMQ hỗ trợ polyglot (Java, C#, Node.js) native, không như BullMQ
 
 ### **3 Services:**
 
@@ -79,12 +80,12 @@
 │  - REST API, Auth, CRUD, File Upload    │
 └──────┬──────────────────────────┬───────┘
        │                          │
-       │ BullMQ Queue            │ PostgreSQL (Shared)
+       │ RabbitMQ (AMQP)         │ PostgreSQL (Shared)
        │                          │
 ┌──────▼─────────────┐  ┌────────▼────────┐
 │ Service 2:         │  │ Service 3:      │
 │ CV Parser          │  │ Notification    │
-│ (Spring Boot)      │  │ (NestJS)        │
+│ (Spring Boot)      │  │ (ASP.NET Core)  │
 │ - Tesseract OCR    │  │ - WebSocket     │
 │ - PDF parsing      │  │ - Email         │
 │ - AI Score (LLM)   │  │                 │
@@ -96,18 +97,18 @@
 talentflow-backend/  (Single Git Repo)
 ├── api-gateway/          # Service 1: NestJS
 ├── cv-parser/            # Service 2: Spring Boot
-├── notification-service/ # Service 3: NestJS
+├── notification-service/ # Service 3: ASP.NET Core
 ├── shared/               # Shared types, configs
 └── docs/                 # Documentation
 ```
 
 **Tech Stack:**
-- **Queue:** BullMQ (Redis) - KHÔNG phải Kafka
+- **Queue:** RabbitMQ (AMQP) - Polyglot support
 - **Storage:** Cloudflare R2 - KHÔNG phải S3/MinIO
-- **Database:** PostgreSQL + Prisma ✅
+- **Database:** PostgreSQL + Prisma/EF Core ✅
 - **Deploy:** Railway + Docker Compose ✅
 
-**Chi tiết:** Xem [ADR-006](./adr/ADR-006-hybrid-microservices.md)
+**Chi tiết:** Xem [ADR-006](./adr/ADR-006-hybrid-microservices.md) và [ADR-009](./adr/ADR-009-rabbitmq-polyglot.md)
 
 ---
 
@@ -118,11 +119,11 @@ talentflow-backend/  (Single Git Repo)
 **Supersedes:** ADR-001 (NestJS Monorepo)
 **Action:** Single repo với 3 service folders, deploy độc lập
 
-### 2. ☑️ Message Queue: BullMQ (Redis) 🆕
-**Quyết định:** BullMQ thay vì Apache Kafka
-**Lý do:** Đơn giản hơn 10x, đủ cho MVP (< 1000 CVs/day)
-**Supersedes:** ADR-002 (Apache Kafka)
-**Tài liệu:** [ADR-007](./adr/ADR-007-bullmq-over-kafka.md)
+### 2. ☑️ Message Queue: RabbitMQ (AMQP) 🆕
+**Quyết định:** RabbitMQ thay vì BullMQ (cho polyglot architecture)
+**Lý do:** Native support cho Java (Spring AMQP), C# (RabbitMQ.Client), Node.js (amqplib)
+**Supersedes:** ADR-007 (BullMQ) cho polyglot services
+**Tài liệu:** [ADR-009](./adr/ADR-009-rabbitmq-polyglot.md)
 
 ### 3. ☑️ Storage: Cloudflare R2 🆕
 **Quyết định:** R2 cho CV storage (S3-compatible)
@@ -249,11 +250,11 @@ talentflow-backend/  (Single Git Repo)
 
 ## ⚠️ Lưu Ý Quan Trọng
 
-### 1. Kafka Complexity
-- ✅ Team đã commit học Kafka
-- ⚠️ Cần 6 giờ học tập
-- 📚 Follow docker-compose.yml để setup
-- 💡 Document troubleshooting khi gặp vấn đề
+### 1. RabbitMQ Setup
+- ✅ AMQP là industry standard, dễ học
+- ⚠️ Cần thêm RabbitMQ vào Docker Compose
+- 📚 Management UI tại http://localhost:15672
+- 💡 Spring AMQP và RabbitMQ.Client đều mature
 
 ### 2. Monitoring Stack (ELK + Prometheus + Grafana)
 - ⚠️ Đây là enterprise-grade stack, có thể overkill cho MVP
@@ -363,5 +364,5 @@ talentflow-backend/  (Single Git Repo)
 
 ---
 
-**Cập nhật lần cuối:** 2026-02-01
+**Cập nhật lần cuối:** 2026-02-18
 **Next Review:** Start of Sprint 2 (Week 3)
