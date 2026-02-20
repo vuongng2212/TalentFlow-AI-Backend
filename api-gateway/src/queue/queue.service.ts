@@ -15,6 +15,12 @@ interface AmqpConnection {
   close(): Promise<void>;
 }
 
+export interface QueueStats {
+  queue: string;
+  messageCount: number;
+  consumerCount: number;
+}
+
 interface AmqpChannel {
   assertExchange(
     exchange: string,
@@ -40,6 +46,9 @@ interface AmqpChannel {
       timestamp: number;
     },
   ): boolean;
+  checkQueue(
+    queue: string,
+  ): Promise<{ queue: string; messageCount: number; consumerCount: number }>;
   close(): Promise<void>;
 }
 import {
@@ -156,6 +165,24 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
   isHealthy(): Promise<boolean> {
     return Promise.resolve(this.connection !== null && this.channel !== null);
+  }
+
+  async getQueueStats(): Promise<QueueStats[]> {
+    if (!this.channel) {
+      return [];
+    }
+
+    try {
+      const [mainQueue, dlq] = await Promise.all([
+        this.channel.checkQueue(CV_PROCESSING_QUEUE),
+        this.channel.checkQueue(CV_PARSING_DLQ),
+      ]);
+
+      return [mainQueue, dlq];
+    } catch (error) {
+      this.logger.error('Failed to get queue stats', sanitizeError(error));
+      return [];
+    }
   }
 
   async onModuleDestroy(): Promise<void> {
