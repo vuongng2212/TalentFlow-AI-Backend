@@ -1,0 +1,48 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Development files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+coverage
+*.spec.ts
+*.e2e-spec.ts
+test
+
+# Documentation
+*.md
+!README.md
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Misc
+.eslintcache
+.prettierignore
