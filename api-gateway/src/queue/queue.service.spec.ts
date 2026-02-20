@@ -15,6 +15,7 @@ const mockChannel = {
   assertQueue: jest.fn(),
   bindQueue: jest.fn(),
   publish: jest.fn(),
+  checkQueue: jest.fn(),
   close: jest.fn(),
 };
 
@@ -169,12 +170,14 @@ describe('QueueService', () => {
       return defaultValue;
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     await expect((service as any).connect()).rejects.toThrow(
       'RABBITMQ_URL environment variable is not defined',
     );
   });
 
   it('should throw when setupTopology is called without channel', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     await expect((service as any).setupTopology()).rejects.toThrow(
       'Channel not initialized',
     );
@@ -185,6 +188,7 @@ describe('QueueService', () => {
 
     const errorListener = mockConnection.on.mock.calls.find(
       ([event]: [string]) => event === 'error',
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     )?.[1] as ((err: Error) => void) | undefined;
 
     expect(errorListener).toBeDefined();
@@ -198,6 +202,7 @@ describe('QueueService', () => {
 
     const closeListener = mockConnection.on.mock.calls.find(
       ([event]: [string]) => event === 'close',
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     )?.[1] as (() => void) | undefined;
 
     expect(closeListener).toBeDefined();
@@ -219,5 +224,55 @@ describe('QueueService', () => {
       'Error closing RabbitMQ connection',
       expect.any(Object),
     );
+  });
+
+  describe('getQueueStats', () => {
+    it('should return queue stats when channel is initialized', async () => {
+      await service.onModuleInit();
+
+      mockChannel.checkQueue.mockImplementation((queue: string) =>
+        Promise.resolve({
+          queue,
+          messageCount: queue === CV_PROCESSING_QUEUE ? 10 : 2,
+          consumerCount: queue === CV_PROCESSING_QUEUE ? 3 : 0,
+        }),
+      );
+
+      const stats = await service.getQueueStats();
+
+      expect(stats).toHaveLength(2);
+      expect(stats[0]).toEqual({
+        queue: CV_PROCESSING_QUEUE,
+        messageCount: 10,
+        consumerCount: 3,
+      });
+      expect(stats[1]).toEqual({
+        queue: CV_PARSING_DLQ,
+        messageCount: 2,
+        consumerCount: 0,
+      });
+    });
+
+    it('should return empty array when channel is not initialized', async () => {
+      const stats = await service.getQueueStats();
+
+      expect(stats).toEqual([]);
+    });
+
+    it('should return empty array and log error when checkQueue fails', async () => {
+      await service.onModuleInit();
+      const logErrorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      mockChannel.checkQueue.mockRejectedValueOnce(new Error('check failed'));
+
+      const stats = await service.getQueueStats();
+
+      expect(stats).toEqual([]);
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        'Failed to get queue stats',
+        expect.any(Object),
+      );
+    });
   });
 });

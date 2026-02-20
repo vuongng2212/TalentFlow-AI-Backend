@@ -177,7 +177,9 @@ describe('HealthController', () => {
       mockRedisService.ping.mockResolvedValue('PONG');
       mockQueueService.isHealthy.mockResolvedValue(true);
 
-      await expect(controller.readiness()).rejects.toThrow('Prisma check failed');
+      await expect(controller.readiness()).rejects.toThrow(
+        'Prisma check failed',
+      );
     });
 
     it('should fail when redis does not return PONG', async () => {
@@ -193,7 +195,9 @@ describe('HealthController', () => {
       mockRedisService.ping.mockResolvedValue('NOT_PONG');
       mockQueueService.isHealthy.mockResolvedValue(true);
 
-      await expect(controller.readiness()).rejects.toThrow('Redis check failed');
+      await expect(controller.readiness()).rejects.toThrow(
+        'Redis check failed',
+      );
     });
 
     it('should fail when queue is unhealthy', async () => {

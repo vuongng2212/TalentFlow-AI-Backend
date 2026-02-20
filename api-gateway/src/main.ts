@@ -11,16 +11,25 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { ElkLoggerService } from './common/logger';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
   });
 
-  const logger = new Logger('Bootstrap');
-  app.useLogger(logger);
-
   const configService = app.get(ConfigService);
+  const elkHost = configService.get<string>('ELK_HOST');
+
+  if (elkHost) {
+    const elkLogger = await app.resolve(ElkLoggerService);
+    elkLogger.setContext('Bootstrap');
+    app.useLogger(elkLogger);
+  } else {
+    const logger = new Logger('Bootstrap');
+    app.useLogger(logger);
+  }
+
   const port = configService.get<number>('PORT', 3000);
   const bodyLimitMb = configService.get<number>('BODY_LIMIT_MB', 10);
   const corsOriginsRaw = configService.get<string>('CORS_ORIGINS') || '';
@@ -106,7 +115,11 @@ async function bootstrap() {
   }
 
   await app.listen(port);
-  logger.log(`API Gateway listening on port ${port}`);
+
+  const bootstrapLogger = elkHost
+    ? await app.resolve(ElkLoggerService)
+    : new Logger('Bootstrap');
+  bootstrapLogger.log(`API Gateway listening on port ${port}`);
 }
 
 void bootstrap();
