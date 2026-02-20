@@ -437,5 +437,99 @@ describe('AuthService', () => {
         }),
       );
     });
+
+    it('should throw UnauthorizedException on wrong password', async () => {
+      const user = {
+        id: 'uuid',
+        email: 'test@example.com',
+        password: 'hashed_password',
+        role: Role.RECRUITER,
+        deletedAt: null,
+      };
+
+      mockUsersService.findByEmail.mockResolvedValue(user);
+      jest.spyOn(passwordUtil, 'comparePassword').mockResolvedValue(false);
+
+      await expect(
+        service.login('test@example.com', 'wrongpassword'),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw UnauthorizedException if user is deleted', async () => {
+      const user = {
+        id: 'uuid',
+        email: 'test@example.com',
+        password: 'hashed_password',
+        role: Role.RECRUITER,
+        deletedAt: new Date(),
+      };
+
+      mockUsersService.findByEmail.mockResolvedValue(user);
+
+      await expect(
+        service.login('test@example.com', 'password'),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('refresh', () => {
+    it('should return new tokens on refresh', async () => {
+      const user = {
+        id: 'uuid',
+        email: 'test@example.com',
+        role: Role.RECRUITER,
+        deletedAt: null,
+      };
+
+      mockUsersService.findById.mockResolvedValue(user);
+      mockJwtService.signAsync.mockResolvedValue('new-token');
+
+      const result = await service.refresh('uuid');
+
+      expect(result).toHaveProperty('accessToken');
+      expect(result).toHaveProperty('refreshToken');
+      expect(mockRedisService.set).toHaveBeenCalled();
+    });
+
+    it('should throw UnauthorizedException if user not found', async () => {
+      mockUsersService.findById.mockResolvedValue(null);
+
+      await expect(service.refresh('non-existent-uuid')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw UnauthorizedException if user is deleted', async () => {
+      const user = {
+        id: 'uuid',
+        email: 'test@example.com',
+        role: Role.RECRUITER,
+        deletedAt: new Date(),
+      };
+
+      mockUsersService.findById.mockResolvedValue(user);
+
+      await expect(service.refresh('uuid')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
+
+  describe('logout', () => {
+    it('should delete refresh token and blacklist tokenId', async () => {
+      mockRedisService.del.mockResolvedValue(1);
+      mockRedisService.set.mockResolvedValue('OK');
+
+      await service.logout('user-uuid', 'token-id-123');
+
+      expect(mockRedisService.del).toHaveBeenCalledWith(
+        'refresh_token:user-uuid',
+      );
+      expect(mockRedisService.set).toHaveBeenCalledWith(
+        'blacklist:token-id-123',
+        'true',
+        7 * 24 * 60 * 60,
+      );
+    });
   });
 });
