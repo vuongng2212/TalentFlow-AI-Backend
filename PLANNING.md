@@ -1,5 +1,7 @@
 # Kế hoạch 1 tuần (api-gateway)
 
+> **See also:** [CV Parser Service Planning](./cv-parser/README.md) - Chi tiết implementation plan cho CV Parser service (Spring Boot)
+
 ## Mục tiêu & Ưu tiên
 - Ưu tiên tuần: Auth/RBAC/JWT; Jobs/Applications CRUD; Upload CV → Cloudflare R2 + RabbitMQ producer; nền tảng quan sát (health/metrics/logs/queue depth).
 - Lộ trình: dev local → Docker Compose → k8s (kèm ELK + Prometheus/Grafana hook). Định nghĩa hoàn tất: tests (>=80% critical paths), giới hạn rate/size/timeout, docs & API reference cập nhật.
@@ -52,3 +54,45 @@
 - Prisma migrate diff/deploy (dry-run) trước khi chạy thật.
 - Docker Compose up thành công, health/readiness 200.
 - (Nếu có cluster) k8s manifests `--dry-run=client -o yaml` và probes pass; optional k6 baseline (health/auth/jobs list).
+
+---
+
+# Kế hoạch CV Parser Service (Sprint tiếp theo)
+
+> **Chi tiết đầy đủ:** [cv-parser/README.md](./cv-parser/README.md)
+
+## Tổng quan
+
+| Thuộc tính | Giá trị |
+|------------|---------|
+| **Tech Stack** | Spring Boot 3.x, Java 21 |
+| **Team Size** | 3 developers + 1 team lead |
+| **Timeline** | 5-7 ngày |
+| **Architecture** | Modular Clean Architecture |
+
+## Phân công Team
+
+| Member | Module | Responsibilities |
+|--------|--------|------------------|
+| **Team Lead** | `shared/` | Project setup, configs, DTOs, orchestration |
+| **Dev 1** | `parsing/` | PDF/DOCX/OCR parsing, RabbitMQ consumer |
+| **Dev 2** | `extraction/` | Rule-based + LLM extraction |
+| **Dev 3** | `scoring/` | AI scoring, DB persistence, event publishing |
+
+## Risks chính cần xử lý
+
+| Risk | Priority | Mitigation |
+|------|----------|------------|
+| Malicious file upload | CRITICAL | File validation (magic bytes), size limits |
+| XXE in DOCX | CRITICAL | Disable DTDs in Apache POI |
+| Prompt injection | HIGH | Strict prompt templates, output validation |
+| Thread pool exhaustion | HIGH | Separate thread pools |
+| Lost messages | HIGH | DLQ, monitoring |
+
+## Quick Start
+
+```bash
+# Xem chi tiết
+cat cv-parser/README.md
+```
+
