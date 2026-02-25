@@ -1,6 +1,6 @@
 # TalentFlow AI - Tổng Quan Dự Án
 
-**Cập nhật:** 2026-02-18
+**Cập nhật:** 2026-02-25
 **Team:** 3 Full-stack Developers (NestJS, Spring Boot, ASP.NET Core)
 **Trạng thái:** ✅ Sẵn sàng phát triển - **ARCHITECTURE UPDATED**
 
@@ -58,7 +58,7 @@
 
 ---
 
-## 🏗️ KIẾN TRÚC MỚI (Updated 2026-02-18)
+## 🏗️ KIẾN TRÚC MỚI (Updated 2026-02-25)
 
 ### **Hybrid Microservices Architecture**
 
@@ -87,8 +87,8 @@
 │ CV Parser          │  │ Notification    │
 │ (Spring Boot)      │  │ (ASP.NET Core)  │
 │ - Tesseract OCR    │  │ - WebSocket     │
-│ - PDF parsing      │  │ - Email         │
-│ - AI Score (LLM)   │  │                 │
+│ - PDF parsing      │  │ - Gmail SMTP    │
+│ - Google Gemini    │  │                 │
 └────────────────────┘  └─────────────────┘
 ```
 
@@ -97,14 +97,16 @@
 talentflow-backend/  (Single Git Repo)
 ├── api-gateway/          # Service 1: NestJS
 ├── cv-parser/            # Service 2: Spring Boot
-├── notification-service/ # Service 3: ASP.NET Core
+├── notification/         # Service 3: ASP.NET Core
 ├── shared/               # Shared types, configs
 └── docs/                 # Documentation
 ```
 
 **Tech Stack:**
-- **Queue:** RabbitMQ (AMQP) - Polyglot support
-- **Storage:** Cloudflare R2 - KHÔNG phải S3/MinIO
+- **Queue:** RabbitMQ (AMQP) - Exchange: `talentflow.events`
+- **LLM:** Google Gemini (gemini-2.5-flash)
+- **Email:** Gmail SMTP (via MailKit)
+- **Storage:** Cloudflare R2 / MinIO (S3-compatible)
 - **Database:** PostgreSQL + Prisma/EF Core ✅
 - **Deploy:** Railway + Docker Compose ✅
 
@@ -115,37 +117,46 @@ talentflow-backend/  (Single Git Repo)
 ## ✅ Quyết Định Chính Thức (Đã Xác Nhận)
 
 ### 1. ☑️ Architecture: Polyglot 3-Service 🆕
-**Quyết định:** 3 services trong 1 repository (NestJS + Spring Boot + NestJS)
+**Quyết định:** 3 services trong 1 repository (NestJS + Spring Boot + ASP.NET Core)
 **Supersedes:** ADR-001 (NestJS Monorepo)
 **Action:** Single repo với 3 service folders, deploy độc lập
 
 ### 2. ☑️ Message Queue: RabbitMQ (AMQP) 🆕
 **Quyết định:** RabbitMQ thay vì BullMQ (cho polyglot architecture)
+**Exchange:** `talentflow.events` (topic)
+**Queues:** `cv_parser.jobs`, `notification.events`
 **Lý do:** Native support cho Java (Spring AMQP), C# (RabbitMQ.Client), Node.js (amqplib)
-**Supersedes:** ADR-007 (BullMQ) cho polyglot services
 **Tài liệu:** [ADR-009](./adr/ADR-009-rabbitmq-polyglot.md)
 
-### 3. ☑️ Storage: Cloudflare R2 🆕
-**Quyết định:** R2 cho CV storage (S3-compatible)
+### 3. ☑️ LLM Provider: Google Gemini 🆕
+**Quyết định:** Google Gemini (gemini-2.5-flash) cho CV parsing và scoring
+**Lý do:** Cost-effective, fast, structured output support
+
+### 4. ☑️ Email Provider: Gmail SMTP
+**Quyết định:** Gmail SMTP với MailKit cho cả dev và production
+**Lý do:** Team project, không cần throughput cao của SendGrid/Resend
+
+### 5. ☑️ Storage: Cloudflare R2 / MinIO
+**Quyết định:** R2 cho production, MinIO cho local development (S3-compatible)
 **Lý do:** FREE egress = $33k savings over 3 years vs S3!
 **Tài liệu:** [ADR-008](./adr/ADR-008-cloudflare-r2.md)
 
-### 4. ☑️ Security: JWT Authentication
+### 6. ☑️ Security: JWT Authentication
 **Scope:** JWT + RBAC + bcrypt, không cần compliance certification
 **Tài liệu:** `SECURITY.md` đã hoàn chỉnh
 
-### 5. ☑️ Testing: 80% Coverage
+### 7. ☑️ Testing: 80% Coverage
 **Breakdown:** Unit (70%) + Integration (20%) + E2E (10%)
 **Action:** Tạo TESTING_STRATEGY.md ở tuần 3
 
-### 6. ☑️ Timeline: 8 Tuần (Flexible)
+### 8. ☑️ Timeline: 8 Tuần (Flexible)
 **Chiến lược:** Sprints 2 tuần, demos định kỳ cho khách hàng
 
-### 7. ☑️ Monitoring: Railway Logs + Sentry
+### 9. ☑️ Monitoring: Railway Logs + Sentry
 **Stack:** Simple monitoring cho MVP (không dùng ELK + Prometheus + Grafana)
 **Action:** Setup Sentry error tracking
 
-### 8. ☑️ Development Order: Frontend First
+### 10. ☑️ Development Order: Frontend First
 **Lý do:** Demo sớm cho khách hàng
 **Timeline:**
 - Tuần 1-2: Frontend prototype (mock data)
@@ -188,10 +199,11 @@ talentflow-backend/  (Single Git Repo)
 **Mục tiêu:** End-to-end CV processing
 **Deliverables:**
 - File upload endpoint
-- Kafka pipeline setup
-- CV parsing (text extraction)
+- RabbitMQ pipeline setup
+- CV parsing (text extraction) via Spring Boot
+- Google Gemini integration for scoring
 - Upload UI
-- Real-time status updates
+- Real-time status updates via SignalR
 **🎯 Demo #3:** End of Week 6
 
 ---
@@ -200,7 +212,7 @@ talentflow-backend/  (Single Git Repo)
 **Mục tiêu:** MVP launch
 **Deliverables:**
 - 80%+ test coverage
-- Monitoring setup (ELK + Prometheus + Grafana)
+- Monitoring setup (Railway Logs + Sentry)
 - Production deployment
 - Documentation complete
 **🎯 Demo #4 (Launch):** End of Week 8
@@ -306,12 +318,12 @@ talentflow-backend/  (Single Git Repo)
 
 ### Ngày 2: Backend (8 giờ)
 **Developer 1:** NestJS (6 giờ) + Prisma (2 giờ)
-**Developer 2:** NestJS Advanced (4 giờ) + Kafka (4 giờ)
+**Developer 2:** NestJS Advanced (4 giờ) + RabbitMQ (4 giờ)
 
 ### Ngày 3: Practice (8 giờ)
 **Cả 2 developers:**
 - Build Todo App nhỏ với NestJS + Prisma (4 giờ)
-- Kafka producer/consumer đơn giản (2 giờ)
+- RabbitMQ producer/consumer đơn giản (2 giờ)
 - Write tests (2 giờ)
 
 **Total:** 24 giờ (3 ngày full-time)
@@ -364,5 +376,5 @@ talentflow-backend/  (Single Git Repo)
 
 ---
 
-**Cập nhật lần cuối:** 2026-02-18
+**Cập nhật lần cuối:** 2026-02-25
 **Next Review:** Start of Sprint 2 (Week 3)
