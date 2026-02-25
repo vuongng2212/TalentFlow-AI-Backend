@@ -2,7 +2,7 @@
 
 **Project Name:** TalentFlow AI
 **Architecture Pattern:** Polyglot 3-Service Architecture (NestJS + Spring Boot + ASP.NET Core)
-**Last Updated:** 2026-02-18
+**Last Updated:** 2026-02-25
 
 > ⚠️ **IMPORTANT:** This document describes the **CURRENT** architecture (Polyglot 3-Service).
 > For historical context on the previous NestJS Monorepo approach, see [ADR-001](./adr/ADR-001-nestjs-monorepo.md) (SUPERSEDED).
@@ -12,7 +12,7 @@
 
 Hệ thống sử dụng kiến trúc **Polyglot 3-Service** trong **single repository**:
 
-* **Single Repository Structure:** 3 services trong 1 Git repository (`api-gateway/`, `cv-parser/`, `notification-service/`) để dễ quản lý.
+* **Single Repository Structure:** 3 services trong 1 Git repository (`api-gateway/`, `cv-parser/`, `notification/`) để dễ quản lý.
 * **Polyglot Services:** Mỗi service dùng tech stack phù hợp nhất:
   - **Service 1 (API Gateway):** NestJS - REST API, Auth, CRUD
   - **Service 2 (CV Parser):** Spring Boot - CPU-intensive PDF/OCR processing
@@ -37,8 +37,8 @@ graph TB
     System[📦 TalentFlow AI System<br/>AI-Powered ATS]
 
     %% External Systems
-    EmailService[📧 Email Service<br/>SendGrid/Resend]
-    AIService[🤖 AI Service<br/>Anthropic Claude API]
+    EmailService[📧 Email Service<br/>Gmail SMTP]
+    AIService[🤖 AI Service<br/>Google Gemini API]
     Storage[☁️ Cloud Storage<br/>Cloudflare R2]
 
     %% Relationships
@@ -85,8 +85,8 @@ graph TB
 
     %% External Services
     R2[☁️ Cloudflare R2<br/>CV File Storage]
-    Claude[🤖 Anthropic Claude<br/>CV Parsing & Scoring]
-    SendGrid[📧 SendGrid<br/>Email Notifications]
+    Claude[🤖 Google Gemini<br/>CV Parsing & Scoring]
+    SendGrid[📧 Gmail SMTP<br/>Email Notifications]
 
     %% Relationships
     Frontend -->|HTTPS REST API| APIGateway
@@ -128,7 +128,7 @@ graph TB
 - **Notification:** ASP.NET Core service for real-time WebSocket & email
 - **Database:** PostgreSQL for relational data (users, jobs, applications)
 - **Queue:** RabbitMQ (AMQP) for async communication between services
-- **External:** Cloudflare R2 for file storage, Claude AI for CV processing
+- **External:** Cloudflare R2 for file storage, Google Gemini AI for CV processing
 
 ### ASCII Architecture Diagram (Legacy)
 
@@ -157,8 +157,8 @@ graph TB
 | --- | --- | --- |
 | **Frontend** | **Next.js 16** | TypeScript, App Router, React Server Components, Server Actions, TailwindCSS, Shadcn/UI, React Query. |
 | **Backend Service 1** | **NestJS** | API Gateway - REST API, Auth (JWT + Passport), CRUD operations, BullMQ producer. |
-| **Backend Service 2** | **Spring Boot 3.x** | CV Parser - PDF/DOCX parsing (Apache PDFBox/POI), Tesseract OCR, LLM integration, RabbitMQ consumer. |
-| **Backend Service 3** | **ASP.NET Core 8** | Notification Service - WebSocket (SignalR), Email (SendGrid/Resend), RabbitMQ consumer. |
+| **Backend Service 2** | **Spring Boot 3.x** | CV Parser - PDF/DOCX parsing (Apache PDFBox/POI), Tesseract OCR, LLM integration (Google Gemini), RabbitMQ consumer. |
+| **Backend Service 3** | **ASP.NET Core 8** | Notification Service - WebSocket (SignalR), Email (Gmail SMTP), RabbitMQ consumer. |
 | **ORM** | **Prisma / EF Core** | Type-safe database client, migrations, schema management. |
 | **Database** | **PostgreSQL 16** | Primary relational database for structured data (shared by all services with logical separation). |
 | **Queue** | **RabbitMQ** | AMQP message broker for async communication between services, DLQ support, routing patterns. |
@@ -189,20 +189,22 @@ Frontend (Next.js 16)
   -> Service 1: API Gateway (NestJS - Upload Controller)
     -> Cloudflare R2 Storage
     -> PostgreSQL (Metadata via Prisma)
-    -> RabbitMQ Producer: Queue "cv.uploaded"
+    -> RabbitMQ Producer: Exchange "talentflow.events", Routing Key "cv.uploaded"
 
 Service 2: CV Parser (Spring Boot - RabbitMQ Consumer)
+  -> Consume from Queue "cv_parser.jobs" (binding: cv.uploaded)
   -> Download CV from R2
   -> PDF Parsing (Apache PDFBox / Tika)
   -> DOCX Parsing (Apache POI)
   -> Tesseract OCR (for scanned PDFs)
-  -> LLM Extraction & Scoring (Anthropic Claude API)
+  -> LLM Extraction & Scoring (Google Gemini API)
   -> Update PostgreSQL (resume_text, ai_score)
-  -> RabbitMQ Producer: Queue "cv.parsed"
+  -> RabbitMQ Producer: Exchange "talentflow.events", Routing Key "cv.parsed"
 
 Service 3: Notification (ASP.NET Core - RabbitMQ Consumer)
+  -> Consume from Queue "notification.events" (bindings: cv.parsed, cv.failed, application.created)
   -> WebSocket notification to Frontend (recruiter dashboard)
-  -> Email notification (SendGrid/Resend)
+  -> Email notification via Gmail SMTP
 ```
 
 **Detailed Requirements:**
@@ -211,13 +213,13 @@ Service 3: Notification (ASP.NET Core - RabbitMQ Consumer)
 
 * **FR-06 (Storage):** API Gateway (NestJS) validate file (size, type), upload lên **Cloudflare R2** bằng R2 SDK (S3-compatible), lưu metadata (file_url, candidate_id, job_id, status) vào **PostgreSQL** qua **Prisma**.
 
-* **FR-07 (Async Trigger):** API Gateway emit job `cv.uploaded` (payload: `{candidateId, fileUrl, jobId}`) vào **RabbitMQ Exchange**: `cv-events` sử dụng **amqplib** library.
+* **FR-07 (Async Trigger):** API Gateway emit event `cv.uploaded` (payload: `{candidateId, applicationId, jobId, bucket, fileKey, mimeType, uploadedAt}`) vào **RabbitMQ Exchange**: `talentflow.events` với routing key `cv.uploaded` sử dụng **amqplib** library.
 
-* **FR-08 (AI Processing):** **Service 2: CV Parser (Spring Boot)** consume RabbitMQ queue `cv-processing`:
-  - Tải file từ Cloudflare R2.
+* **FR-08 (AI Processing):** **Service 2: CV Parser (Spring Boot)** consume RabbitMQ queue `cv_parser.jobs`:
+  - Tải file từ Cloudflare R2 sử dụng `bucket` + `fileKey` (KHÔNG sử dụng URL trực tiếp để tránh SSRF).
   - Sử dụng **Apache PDFBox/Tika** (PDF) hoặc **Apache POI** (DOCX) để extract text.
   - Tesseract OCR cho scanned PDFs.
-  - Rule-based filtering hoặc gọi **Anthropic Claude API** với structured prompt để trích xuất JSON:
+  - Rule-based filtering hoặc gọi **Google Gemini API** với structured prompt để trích xuất JSON:
     ```json
     {
       "name": "...",
@@ -227,13 +229,12 @@ Service 3: Notification (ASP.NET Core - RabbitMQ Consumer)
       "experience": [...]
     }
     ```
-  - Gọi **OpenAI Embeddings API** để generate vector representation.
-  - Lưu vector vào **Weaviate/Qdrant** với metadata (Phase 2).
-  - Emit job `cv.parsed` (payload: `{candidateId, extractedData, score}`) vào **RabbitMQ Exchange**: `cv-events`.
+  - Emit event `cv.parsed` (payload: `{candidateId, applicationId, jobId, aiScore, parsedData, scoringReasoning, parsedAt}`) vào **RabbitMQ Exchange**: `talentflow.events` với routing key `cv.parsed`.
+  - Nếu lỗi, emit event `cv.failed` với routing key `cv.failed`.
 
-* **FR-09 (Update & Notification):** **Service 3: Notification (ASP.NET Core)** nhận job `cv.parsed` từ RabbitMQ, sau đó:
+* **FR-09 (Update & Notification):** **Service 3: Notification (ASP.NET Core)** nhận events từ RabbitMQ queue `notification.events`, sau đó:
   - Gửi notification tới Frontend qua **SignalR WebSocket Gateway**.
-  - Gửi email notification tới recruiter (optional).
+  - Gửi email notification tới recruiter qua **Gmail SMTP**.
   - Update UI Kanban board real-time.
 
 ### 3.4. Search & Matching (NestJS Search Module)
@@ -360,7 +361,7 @@ talentflow-backend/  (Single Git Repository)
 │   │   └── com/talentflow/parser/
 │   │       ├── CvParserApplication.java
 │   │       ├── config/
-│   │       │   ├── BullMQConfig.java
+│   │       │   ├── RabbitMqConfig.java
 │   │       │   └── R2Config.java
 │   │       ├── consumer/
 │   │       │   └── CvUploadedConsumer.java
@@ -368,7 +369,7 @@ talentflow-backend/  (Single Git Repository)
 │   │       │   ├── PdfParserService.java      # Apache PDFBox
 │   │       │   ├── DocxParserService.java     # Apache POI
 │   │       │   ├── TesseractService.java      # OCR
-│   │       │   ├── LlmScoringService.java     # Anthropic API
+│   │       │   ├── GeminiScoringService.java  # Google Gemini API
 │   │       │   └── R2StorageService.java
 │   │       └── producer/
 │   │           └── CvProcessedProducer.java
@@ -376,14 +377,14 @@ talentflow-backend/  (Single Git Repository)
 │   ├── pom.xml (or build.gradle)
 │   └── application.yml
 │
-├── notification-service/         # Service 3: ASP.NET Core Notification
+├── notification/                    # Service 3: ASP.NET Core Notification
 │   ├── Controllers/
 │   │   └── NotificationController.cs
 │   ├── Hubs/
 │   │   └── NotificationHub.cs      # SignalR WebSocket
 │   ├── Services/
 │   │   ├── RabbitMQConsumer.cs
-│   │   └── EmailService.cs
+│   │   └── EmailService.cs         # Gmail SMTP
 │   ├── Program.cs
 │   └── appsettings.json
 │
@@ -410,17 +411,16 @@ talentflow-backend/  (Single Git Repository)
 - RabbitMQ Producer (emit jobs to queue)
 
 #### **Service 2: CV Parser (Spring Boot)** - Port 8080
-- RabbitMQ Consumer (listen `cv-processing` queue)
+- RabbitMQ Consumer (listen `cv_parser.jobs` queue)
 - CPU-intensive file processing (PDF/DOCX/OCR)
-- LLM integration (Anthropic Claude)
+- LLM integration (Google Gemini)
 - Database updates (Spring Data JPA)
-- RabbitMQ Producer (emit `cv.parsed` events)
+- RabbitMQ Producer (emit `cv.parsed` / `cv.failed` events)
 
 #### **Service 3: Notification (ASP.NET Core)** - Port 5000
-- RabbitMQ Consumer (listen `cv-notifications` queue)
+- RabbitMQ Consumer (listen `notification.events` queue)
 - WebSocket server (SignalR) for real-time updates
-- Email notifications (SendGrid/Resend)
-- SMS notifications (optional)
+- Email notifications (Gmail SMTP)
 
 #### **libs/common**
 - Shared guards, interceptors, pipes, filters
@@ -471,7 +471,7 @@ export class CandidateService {
 export class QueueService {
   async publishCvUploaded(data: CvUploadedEvent) {
     // RabbitMQ publish implementation
-    this.channel.publish('cv-events', 'cv.uploaded', Buffer.from(JSON.stringify(data)));
+    this.channel.publish('talentflow.events', 'cv.uploaded', Buffer.from(JSON.stringify(data)));
   }
 }
 
@@ -490,26 +490,27 @@ export class R2Service {
 @Service
 public class CvProcessorService {
 
-  @RabbitListener(queues = "cv-processing")
+  @RabbitListener(queues = "cv_parser.jobs")
   public void processCv(CvUploadedEvent event) {
     String candidateId = event.getCandidateId();
-    String cvUrl = event.getFileUrl();
+    String bucket = event.getBucket();
+    String fileKey = event.getFileKey();
     String jobId = event.getJobId();
 
-    // 1. Download from R2
-    byte[] pdfBytes = r2Client.download(cvUrl);
+    // 1. Download from R2 using bucket + fileKey (NOT URL - prevents SSRF)
+    byte[] pdfBytes = r2Client.download(bucket, fileKey);
 
     // 2. Extract text (Apache PDFBox)
     String text = pdfBoxService.extractText(pdfBytes);
 
-    // 3. LLM Scoring (Anthropic Claude)
-    LlmResponse score = anthropicService.evaluate(text, jobRequirements);
+    // 3. LLM Scoring (Google Gemini)
+    LlmResponse score = geminiService.evaluate(text, jobRequirements);
 
     // 4. Update database
     candidateRepo.updateScore(candidateId, score);
 
     // 5. Emit to notification queue
-    rabbitTemplate.convertAndSend("cv-events", "cv.parsed",
+    rabbitTemplate.convertAndSend("talentflow.events", "cv.parsed",
         new CvParsedEvent(candidateId, score));
   }
 }
@@ -522,7 +523,7 @@ Each service has its own `.env` file but shares infrastructure credentials:
 ```
 api-gateway/.env
 cv-parser/.env (or application.yml)
-notification-service/.env
+notification/.env
 ```
 
 **Key Environment Variables:**
@@ -542,9 +543,9 @@ R2_ACCESS_KEY_ID="your-access-key"
 R2_SECRET_ACCESS_KEY="your-secret-key"
 R2_BUCKET="talentflow-cvs"
 
-# LLM API
-ANTHROPIC_API_KEY="sk-ant-..."
-# OR OPENAI_API_KEY="sk-..."
+# LLM API (Google Gemini)
+GEMINI_API_KEY="your-gemini-api-key"
+LLM_MODEL="gemini-2.5-flash"
 
 # Vector DB (Phase 2)
 WEAVIATE_URL="http://localhost:8080"
