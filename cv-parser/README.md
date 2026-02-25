@@ -2,9 +2,9 @@
 
 **Version:** 2.0
 **Created:** 2026-02-23
-**Updated:** 2026-02-24
+**Updated:** 2026-02-25
 **Status:** Planning
-**Tech Stack:** Spring Boot 3.x (Java 21)
+**Tech Stack:** Spring Boot 3.x (Java 17)
 **Team Size:** 1 team lead + 1 core Java developer
 
 ---
@@ -118,7 +118,7 @@ Ket hop **Clean Architecture** (separation of concerns) voi **Modular structure*
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| **Java** | 21 LTS | Language runtime |
+| **Java** | 17 LTS | Language runtime |
 | **Spring Boot** | 3.3.x | Application framework |
 | **Spring AMQP** | 3.1.x | RabbitMQ integration |
 | **Spring Data JPA** | 3.3.x | Database ORM |
@@ -1185,7 +1185,3 @@ docker logs -f cv-parser --tail 100
 ```
 
 ---
-
-**Document maintained by:** Team Lead
-**Last updated:** 2026-02-24
-**Next review:** After Sprint completion
