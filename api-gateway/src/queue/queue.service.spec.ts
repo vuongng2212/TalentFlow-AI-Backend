@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { connect } from 'amqplib';
 import { QueueService } from './queue.service';
 import {
-  CV_EVENTS_EXCHANGE,
+  TALENTFLOW_EVENTS_EXCHANGE,
   CV_PARSING_DLQ,
   CV_PROCESSING_QUEUE,
   ROUTING_KEY_CV_UPLOADED,
@@ -31,8 +31,8 @@ const mockEvent = {
   candidateId: 'candidate-1',
   applicationId: 'application-1',
   jobId: 'job-1',
+  bucket: 'talentflow-cvs',
   fileKey: 'cvs/key.pdf',
-  fileUrl: 'http://localhost/file.pdf',
   mimeType: 'application/pdf',
   uploadedAt: new Date().toISOString(),
 };
@@ -85,7 +85,7 @@ describe('QueueService', () => {
     await service.onModuleInit();
 
     expect(mockChannel.assertExchange).toHaveBeenCalledWith(
-      CV_EVENTS_EXCHANGE,
+      TALENTFLOW_EVENTS_EXCHANGE,
       'topic',
       { durable: true },
     );
@@ -99,7 +99,7 @@ describe('QueueService', () => {
     });
     expect(mockChannel.bindQueue).toHaveBeenCalledWith(
       CV_PROCESSING_QUEUE,
-      CV_EVENTS_EXCHANGE,
+      TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_UPLOADED,
     );
   });
@@ -110,7 +110,7 @@ describe('QueueService', () => {
     await service.publishCvUploaded(mockEvent);
 
     expect(mockChannel.publish).toHaveBeenCalledWith(
-      CV_EVENTS_EXCHANGE,
+      TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_UPLOADED,
       expect.any(Buffer),
       expect.objectContaining({

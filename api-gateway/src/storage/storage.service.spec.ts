@@ -101,6 +101,12 @@ describe('StorageService', () => {
     expect(mockDestroy).toHaveBeenCalled();
   });
 
+  it('should return bucket name via getBucketName()', () => {
+    const bucketName = service.getBucketName();
+
+    expect(bucketName).toBe('talentflow-cvs');
+  });
+
   it('should build file url from public URL when provided', async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [

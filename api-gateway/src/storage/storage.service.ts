@@ -111,6 +111,14 @@ export class StorageService implements OnModuleDestroy {
     this.logger.log(`File deleted: ${key}`);
   }
 
+  /**
+   * Returns the configured bucket name.
+   * Used by queue events to include bucket information.
+   */
+  getBucketName(): string {
+    return this.bucketName;
+  }
+
   private buildFileUrl(key: string): string {
     if (this.publicUrl) {
       return `${this.publicUrl}/${key}`;

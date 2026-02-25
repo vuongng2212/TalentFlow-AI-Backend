@@ -52,7 +52,7 @@ interface AmqpChannel {
   close(): Promise<void>;
 }
 import {
-  CV_EVENTS_EXCHANGE,
+  TALENTFLOW_EVENTS_EXCHANGE,
   CV_PROCESSING_QUEUE,
   CV_PARSING_DLQ,
   ROUTING_KEY_CV_UPLOADED,
@@ -109,7 +109,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       throw new Error('Channel not initialized');
     }
 
-    await this.channel.assertExchange(CV_EVENTS_EXCHANGE, 'topic', {
+    await this.channel.assertExchange(TALENTFLOW_EVENTS_EXCHANGE, 'topic', {
       durable: true,
     });
 
@@ -125,7 +125,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
     await this.channel.bindQueue(
       CV_PROCESSING_QUEUE,
-      CV_EVENTS_EXCHANGE,
+      TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_UPLOADED,
     );
 
@@ -141,7 +141,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     const message = Buffer.from(JSON.stringify(event));
 
     const published = this.channel.publish(
-      CV_EVENTS_EXCHANGE,
+      TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_UPLOADED,
       message,
       {

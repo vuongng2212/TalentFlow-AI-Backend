@@ -96,3 +96,30 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+---
+
+## Queue Migration Notes (ADR-009)
+
+### Breaking Changes
+
+1. **Exchange Name:** Changed from `cv_parser` to `talentflow.events`
+2. **CvUploadedEvent:** Removed `fileUrl` (SSRF fix), added `bucket` field
+
+### New Event Payload
+
+```json
+{
+  "candidateId": "uuid",
+  "applicationId": "uuid",
+  "jobId": "uuid",
+  "bucket": "talentflow-cvs",
+  "fileKey": "cvs/2026/02/uuid.pdf",
+  "mimeType": "application/pdf",
+  "uploadedAt": "2026-02-25T10:30:00Z"
+}
+```
+
+CV Parser consumers must use `bucket` + `fileKey` with S3 credentials to download files (not URLs).
+
+See [ADR-009](../docs/adr/ADR-009-rabbitmq-polyglot.md) for full specification.
