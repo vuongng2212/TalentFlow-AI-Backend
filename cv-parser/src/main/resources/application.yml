@@ -1,0 +1,138 @@
+spring:
+  application:
+    name: cv-parser
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  # RabbitMQ Configuration
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:rabbitmq}
+    password: ${RABBITMQ_PASS:rabbitmq}
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 10
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-attempts: 3
+          multiplier: 2
+
+  # Database Configuration
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/talentflow_dev}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  # Jackson Configuration
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+# Server Configuration
+server:
+  port: ${SERVER_PORT:8081}
+
+# Storage Configuration (S3/MinIO/R2)
+storage:
+  endpoint: ${R2_ENDPOINT:http://localhost:9000}
+  access-key-id: ${R2_ACCESS_KEY_ID:minioadmin}
+  secret-access-key: ${R2_SECRET_ACCESS_KEY:minioadmin}
+  bucket: ${R2_BUCKET:talentflow-cvs}
+  region: ${R2_REGION:us-east-1}
+
+# LLM Configuration (Google Gemini)
+llm:
+  provider: ${LLM_PROVIDER:google}
+  model: ${LLM_MODEL:gemini-2.5-flash}
+  api-key: ${GEMINI_API_KEY:}
+  base-url: https://generativelanguage.googleapis.com/v1beta
+  timeout-seconds: ${LLM_TIMEOUT_SECONDS:30}
+  max-tokens: ${LLM_MAX_TOKENS:8192}
+
+# OCR Configuration (Tesseract)
+tesseract:
+  data-path: ${TESSERACT_DATA_PATH:/usr/share/tesseract-ocr/5/tessdata}
+  language: ${TESSERACT_LANGUAGE:eng+vie}
+
+# File Validation
+file:
+  max-size-mb: ${FILE_MAX_SIZE_MB:10}
+  max-pages: ${FILE_MAX_PAGES:20}
+  allowed-types:
+    - application/pdf
+    - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  health:
+    rabbit:
+      enabled: true
+    db:
+      enabled: true
+
+# Resilience4j Configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      geminiApi:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        record-exceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+  retry:
+    instances:
+      geminiApi:
+        max-attempts: 3
+        wait-duration: 2s
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+  timelimiter:
+    instances:
+      geminiApi:
+        timeout-duration: 30s
+  ratelimiter:
+    instances:
+      geminiApi:
+        limit-for-period: 100
+        limit-refresh-period: 60s
+        timeout-duration: 5s
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.talentflow.cvparser: DEBUG
+    org.springframework.amqp: INFO
+    software.amazon.awssdk: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

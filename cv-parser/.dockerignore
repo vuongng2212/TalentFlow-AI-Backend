@@ -1,0 +1,28 @@
+# Build output
+target/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Test resources
+src/test/
+
+# Local environment
+.env
+.env.local
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

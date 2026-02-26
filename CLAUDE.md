@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 TalentFlow AI is a backend system for an Applicant Tracking System (ATS) using a polyglot 3-service architecture:
 1.  **API Gateway (NestJS)**: Main entry point, Auth, Jobs, Applications.
-2.  **CV Parser (Java/Spring Boot or C#/.NET)**: Handles file parsing and AI scoring (currently in `cv-parser/`).
-3.  **Notification Service (Node/NestJS or C#/.NET)**: Handles emails and WebSockets (currently in `notification/`).
+2.  **CV Parser (Java/Spring Boot)**: Handles file parsing and AI scoring (currently in `cv-parser/`).
+3.  **Notification Service (C#/.NET)**: Handles emails and WebSockets (currently in `notification/`).
 
 Infrastructure includes PostgreSQL, Redis, and MinIO (local S3) managed via Docker Compose.
 
