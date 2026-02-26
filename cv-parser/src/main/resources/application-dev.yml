@@ -1,0 +1,55 @@
+# Development Profile Configuration
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/talentflow_dev
+    username: postgres
+    password: postgres
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: rabbitmq
+    password: rabbitmq
+
+# Storage (Local MinIO)
+storage:
+  endpoint: http://localhost:9000
+  access-key-id: minioadmin
+  secret-access-key: minioadmin
+  bucket: talentflow-cvs
+
+# Server
+server:
+  port: 8081
+
+# LLM (Development - may use mock or real API)
+llm:
+  model: gemini-2.5-flash
+  timeout-seconds: 60
+
+# Tesseract (Windows development path)
+tesseract:
+  data-path: ${TESSERACT_DATA_PATH:C:/Program Files/Tesseract-OCR/tessdata}
+  language: eng+vie
+
+# Actuator - expose all endpoints in dev
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.talentflow.cvparser: DEBUG
+    org.springframework.amqp: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

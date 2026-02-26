@@ -1,0 +1,57 @@
+# Test Profile Configuration
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+# Storage (Mock/Test)
+storage:
+  endpoint: http://localhost:9000
+  access-key-id: test
+  secret-access-key: test
+  bucket: test-bucket
+  region: us-east-1
+
+# LLM (Test - use mocks)
+llm:
+  api-key: test-key
+  model: gemini-2.5-flash
+  timeout-seconds: 5
+  base-url: https://generativelanguage.googleapis.com/v1beta
+
+# Tesseract
+tesseract:
+  data-path: ${TESSERACT_DATA_PATH:}
+  language: eng
+
+# File validation (smaller limits for tests)
+file:
+  max-size-mb: 5
+  max-pages: 10
+  allowed-types:
+    - application/pdf
+    - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+# Logging
+logging:
+  level:
+    root: WARN
+    com.talentflow.cvparser: DEBUG
