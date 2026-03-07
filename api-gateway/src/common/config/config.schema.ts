@@ -25,10 +25,20 @@ export const appConfigSchema = Joi.object({
     'postgresql://localhost:5432/dev',
   ),
   REDIS_URL: requiredInProd(Joi.string().uri(), 'redis://localhost:6379'),
-  RABBITMQ_URL: requiredInProd(
-    Joi.string().uri(),
-    'amqp://rabbitmq:rabbitmq@localhost:5672',
-  ),
+  RABBITMQ_URL: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().uri().pattern(/^amqps:\/\//i).required(),
+    otherwise: Joi.string().uri().default('amqp://rabbitmq:rabbitmq@localhost:5672'),
+  }),
+  RABBITMQ_HEARTBEAT_SEC: Joi.number().integer().min(5).default(30),
+  RABBITMQ_RECONNECT_INITIAL_DELAY_MS: Joi.number()
+    .integer()
+    .min(100)
+    .default(1000),
+  RABBITMQ_RECONNECT_MAX_DELAY_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(30000),
 
   JWT_ACCESS_SECRET: requiredOutsideTest(
     Joi.string().min(16),

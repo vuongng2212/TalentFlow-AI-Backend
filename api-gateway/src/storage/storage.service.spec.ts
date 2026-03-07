@@ -38,6 +38,7 @@ describe('StorageService', () => {
           useValue: {
             get: jest.fn((key: string, defaultValue?: string) => {
               const values: Record<string, string | null> = {
+                NODE_ENV: 'development',
                 R2_ENDPOINT: 'http://localhost:9000',
                 R2_BUCKET: 'talentflow-cvs',
                 R2_PUBLIC_URL: null,
@@ -116,6 +117,7 @@ describe('StorageService', () => {
           useValue: {
             get: jest.fn((key: string, defaultValue?: string) => {
               const values: Record<string, string | null> = {
+                NODE_ENV: 'development',
                 R2_ENDPOINT: 'http://localhost:9000',
                 R2_BUCKET: 'talentflow-cvs',
                 R2_PUBLIC_URL: 'https://cdn.example.com',
@@ -215,7 +217,7 @@ describe('StorageService', () => {
     );
   });
 
-  it('should initialize without credentials when keys are missing', async () => {
+  it('should initialize without credentials when keys are missing in development', async () => {
     await expect(
       Test.createTestingModule({
         providers: [
@@ -225,6 +227,7 @@ describe('StorageService', () => {
             useValue: {
               get: jest.fn((key: string, defaultValue?: string) => {
                 const values: Record<string, string | null> = {
+                  NODE_ENV: 'development',
                   R2_ENDPOINT: 'http://localhost:9000',
                   R2_BUCKET: 'talentflow-cvs',
                   R2_PUBLIC_URL: null,
@@ -238,5 +241,62 @@ describe('StorageService', () => {
         ],
       }).compile(),
     ).resolves.toBeDefined();
+  });
+
+  it('should require credentials in production', async () => {
+    await expect(
+      Test.createTestingModule({
+        providers: [
+          StorageService,
+          {
+            provide: ConfigService,
+            useValue: {
+              get: jest.fn((key: string, defaultValue?: string) => {
+                const values: Record<string, string | null> = {
+                  NODE_ENV: 'production',
+                  R2_ENDPOINT: 'https://acc123.r2.cloudflarestorage.com',
+                  R2_BUCKET: 'talentflow-cvs',
+                  R2_PUBLIC_URL: null,
+                  R2_ACCESS_KEY_ID: null,
+                  R2_SECRET_ACCESS_KEY: null,
+                };
+                return values[key] ?? defaultValue;
+              }),
+            },
+          },
+        ],
+      }).compile(),
+    ).rejects.toThrow(
+      'R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY are required in production',
+    );
+  });
+
+  it('should require endpoint or account id in production', async () => {
+    await expect(
+      Test.createTestingModule({
+        providers: [
+          StorageService,
+          {
+            provide: ConfigService,
+            useValue: {
+              get: jest.fn((key: string, defaultValue?: string) => {
+                const values: Record<string, string | null> = {
+                  NODE_ENV: 'production',
+                  R2_ENDPOINT: null,
+                  R2_ACCOUNT_ID: null,
+                  R2_BUCKET: 'talentflow-cvs',
+                  R2_PUBLIC_URL: null,
+                  R2_ACCESS_KEY_ID: 'key',
+                  R2_SECRET_ACCESS_KEY: 'secret',
+                };
+                return values[key] ?? defaultValue;
+              }),
+            },
+          },
+        ],
+      }).compile(),
+    ).rejects.toThrow(
+      'R2_ENDPOINT or R2_ACCOUNT_ID is required in production environment',
+    );
   });
 });
