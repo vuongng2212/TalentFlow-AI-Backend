@@ -76,4 +76,4 @@ public class S3StorageService implements StorageService {
         log.info("Downloaded {} → {}", objectKey, tempFile);
         return tempFile;
     }
-}   
+}
