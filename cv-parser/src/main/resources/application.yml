@@ -1,1 +1,22 @@
-spring.application.name=cv-parser
+spring:
+  application:
+    name: cv-parser
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASS:guest}
+    listener:
+      simple:
+        acknowledge-mode: manual
+
+app:
+  storage:
+    endpoint: ${R2_ENDPOINT:http://localhost:9000}
+    access-key: ${R2_ACCESS_KEY_ID:minioadmin}
+    secret-key: ${R2_SECRET_ACCESS_KEY:minioadmin}
+    bucket: ${R2_BUCKET_NAME:talentflow-cvs}
+    region: ${R2_REGION:auto}
+    max-file-size-bytes: ${MAX_FILE_SIZE_BYTES:5242880}
+    path-style-access: ${PATH_STYLE_ACCESS:true}
