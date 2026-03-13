@@ -62,7 +62,8 @@ describe('appConfigSchema', () => {
     const { error } = appConfigSchema.validate(
       {
         NODE_ENV: 'production',
-        DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/talentflow_dev',
+        DATABASE_URL:
+          'postgresql://postgres:postgres@localhost:5432/talentflow_dev',
         REDIS_URL: 'redis://localhost:6379',
         RABBITMQ_URL: 'amqp://localhost:5672',
         JWT_ACCESS_SECRET: 'development-access-secret-123',
