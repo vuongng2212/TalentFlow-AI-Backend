@@ -9,44 +9,32 @@ RUN corepack enable
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies
+# Install ALL dependencies (need prisma CLI for generate)
 RUN pnpm install --frozen-lockfile
 
-# Copy source code
+# Copy source code and prisma schema
 COPY . .
 
-# Generate Prisma client
-RUN npx prisma generate
+# Generate Prisma client + Build NestJS
+RUN npx prisma generate && pnpm run build
 
-# Build application
-RUN pnpm run build
+# Prune devDependencies after build
+RUN pnpm prune --prod
 
 # Production stage
 FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Enable corepack for pnpm
-RUN corepack enable
-
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
-
-# Copy Prisma schema first (needed for generate + migrations)
-COPY prisma ./prisma
-
-# Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
-
-# Generate Prisma client in production node_modules
-RUN npx prisma generate
-
-# Copy built application from builder stage
+# Copy only what's needed from builder
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/package.json ./package.json
 
 # Set ownership to non-root user
 RUN chown -R nestjs:nodejs /app
