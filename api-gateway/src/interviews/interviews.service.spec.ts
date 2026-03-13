@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { InterviewsService } from './interviews.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { InterviewStatus } from '@prisma/client';
 
 const mockPrismaService = {
   interview: {
@@ -109,12 +110,19 @@ describe('InterviewsService', () => {
       prisma.interview.findMany.mockResolvedValue([]);
       prisma.interview.count.mockResolvedValue(0);
 
-      await service.findAll({ page: 1, limit: 10, status: 'SCHEDULED' as any });
+      await service.findAll({
+        page: 1,
+        limit: 10,
+        status: InterviewStatus.SCHEDULED,
+      });
 
       expect(prisma.interview.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ status: 'SCHEDULED' }),
-        }),
+          where: expect.objectContaining({ status: 'SCHEDULED' }) as Record<
+            string,
+            unknown
+          >,
+        } as Record<string, unknown>),
       );
     });
   });

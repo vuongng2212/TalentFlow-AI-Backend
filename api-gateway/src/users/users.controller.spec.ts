@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { Role } from '@prisma/client';
 
 const mockPrismaService = {
   user: {
@@ -49,12 +50,15 @@ describe('UsersService - New Methods', () => {
       prisma.user.findMany.mockResolvedValue([]);
       prisma.user.count.mockResolvedValue(0);
 
-      await service.findAll({ page: 1, limit: 10, role: 'ADMIN' as any });
+      await service.findAll({ page: 1, limit: 10, role: Role.ADMIN });
 
       expect(prisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ role: 'ADMIN' }),
-        }),
+          where: expect.objectContaining({ role: 'ADMIN' }) as Record<
+            string,
+            unknown
+          >,
+        } as Record<string, unknown>),
       );
     });
   });
@@ -120,16 +124,16 @@ describe('UsersService - New Methods', () => {
       prisma.user.findUnique.mockResolvedValue({ id: '1', role: 'RECRUITER' });
       prisma.user.update.mockResolvedValue({ id: '1', role: 'ADMIN' });
 
-      const result = await service.updateRole('1', 'ADMIN' as any);
+      const result = await service.updateRole('1', Role.ADMIN);
       expect(result.role).toBe('ADMIN');
     });
 
     it('should throw NotFoundException when user not found', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.updateRole('not-exist', 'ADMIN' as any),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.updateRole('not-exist', Role.ADMIN)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -138,13 +142,13 @@ describe('UsersService - New Methods', () => {
       prisma.user.findUnique.mockResolvedValue({ id: '1' });
       prisma.user.update.mockResolvedValue({
         id: '1',
-        deletedAt: expect.any(Date),
+        deletedAt: expect.any(Date) as Date,
       });
 
       await service.softDeleteUser('1');
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: '1' },
-        data: { deletedAt: expect.any(Date) },
+        data: { deletedAt: expect.any(Date) as Date },
       });
     });
 
