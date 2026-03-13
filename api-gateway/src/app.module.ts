@@ -13,6 +13,9 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ApplicationsModule } from './applications/applications.module';
+import { CandidatesModule } from './candidates/candidates.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { InterviewsModule } from './interviews/interviews.module';
 import { StorageModule } from './storage/storage.module';
 import { QueueModule } from './queue/queue.module';
 import { LoggerModule } from './common/logger';
@@ -46,6 +49,9 @@ import { RolesGuard } from './auth/guards/roles.guard';
     UsersModule,
     JobsModule,
     ApplicationsModule,
+    CandidatesModule,
+    AnalyticsModule,
+    InterviewsModule,
     StorageModule,
     QueueModule,
   ],

@@ -2,6 +2,8 @@ import {
   ApplicationStage,
   ApplicationStatus,
   EmploymentType,
+  InterviewStatus,
+  InterviewType,
   JobStatus,
   PrismaClient,
   Role,
@@ -49,7 +51,8 @@ const seedCandidates = [
     phone: '+84901111222',
     linkedinUrl: 'https://linkedin.com/in/seed-alice-nguyen',
     resumeUrl: 'https://minio.local/talentflow-cvs/seed-alice-nguyen.pdf',
-    resumeText: 'Seed backend engineer with 4 years experience in Node.js and PostgreSQL.',
+    resumeText:
+      'Seed backend engineer with 4 years experience in Node.js and PostgreSQL.',
   },
   {
     email: 'seed-bob.candidate@talentflow.invalid',
@@ -57,7 +60,8 @@ const seedCandidates = [
     phone: '+84903333444',
     linkedinUrl: 'https://linkedin.com/in/seed-bob-tran',
     resumeUrl: 'https://minio.local/talentflow-cvs/seed-bob-tran.pdf',
-    resumeText: 'Seed frontend engineer focused on React, TypeScript, and accessibility.',
+    resumeText:
+      'Seed frontend engineer focused on React, TypeScript, and accessibility.',
   },
   {
     email: 'seed-charlie.candidate@talentflow.invalid',
@@ -65,13 +69,14 @@ const seedCandidates = [
     phone: '+84905555666',
     linkedinUrl: 'https://linkedin.com/in/seed-charlie-le',
     resumeUrl: 'https://minio.local/talentflow-cvs/seed-charlie-le.pdf',
-    resumeText: 'Seed DevOps engineer experienced with Docker, CI/CD, and cloud infrastructure.',
+    resumeText:
+      'Seed DevOps engineer experienced with Docker, CI/CD, and cloud infrastructure.',
   },
 ] as const;
 
 const seedJobs = [
   {
-    title: '__seed__senior_backend_engineer',
+    title: 'Senior Backend Engineer',
     description:
       'Build scalable backend services for ATS workflows and hiring automation.',
     requirements: [
@@ -88,7 +93,7 @@ const seedJobs = [
     createdByEmail: 'seed-recruiter@talentflow.invalid',
   },
   {
-    title: '__seed__frontend_engineer',
+    title: 'Frontend Engineer',
     description:
       'Develop modern, responsive interfaces for recruiters and hiring managers.',
     requirements: [
@@ -105,8 +110,9 @@ const seedJobs = [
     createdByEmail: 'seed-recruiter@talentflow.invalid',
   },
   {
-    title: '__seed__devops_engineer',
-    description: 'Maintain infrastructure, observability, and deployment pipelines.',
+    title: 'DevOps Engineer',
+    description:
+      'Maintain infrastructure, observability, and deployment pipelines.',
     requirements: [
       'Hands-on with Docker and Kubernetes',
       'Experience with CI/CD and IaC',
@@ -124,21 +130,21 @@ const seedJobs = [
 
 const seedApplications = [
   {
-    jobTitle: '__seed__senior_backend_engineer',
+    jobTitle: 'Senior Backend Engineer',
     candidateEmail: 'seed-alice.candidate@talentflow.invalid',
     stage: ApplicationStage.SCREENING,
     status: ApplicationStatus.REVIEWING,
     notes: 'Strong backend fundamentals and good communication.',
   },
   {
-    jobTitle: '__seed__frontend_engineer',
+    jobTitle: 'Frontend Engineer',
     candidateEmail: 'seed-bob.candidate@talentflow.invalid',
     stage: ApplicationStage.INTERVIEW,
     status: ApplicationStatus.INTERVIEW_SCHEDULED,
     notes: 'Portfolio quality is strong. Proceed to technical interview.',
   },
   {
-    jobTitle: '__seed__devops_engineer',
+    jobTitle: 'DevOps Engineer',
     candidateEmail: 'seed-charlie.candidate@talentflow.invalid',
     stage: ApplicationStage.APPLIED,
     status: ApplicationStatus.SUBMITTED,
@@ -200,7 +206,10 @@ const upsertJobByTitleAndCreator = async (input: {
 };
 
 async function main() {
-  const hashedPassword = await bcrypt.hash(getSeedDefaultPassword(), SALT_ROUNDS);
+  const hashedPassword = await bcrypt.hash(
+    getSeedDefaultPassword(),
+    SALT_ROUNDS,
+  );
 
   const users = await Promise.all(
     seedUsers.map((user) =>
@@ -286,7 +295,9 @@ async function main() {
       }
 
       if (!candidate) {
-        throw new Error(`Missing seeded candidate: ${application.candidateEmail}`);
+        throw new Error(
+          `Missing seeded candidate: ${application.candidateEmail}`,
+        );
       }
 
       await prisma.application.upsert({
@@ -313,11 +324,99 @@ async function main() {
     }),
   );
 
+  // ── Seed Interviews ──────────────────────────────────────
+  // Fetch created applications so we can link interviews
+  const allApplications = await prisma.application.findMany({
+    where: {
+      job: { title: { in: seedJobs.map((j) => j.title) } },
+    },
+    include: {
+      job: { select: { title: true } },
+      candidate: { select: { email: true } },
+    },
+  });
+
+  const interviewer = userByEmail.get('seed-interviewer@talentflow.invalid');
+
+  const seedInterviews = [
+    {
+      jobTitle: 'Frontend Engineer',
+      candidateEmail: 'seed-bob.candidate@talentflow.invalid',
+      scheduledAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
+      duration: 60,
+      type: InterviewType.VIDEO,
+      location: 'https://meet.google.com/seed-bob-interview',
+      notes: 'Technical interview: React, TypeScript, state management',
+      status: InterviewStatus.SCHEDULED,
+    },
+    {
+      jobTitle: 'Senior Backend Engineer',
+      candidateEmail: 'seed-alice.candidate@talentflow.invalid',
+      scheduledAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
+      duration: 45,
+      type: InterviewType.PHONE,
+      location: null,
+      notes: 'Phone screening: discuss experience and expectations',
+      status: InterviewStatus.SCHEDULED,
+    },
+    {
+      jobTitle: 'Senior Backend Engineer',
+      candidateEmail: 'seed-alice.candidate@talentflow.invalid',
+      scheduledAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
+      duration: 90,
+      type: InterviewType.TECHNICAL,
+      location: 'https://zoom.us/j/seed-alice-technical',
+      notes: 'Completed system design round. Candidate performed well.',
+      status: InterviewStatus.COMPLETED,
+    },
+  ] as const;
+
+  let interviewCount = 0;
+  for (const interview of seedInterviews) {
+    const app = allApplications.find(
+      (a) =>
+        a.job.title === interview.jobTitle &&
+        a.candidate.email === interview.candidateEmail,
+    );
+
+    if (!app) {
+      console.warn(
+        `Skipping interview seed: no application for ${interview.candidateEmail} → ${interview.jobTitle}`,
+      );
+      continue;
+    }
+
+    // Check if interview already exists for this application at this time
+    const existing = await prisma.interview.findFirst({
+      where: {
+        applicationId: app.id,
+        scheduledAt: interview.scheduledAt,
+      },
+    });
+
+    if (!existing) {
+      await prisma.interview.create({
+        data: {
+          applicationId: app.id,
+          scheduledAt: interview.scheduledAt,
+          duration: interview.duration,
+          type: interview.type,
+          location: interview.location,
+          notes: interview.notes,
+          status: interview.status,
+          interviewerId: interviewer?.id ?? null,
+        },
+      });
+      interviewCount++;
+    }
+  }
+
   console.log('Seed completed successfully');
   console.log(`Users: ${users.length}`);
   console.log(`Candidates: ${candidates.length}`);
   console.log(`Jobs: ${jobs.length}`);
   console.log(`Applications: ${seedApplications.length}`);
+  console.log(`Interviews: ${interviewCount}`);
 }
 
 main()
