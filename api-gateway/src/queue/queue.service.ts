@@ -172,7 +172,10 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     try {
       await channel?.close();
     } catch (error) {
-      this.logger.warn('Failed to close RabbitMQ channel', sanitizeError(error));
+      this.logger.warn(
+        'Failed to close RabbitMQ channel',
+        sanitizeError(error),
+      );
     }
 
     try {

@@ -63,7 +63,8 @@ const runSeed = () => {
     stdio: 'inherit',
     env: {
       ...process.env,
-      SEED_DEFAULT_PASSWORD: process.env.SEED_DEFAULT_PASSWORD ?? 'Password123!',
+      SEED_DEFAULT_PASSWORD:
+        process.env.SEED_DEFAULT_PASSWORD ?? 'Password123!',
     },
   });
 };
@@ -231,7 +232,9 @@ describe('Prisma seed (e2e)', () => {
     expect(jobs).toHaveLength(seededJobTitles.length);
     expect(applications).toHaveLength(3);
 
-    const userByEmail = new Map<string, User>(users.map((user) => [user.email, user]));
+    const userByEmail = new Map<string, User>(
+      users.map((user) => [user.email, user]),
+    );
 
     expect(userByEmail.get('seed-admin@talentflow.invalid')?.role).toBe(
       Role.ADMIN,
@@ -244,14 +247,19 @@ describe('Prisma seed (e2e)', () => {
     );
 
     jobs.forEach((job: Job & { createdBy: User }) => {
-      expect(seededUserEmails.includes(job.createdBy.email as (typeof seededUserEmails)[number])).toBe(true);
+      expect(
+        seededUserEmails.includes(
+          job.createdBy.email as (typeof seededUserEmails)[number],
+        ),
+      ).toBe(true);
     });
 
     applications.forEach(
       (application: Application & { candidate: Candidate; job: Job }) => {
         expect(
           seededCandidateEmails.includes(
-            application.candidate.email as (typeof seededCandidateEmails)[number],
+            application.candidate
+              .email as (typeof seededCandidateEmails)[number],
           ),
         ).toBe(true);
         expect(
