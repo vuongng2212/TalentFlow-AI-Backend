@@ -177,8 +177,8 @@ export class ApplicationsService {
         candidateId: candidate.id,
         applicationId: application.id,
         jobId,
+        bucket: this.storageService.getBucketName(),
         fileKey,
-        fileUrl: uploadUrl,
         mimeType: file.mimetype,
         uploadedAt: new Date().toISOString(),
       });

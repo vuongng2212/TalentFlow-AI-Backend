@@ -1,0 +1,67 @@
+# Production Profile Configuration
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        generate_statistics: false
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASS}
+    listener:
+      simple:
+        prefetch: 5
+
+# Storage (Production R2/S3)
+storage:
+  endpoint: ${R2_ENDPOINT}
+  access-key-id: ${R2_ACCESS_KEY_ID}
+  secret-access-key: ${R2_SECRET_ACCESS_KEY}
+  bucket: ${R2_BUCKET}
+  region: ${R2_REGION:auto}
+
+# Server
+server:
+  port: ${PORT:8081}
+
+# LLM
+llm:
+  api-key: ${GEMINI_API_KEY}
+  model: ${LLM_MODEL:gemini-2.5-flash}
+  timeout-seconds: 30
+
+# Tesseract (Docker path)
+tesseract:
+  data-path: /usr/share/tesseract-ocr/5/tessdata
+  language: eng+vie
+
+# Actuator - restricted in production
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# Logging
+logging:
+  level:
+    root: WARN
+    com.talentflow.cvparser: INFO
+    org.springframework.amqp: WARN
+  pattern:
+    console: "%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n"

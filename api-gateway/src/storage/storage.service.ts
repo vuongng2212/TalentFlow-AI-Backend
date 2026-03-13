@@ -22,6 +22,9 @@ export class StorageService implements OnModuleDestroy {
   private readonly logger = new Logger(StorageService.name);
 
   constructor(private readonly configService: ConfigService) {
+    const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+    const isProduction = nodeEnv === 'production';
+
     const endpoint = this.getEndpoint();
     this.bucketName = this.configService.get<string>(
       'R2_BUCKET',
@@ -33,6 +36,17 @@ export class StorageService implements OnModuleDestroy {
     const secretAccessKey = this.configService.get<string>(
       'R2_SECRET_ACCESS_KEY',
     );
+
+    if (isProduction) {
+      if (!accessKeyId || !secretAccessKey) {
+        throw new Error(
+          'R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY are required in production',
+        );
+      }
+      if (!endpoint.startsWith('https://')) {
+        throw new Error('R2 endpoint must use https:// in production');
+      }
+    }
 
     const hasCredentials = Boolean(accessKeyId && secretAccessKey);
     const timeoutMs = this.configService.get<number>('TIMEOUT_MS', 15000);
@@ -67,6 +81,13 @@ export class StorageService implements OnModuleDestroy {
     const accountId = this.configService.get<string>('R2_ACCOUNT_ID');
     if (accountId) {
       return `https://${accountId}.r2.cloudflarestorage.com`;
+    }
+
+    const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+    if (nodeEnv === 'production') {
+      throw new Error(
+        'R2_ENDPOINT or R2_ACCOUNT_ID is required in production environment',
+      );
     }
 
     return 'http://localhost:9000';
@@ -109,6 +130,14 @@ export class StorageService implements OnModuleDestroy {
 
     await this.client.send(command);
     this.logger.log(`File deleted: ${key}`);
+  }
+
+  /**
+   * Returns the configured bucket name.
+   * Used by queue events to include bucket information.
+   */
+  getBucketName(): string {
+    return this.bucketName;
   }
 
   private buildFileUrl(key: string): string {

@@ -118,6 +118,7 @@ describe('ApplicationsService', () => {
     upload: jest.fn(),
     getSignedUrl: jest.fn(),
     delete: jest.fn(),
+    getBucketName: jest.fn().mockReturnValue('talentflow-cvs'),
   };
 
   const mockQueueService = {
@@ -321,7 +322,21 @@ describe('ApplicationsService', () => {
         expect.stringMatching(/^cvs\/[0-9a-f-]{36}\.pdf$/),
         'application/pdf',
       );
-      expect(mockQueueService.publishCvUploaded).toHaveBeenCalled();
+      expect(mockQueueService.publishCvUploaded).toHaveBeenCalledWith(
+        expect.objectContaining({
+          candidateId: 'candidate-1',
+          applicationId: 'app-1',
+          jobId: 'job-1',
+          bucket: 'talentflow-cvs',
+          fileKey: expect.stringMatching(/^cvs\/[0-9a-f-]{36}\.pdf$/),
+          mimeType: 'application/pdf',
+        }),
+      );
+      expect(mockQueueService.publishCvUploaded).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          fileUrl: expect.anything(),
+        }),
+      );
       expect(result).toEqual(
         expect.objectContaining({
           applicationId: 'app-1',

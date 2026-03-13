@@ -8,15 +8,16 @@ datasource db {
 }
 
 model User {
-  id          String    @id @default(uuid())
-  email       String    @unique
+  id          String      @id @default(uuid())
+  email       String      @unique
   password    String
-  role        Role      @default(RECRUITER)
-  fullName    String    @map("full_name")
-  createdJobs Job[]     @relation("JobCreator")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
+  role        Role        @default(RECRUITER)
+  fullName    String      @map("full_name")
+  createdJobs Job[]       @relation("JobCreator")
+  interviews  Interview[] @relation("InterviewInterviewer")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  deletedAt   DateTime?   @map("deleted_at")
 
   @@map("users")
 }
@@ -81,11 +82,35 @@ model Application {
   updatedAt   DateTime          @updatedAt @map("updated_at")
   deletedAt   DateTime?         @map("deleted_at")
 
+  interviews Interview[]
+
   @@unique([jobId, candidateId])
   @@index([jobId])
   @@index([candidateId])
   @@index([status])
   @@map("applications")
+}
+
+model Interview {
+  id            String          @id @default(uuid())
+  applicationId String          @map("application_id")
+  application   Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  scheduledAt   DateTime        @map("scheduled_at")
+  duration      Int             @default(60) // duration in minutes
+  type          InterviewType   @default(VIDEO)
+  location      String? // video link, room, or address
+  notes         String?
+  status        InterviewStatus @default(SCHEDULED)
+  interviewerId String?         @map("interviewer_id")
+  interviewer   User?           @relation("InterviewInterviewer", fields: [interviewerId], references: [id], onDelete: SetNull)
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  @@index([applicationId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@index([interviewerId])
+  @@map("interviews")
 }
 
 enum Role {
@@ -127,4 +152,21 @@ enum ApplicationStatus {
   ACCEPTED
   REJECTED
   WITHDRAWN
+}
+
+enum InterviewType {
+  PHONE
+  VIDEO
+  IN_PERSON
+  PANEL
+  TECHNICAL
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
 }
