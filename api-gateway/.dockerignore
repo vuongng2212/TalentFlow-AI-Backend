@@ -2,7 +2,7 @@
 node_modules
 
 # Build output
-dist
+#dist
 
 # Development files
 .env
@@ -46,3 +46,4 @@ pnpm-debug.log*
 # Misc
 .eslintcache
 .prettierignore
+render-env.txt

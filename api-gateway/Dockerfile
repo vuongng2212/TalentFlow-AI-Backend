@@ -36,15 +36,17 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
+# Copy Prisma schema first (needed for generate + migrations)
+COPY prisma ./prisma
+
 # Install production dependencies only
 RUN pnpm install --frozen-lockfile --prod
 
+# Generate Prisma client in production node_modules
+RUN npx prisma generate
+
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-
-# Copy Prisma schema for migrations
-COPY prisma ./prisma
 
 # Set ownership to non-root user
 RUN chown -R nestjs:nodejs /app
@@ -52,12 +54,12 @@ RUN chown -R nestjs:nodejs /app
 # Switch to non-root user
 USER nestjs
 
-# Expose application port
-EXPOSE 3000
+# Expose application port (Railway injects PORT at runtime)
+EXPOSE ${PORT:-3000}
 
-# Health check
+# Health check using dynamic PORT
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-3000}/health || exit 1
 
 # Start application
 CMD ["node", "dist/main.js"]
