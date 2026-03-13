@@ -18,7 +18,11 @@ export class UpdateInterviewDto {
   @IsDateString()
   scheduledAt?: string;
 
-  @ApiPropertyOptional({ description: 'Duration in minutes', minimum: 15, maximum: 480 })
+  @ApiPropertyOptional({
+    description: 'Duration in minutes',
+    minimum: 15,
+    maximum: 480,
+  })
   @IsOptional()
   @IsInt()
   @Min(15)

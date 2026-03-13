@@ -40,7 +40,10 @@ export class InterviewsController {
     type: InterviewResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 404, description: 'Application or interviewer not found' })
+  @ApiResponse({
+    status: 404,
+    description: 'Application or interviewer not found',
+  })
   async create(@Body() createInterviewDto: CreateInterviewDto) {
     return this.interviewsService.create(createInterviewDto);
   }

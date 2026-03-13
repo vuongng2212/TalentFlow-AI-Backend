@@ -45,12 +45,12 @@ export class InterviewsService {
     // Validate scheduledAt is in the future
     const scheduledAt = new Date(dto.scheduledAt);
     if (scheduledAt <= new Date()) {
-      throw new BadRequestException('Interview must be scheduled in the future');
+      throw new BadRequestException(
+        'Interview must be scheduled in the future',
+      );
     }
 
-    this.logger.log(
-      `Creating interview for application ${dto.applicationId}`,
-    );
+    this.logger.log(`Creating interview for application ${dto.applicationId}`);
 
     return this.prisma.interview.create({
       data: {
@@ -77,7 +77,9 @@ export class InterviewsService {
     });
   }
 
-  async findAll(query: QueryInterviewsDto): Promise<PaginatedResult<Interview>> {
+  async findAll(
+    query: QueryInterviewsDto,
+  ): Promise<PaginatedResult<Interview>> {
     const {
       page = 1,
       limit = 10,
@@ -139,7 +141,9 @@ export class InterviewsService {
             id: true,
             stage: true,
             status: true,
-            candidate: { select: { id: true, fullName: true, email: true, phone: true } },
+            candidate: {
+              select: { id: true, fullName: true, email: true, phone: true },
+            },
             job: { select: { id: true, title: true, department: true } },
           },
         },

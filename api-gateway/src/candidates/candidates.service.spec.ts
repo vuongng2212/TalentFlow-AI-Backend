@@ -38,7 +38,12 @@ describe('CandidatesService', () => {
   describe('findAll', () => {
     it('should return paginated candidates', async () => {
       const mockCandidates = [
-        { id: '1', fullName: 'Alice', email: 'alice@test.com', _count: { applications: 2 } },
+        {
+          id: '1',
+          fullName: 'Alice',
+          email: 'alice@test.com',
+          _count: { applications: 2 },
+        },
       ];
       prisma.candidate.findMany.mockResolvedValue(mockCandidates);
       prisma.candidate.count.mockResolvedValue(1);

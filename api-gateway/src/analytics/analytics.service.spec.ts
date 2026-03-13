@@ -103,8 +103,20 @@ describe('AnalyticsService', () => {
   describe('getTopJobs', () => {
     it('should return top jobs sorted by application count', async () => {
       const mockJobs = [
-        { id: '1', title: 'Engineer', department: 'Eng', status: 'OPEN', _count: { applications: 10 } },
-        { id: '2', title: 'Designer', department: 'Design', status: 'OPEN', _count: { applications: 5 } },
+        {
+          id: '1',
+          title: 'Engineer',
+          department: 'Eng',
+          status: 'OPEN',
+          _count: { applications: 10 },
+        },
+        {
+          id: '2',
+          title: 'Designer',
+          department: 'Design',
+          status: 'OPEN',
+          _count: { applications: 5 },
+        },
       ];
       prisma.job.findMany.mockResolvedValue(mockJobs);
 
