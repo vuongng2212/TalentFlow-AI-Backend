@@ -20,3 +20,9 @@ app:
     region: ${R2_REGION:auto}
     max-file-size-bytes: ${MAX_FILE_SIZE_BYTES:5242880}
     path-style-access: ${PATH_STYLE_ACCESS:true}
+
+  parser:
+    docx:
+      min-inflate-ratio: ${DOCX_MIN_INFLATE_RATIO:0.01}
+      max-entry-size: ${DOCX_MAX_ENTRY_SIZE:20971520}
+      max-text-size: ${DOCX_MAX_TEXT_SIZE:2000000}
