@@ -1,4 +1,7 @@
 package com.talent.cvparser.shared.exception;
 
-public class UnsupportedDocumentFormatException {
+public class UnsupportedDocumentFormatException extends ParsingException{
+    public UnsupportedDocumentFormatException(String message) {
+        super(message);
+    }
 }
