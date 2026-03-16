@@ -286,8 +286,8 @@ curl https://app.talentflow.ai
 // railway.json (in api-gateway/)
 {
   "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "npx prisma generate && npm run build"
+    "builder": "RAILPACK",
+    "buildCommand": "npm ci && npm exec prisma generate && npm run build"
   },
   "deploy": {
     "startCommand": "npm run start:prod",
