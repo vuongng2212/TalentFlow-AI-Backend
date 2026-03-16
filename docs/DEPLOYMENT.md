@@ -280,6 +280,7 @@ curl https://app.talentflow.ai
 1. Click "New Service" → "GitHub Repo"
 2. Select: `talentflow-backend`
 3. Root Directory: `/api-gateway` (monorepo hiện tại)
+4. Config as Code Path: `/api-gateway/railway.json` (đường dẫn tuyệt đối)
 
 **Build Configuration:**
 ```json
@@ -290,7 +291,7 @@ curl https://app.talentflow.ai
     "buildCommand": "npm ci && npm exec prisma generate && npm run build"
   },
   "deploy": {
-    "startCommand": "npm run start:prod",
+    "startCommand": "node dist/main.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
