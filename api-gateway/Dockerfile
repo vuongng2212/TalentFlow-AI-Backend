@@ -19,6 +19,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Generate Prisma client, compile NestJS, then remove dev dependencies.
+# Cache-bust: prisma schema updated with directUrl + output path (2026-03-16)
 RUN npm exec prisma generate && npm run build && npm prune --omit=dev
 
 # ===================
@@ -44,7 +45,7 @@ USER nestjs
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-3000}/health || exit 1
 
 CMD ["node", "dist/main.js"]

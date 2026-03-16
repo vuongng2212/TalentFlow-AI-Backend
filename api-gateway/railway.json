@@ -1,7 +1,7 @@
 {
   "build": {
-    "builder": "RAILPACK",
-    "buildCommand": "npm ci && npm exec prisma generate && npm run build"
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
   },
   "deploy": {
     "startCommand": "node dist/main.js",
