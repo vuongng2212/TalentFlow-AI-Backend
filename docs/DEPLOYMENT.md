@@ -279,18 +279,18 @@ curl https://app.talentflow.ai
 **Add Service:**
 1. Click "New Service" → "GitHub Repo"
 2. Select: `talentflow-backend`
-3. Root Directory: `/apps/api-gateway` (nếu monorepo)
+3. Root Directory: `/api-gateway` (monorepo hiện tại)
 
 **Build Configuration:**
 ```json
-// railway.json (in apps/api-gateway/)
+// railway.json (in api-gateway/)
 {
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "npm run build"
+    "buildCommand": "npx prisma generate && npm run build"
   },
   "deploy": {
-    "startCommand": "node dist/apps/api-gateway/main.js",
+    "startCommand": "npm run start:prod",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
@@ -312,11 +312,12 @@ NODE_ENV=production
 
 **Add Another Service:**
 1. Same repo: `talentflow-backend`
-2. Root Directory: `/apps/ai-worker`
+2. Root Directory: `/cv-parser` hoặc `/notification` (theo service bạn triển khai)
 
 **Start Command:**
 ```bash
-node dist/apps/ai-worker/main.js
+# ví dụ Notification (nếu dùng .NET):
+dotnet run
 ```
 
 ### Step 4: Configure Custom Domain
