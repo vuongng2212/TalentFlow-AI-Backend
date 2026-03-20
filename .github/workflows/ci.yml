@@ -84,6 +84,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/talentflow_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/talentflow_test
       REDIS_URL: redis://localhost:6379
       RABBITMQ_URL: amqp://localhost:5672
       JWT_ACCESS_SECRET: test-access-secret-key-for-ci
