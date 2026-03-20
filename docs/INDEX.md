@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-02-18
 **Status:** Clean & Organized
-**Architecture:** Polyglot 3-Service (NestJS + Spring Boot + ASP.NET Core)
+**Architecture:** Polyglot 3-Service (NestJS + Spring Boot + NestJS)
 
 ---
 

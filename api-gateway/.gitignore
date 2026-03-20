@@ -41,6 +41,7 @@ lerna-debug.log*
 .env.test.local
 .env.production.local
 .env.local
+railway-env.txt
 
 # temp directory
 .temp
@@ -63,3 +64,4 @@ CLAUDE.md
 
 # Cookies (E2E testing)
 cookies.txt
+render-env.txt

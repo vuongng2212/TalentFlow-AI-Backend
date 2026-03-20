@@ -7,7 +7,7 @@
 | 1 | Project Setup & Core Infrastructure | Day 1-2 | ⬜ Not Started |
 | 2 | Email Service | Day 2-3 | ⬜ Not Started |
 | 3 | RabbitMQ Consumer | Day 3-4 | ⬜ Not Started |
-| 4 | SignalR Real-time | Day 4-5 | ⬜ Not Started |
+| 4 | Socket.IO Real-time | Day 4-5 | ⬜ Not Started |
 | 5 | Notification History | Day 5-6 | ⬜ Not Started |
 | 6 | Testing & Documentation | Day 6-7 | ⬜ Not Started |
 
@@ -22,51 +22,55 @@
 **Tasks:**
 ```
 [ ] 1.1 Project Initialization
-    [ ] Create solution: dotnet new sln -n NotificationService
-    [ ] Create web project: dotnet new webapi -n NotificationService -o src/NotificationService
-    [ ] dotnet sln add src/NotificationService
-    [ ] Add NuGet packages (see Section 3.3)
-    [ ] Configure .gitignore
+    [ ] Create NestJS project: npx @nestjs/cli new notification
+    [ ] Install core dependencies (see README Section 3.3)
+    [ ] Configure tsconfig.json, nest-cli.json
+    [ ] Configure .gitignore, .env.example
+    [ ] Setup Prettier + ESLint
 
 [ ] 1.2 Configuration Setup
-    [ ] Create appsettings.json với tất cả config sections
-    [ ] Create Configuration/SmtpSettings.cs
-    [ ] Create Configuration/RabbitMQSettings.cs
-    [ ] Create Configuration/JwtSettings.cs
-    [ ] Create Configuration/SignalRSettings.cs
-    [ ] Setup Serilog logging
+    [ ] Create .env + .env.example với tất cả config values
+    [ ] Create config/validation.schema.ts (Joi validation)
+    [ ] Create config/smtp.config.ts
+    [ ] Create config/rabbitmq.config.ts
+    [ ] Create config/jwt.config.ts
+    [ ] Setup Winston logging (nest-winston)
+    [ ] Setup ConfigModule.forRoot() trong app.module.ts
 
 [ ] 1.3 Database Setup
-    [ ] Create Infrastructure/Persistence/AppDbContext.cs
-    [ ] Create Models/Notification.cs entity
-    [ ] Create Models/NotificationType.cs enum
-    [ ] Create Models/NotificationStatus.cs enum
-    [ ] Run: dotnet ef migrations add InitialCreate
-    [ ] Create Infrastructure/Persistence/NotificationRepository.cs
+    [ ] Install Prisma: npm install @prisma/client prisma
+    [ ] Init Prisma: npx prisma init
+    [ ] Create prisma/schema.prisma với Notification model
+    [ ] Create prisma/prisma.module.ts + prisma.service.ts
+    [ ] Run: npx prisma migrate dev --name init
+    [ ] Verify database connection
 
 [ ] 1.4 Authentication Setup
-    [ ] Create Infrastructure/Auth/JwtConfiguration.cs
-    [ ] Configure JWT Bearer in Program.cs
-    [ ] Add startup validation for secrets
+    [ ] Install: @nestjs/passport @nestjs/jwt passport passport-jwt
+    [ ] Create auth/jwt.strategy.ts (Passport JWT strategy)
+    [ ] Create auth/jwt-auth.guard.ts
+    [ ] Create auth/ws-jwt.guard.ts (WebSocket guard)
+    [ ] Create common/decorators/current-user.decorator.ts
     [ ] Test: invalid token → 401
 
 [ ] 1.5 Health Checks
-    [ ] Add RabbitMQ health check
-    [ ] Add PostgreSQL health check
-    [ ] Create Controllers/HealthController.cs
+    [ ] Install: @nestjs/terminus
+    [ ] Create health/health.module.ts + health.controller.ts
+    [ ] Add RabbitMQ health indicator
+    [ ] Add PostgreSQL (Prisma) health indicator
     [ ] Test: curl http://localhost:5000/health
 
 [ ] 1.6 Docker Setup
-    [ ] Create Dockerfile (multi-stage build)
+    [ ] Create Dockerfile (multi-stage Node.js build)
     [ ] Update docker-compose.yml
     [ ] Test: docker-compose up notification
 ```
 
 **Verification:**
 ```bash
-dotnet build
-dotnet run --project src/NotificationService
-curl http://localhost:5000/health  # Expected: {"status":"Healthy"}
+npm run build
+npm run start:dev
+curl http://localhost:5000/health  # Expected: {"status":"ok"}
 ```
 
 **Security Verification:**
@@ -94,33 +98,35 @@ curl -X GET http://localhost:5000/api/notifications/user-123 \
 
 **Tasks:**
 ```
-[ ] 2.1 Email Models
-    [ ] Create Models/EmailMessage.cs
-    [ ] Create DTOs/SendNotificationRequest.cs
-    [ ] Create DTOs/NotificationResponse.cs
+[ ] 2.1 Email DTOs
+    [ ] Create notification/dto/send-notification.dto.ts (class-validator)
+    [ ] Create notification/dto/notification-response.dto.ts
+    [ ] Create notification/entities/notification.entity.ts
 
 [ ] 2.2 Email Infrastructure
-    [ ] Create Services/Interfaces/IEmailService.cs
-    [ ] Create Infrastructure/Email/SmtpEmailSender.cs using MailKit
-    [ ] Implement retry với Polly (3 attempts, exponential backoff)
-    [ ] Add PII masking trong logs
+    [ ] Install: @nestjs-modules/mailer nodemailer handlebars
+    [ ] Create email/email.module.ts (MailerModule.forRootAsync)
+    [ ] Create email/email.service.ts
+    [ ] Implement retry với exponential backoff (3 attempts)
+    [ ] Add PII masking trong logs (common/utils/pii-masker.ts)
 
-[ ] 2.3 Email Templates
-    [ ] Create Infrastructure/Email/EmailTemplates/ folder
-    [ ] Create ApplicationConfirmation.html
-    [ ] Create InterviewInvitation.html
-    [ ] Create NewApplicationHr.html
-    [ ] Implement template engine (HTML encoding)
+[ ] 2.3 Email Templates (Handlebars)
+    [ ] Create email/templates/ folder
+    [ ] Create application-confirmation.hbs
+    [ ] Create interview-invitation.hbs
+    [ ] Create new-application-hr.hbs
+    [ ] Implement template rendering via @nestjs-modules/mailer
 
 [ ] 2.4 REST API Endpoint
-    [ ] Create Controllers/NotificationsController.cs
-    [ ] Add [Authorize] attribute
-    [ ] Add [EnableRateLimiting] attribute
+    [ ] Create notification/notification.module.ts
+    [ ] Create notification/notification.controller.ts
+    [ ] Add @UseGuards(JwtAuthGuard)
+    [ ] Add @Throttle() rate limiting
     [ ] POST /api/notifications/send endpoint
     [ ] Test với JWT token
 
 [ ] 2.5 DI Registration
-    [ ] Register IEmailService → SmtpEmailSender
+    [ ] Register EmailService trong EmailModule
     [ ] Verify startup validation cho SMTP credentials
 ```
 
@@ -135,7 +141,7 @@ curl -X POST http://localhost:5000/api/notifications/send \
 **Security Verification:**
 ```bash
 # Test rate limiting (100 req/min) → expect 429 after limit
-for i in {1..110}; do
+for i in $(seq 1 110); do
   curl -s -o /dev/null -w "%{http_code}\n" \
     -X POST http://localhost:5000/api/notifications/send \
     -H "Authorization: Bearer <token>" \
@@ -155,8 +161,8 @@ curl -X POST http://localhost:5000/api/notifications/send \
 **Negative Test - SMTP Failure:**
 ```bash
 # Set invalid SMTP credentials temporarily and test retry behavior
-# Check logs for: "Retry 1 for email after 2s due to: ..."
-# Verify Polly retry with exponential backoff (2s, 4s, 8s)
+# Check logs for: "Retry 1/3 after 2s due to: ..."
+# Verify exponential backoff (2s, 4s, 8s)
 ```
 
 ---
@@ -168,35 +174,38 @@ curl -X POST http://localhost:5000/api/notifications/send \
 **Tasks:**
 ```
 [ ] 3.1 RabbitMQ Infrastructure
-    [ ] Create Infrastructure/Messaging/RabbitMQConnection.cs
-    [ ] Create Infrastructure/Messaging/RabbitMQConsumer.cs
+    [ ] Install: amqplib @types/amqplib
+    [ ] Create rabbitmq/rabbitmq.module.ts
+    [ ] Create rabbitmq/rabbitmq.service.ts (connection management)
     [ ] Test RabbitMQ connection
 
 [ ] 3.2 Event DTOs
-    [ ] Create DTOs/Events/ApplicationCreatedEvent.cs
-    [ ] Create DTOs/Events/CvParsedEvent.cs
-    [ ] Create DTOs/Events/CvFailedEvent.cs
-    [ ] Create DTOs/Events/NotificationSendEvent.cs
+    [ ] Create rabbitmq/events/application-created.event.ts
+    [ ] Create rabbitmq/events/cv-parsed.event.ts
+    [ ] Create rabbitmq/events/cv-failed.event.ts
+    [ ] Create rabbitmq/events/notification-send.event.ts
+    [ ] Create rabbitmq/events/index.ts (barrel export)
 
-[ ] 3.3 Background Worker
-    [ ] Create Workers/RabbitMQConsumerWorker.cs
+[ ] 3.3 Consumer Implementation
+    [ ] Create rabbitmq/notification.consumer.ts
+    [ ] Implement OnModuleInit → connect + subscribe
+    [ ] Implement OnModuleDestroy → cleanup
     [ ] Declare exchange: talentflow.events (topic)
     [ ] Declare queue: notification.events
     [ ] Bind routing keys: notification.send, application.created, cv.parsed, cv.failed
-    [ ] Implement ACK/NACK
+    [ ] Implement ACK/NACK pattern
     [ ] Route events to NotificationService
 
 [ ] 3.4 NotificationService Logic
-    [ ] Create Services/Interfaces/INotificationService.cs
-    [ ] Create Services/NotificationService.cs
-    [ ] Implement SendAsync()
-    [ ] Implement HandleApplicationCreatedAsync()
-    [ ] Implement HandleCvParsedAsync()
-    [ ] Implement HandleCvFailedAsync()
+    [ ] Create notification/notification.service.ts
+    [ ] Implement send()
+    [ ] Implement handleApplicationCreated()
+    [ ] Implement handleCvParsed()
+    [ ] Implement handleCvFailed()
 
 [ ] 3.5 DI Registration
-    [ ] Register INotificationService
-    [ ] Register RabbitMQConsumerWorker as HostedService
+    [ ] Register NotificationConsumer trong RabbitmqModule
+    [ ] Export NotificationService từ NotificationModule
 ```
 
 **Verification:**
@@ -218,78 +227,77 @@ curl -X POST http://localhost:5000/api/notifications/send \
 # Test RabbitMQ connection loss → expect reconnection
 # Stop RabbitMQ container: docker stop rabbitmq
 # Wait 30s, start: docker start rabbitmq
-# Expected: Worker reconnects and resumes processing
+# Expected: Consumer reconnects and resumes processing
 ```
 
 ---
 
-### Phase 4: SignalR Real-time (Day 4-5)
+### Phase 4: Socket.IO Real-time (Day 4-5)
 
 **Goal:** Push real-time notifications qua WebSocket (authenticated)
 
 **Tasks:**
 ```
-[ ] 4.1 SignalR Setup
-    [ ] Configure SignalR trong Program.cs
-    [ ] Configure JWT authentication cho SignalR (query string token)
+[ ] 4.1 Socket.IO Setup
+    [ ] Install: @nestjs/websockets @nestjs/platform-socket.io
+    [ ] Configure Socket.IO trong app.module.ts
     [ ] Setup CORS cho frontend
+    [ ] (Optional) Setup Redis adapter for horizontal scaling
 
-[ ] 4.2 Hub Implementation
-    [ ] Create Hubs/NotificationHub.cs
-    [ ] Add [Authorize] attribute
-    [ ] Implement JoinUserRoom() - userId từ JWT claims
-    [ ] Implement LeaveUserRoom()
+[ ] 4.2 Gateway Implementation
+    [ ] Create notification/notification.gateway.ts
+    [ ] Implement OnGatewayConnection → verify JWT + join room
+    [ ] Implement OnGatewayDisconnect → cleanup
+    [ ] Implement @SubscribeMessage('joinUserRoom')
+    [ ] Implement @SubscribeMessage('leaveUserRoom')
+    [ ] Implement sendToUser() → push to specific user room
     [ ] Add PII masking trong logs
 
-[ ] 4.3 RealtimeService
-    [ ] Create Services/Interfaces/IRealtimeService.cs
-    [ ] Create Services/RealtimeService.cs
-    [ ] Inject IHubContext<NotificationHub>
-    [ ] Implement SendToUserAsync(userId, notification)
-    [ ] Implement SendToRoleAsync(role, notification)
+[ ] 4.3 WebSocket Auth Guard
+    [ ] Create auth/ws-jwt.guard.ts
+    [ ] Extract token từ handshake.auth.token hoặc headers
+    [ ] Verify JWT and attach user to socket.data
 
 [ ] 4.4 Integration
-    [ ] Update NotificationService to call RealtimeService
+    [ ] Update NotificationService to call NotificationGateway
     [ ] Send push notification khi có event từ RabbitMQ
     [ ] Test với browser client
 
 [ ] 4.5 DI Registration
-    [ ] Register IRealtimeService → RealtimeService
+    [ ] Register NotificationGateway trong NotificationModule
 ```
 
 **Client Connection (Next.js):**
 ```typescript
-const connection = new signalR.HubConnectionBuilder()
-    .withUrl("http://localhost:5000/hubs/notifications", {
-        accessTokenFactory: () => getJwtToken(),
-    })
-    .withAutomaticReconnect()
-    .build();
+import { io } from 'socket.io-client';
 
-connection.on("ReceiveNotification", (notification) => {
-    toast.info(notification.message);
+const socket = io('http://localhost:5000/notifications', {
+  auth: { token: getJwtToken() },
+  reconnection: true,
+  reconnectionAttempts: 5,
 });
 
-await connection.start();
-await connection.invoke("JoinUserRoom");
+socket.on('receiveNotification', (notification) => {
+  toast.info(notification.message);
+});
+
+socket.on('connect', () => {
+  socket.emit('joinUserRoom');
+});
 ```
 
 **Security Verification:**
 ```bash
-# Test SignalR without token → expect connection refused
+# Test Socket.IO without token → expect connection refused
 # Browser console:
-const conn = new signalR.HubConnectionBuilder()
-    .withUrl("http://localhost:5000/hubs/notifications")  // No token
-    .build();
-await conn.start();  // Expected: 401 Unauthorized
+const socket = io('http://localhost:5000/notifications');
+// Expected: Immediate disconnect
 
-# Test SignalR with invalid token → expect connection refused
-const conn2 = new signalR.HubConnectionBuilder()
-    .withUrl("http://localhost:5000/hubs/notifications", {
-        accessTokenFactory: () => "invalid-token"
-    })
-    .build();
-await conn2.start();  // Expected: 401 Unauthorized
+# Test Socket.IO with invalid token → expect connection refused
+const socket2 = io('http://localhost:5000/notifications', {
+  auth: { token: 'invalid-token' }
+});
+// Expected: Immediate disconnect
 ```
 
 ---
@@ -301,29 +309,30 @@ await conn2.start();  // Expected: 401 Unauthorized
 **Tasks:**
 ```
 [ ] 5.1 Database Schema
-    [ ] Update Models/Notification.cs với all fields
-    [ ] Run: dotnet ef migrations add AddNotificationHistory
+    [ ] Update prisma/schema.prisma với Notification model (all fields)
+    [ ] Run: npx prisma migrate dev --name add-notification-history
     [ ] Seed test data (optional)
 
-[ ] 5.2 Repository
-    [ ] Update NotificationRepository interface
-    [ ] Implement GetByIdAsync()
-    [ ] Implement GetByUserIdAsync() với pagination
-    [ ] Implement GetUnreadCountAsync()
-    [ ] Implement MarkAsReadAsync()
-    [ ] Implement DeleteAsync()
+[ ] 5.2 Repository (Prisma Service)
+    [ ] Update notification.service.ts
+    [ ] Implement getById()
+    [ ] Implement getByUserId() với pagination (skip/take)
+    [ ] Implement getUnreadCount()
+    [ ] Implement markAsRead()
+    [ ] Implement delete()
 
 [ ] 5.3 API Endpoints
-    [ ] GET /api/notifications/{userId} - với ownership check
-    [ ] GET /api/notifications/{userId}/unread-count
-    [ ] PUT /api/notifications/{id}/read
-    [ ] DELETE /api/notifications/{id}
+    [ ] GET /api/notifications/:userId - với ownership check
+    [ ] GET /api/notifications/:userId/unread-count
+    [ ] PUT /api/notifications/:id/read
+    [ ] DELETE /api/notifications/:id
 
 [ ] 5.4 Cleanup Job
-    [ ] Create Workers/NotificationCleanupWorker.cs
+    [ ] Create notification/notification-cleanup.service.ts
+    [ ] Use @nestjs/schedule → @Cron() decorator
     [ ] Run daily, delete > 30 days
     [ ] Log cleanup statistics
-    [ ] Add PII masking in cleanup logs (mask userId, email in bulk delete logs)
+    [ ] Add PII masking in cleanup logs
 
 [ ] 5.5 Integration
     [ ] Update NotificationService to save history
@@ -332,7 +341,7 @@ await conn2.start();  // Expected: 401 Unauthorized
 **Verification:**
 ```bash
 curl -H "Authorization: Bearer <token>" \
-  http://localhost:5000/api/notifications/user-123?page=1&limit=20
+  "http://localhost:5000/api/notifications/user-123?page=1&limit=20"
 ```
 
 **Security Verification:**
@@ -363,40 +372,39 @@ curl -X DELETE -H "Authorization: Bearer <user-a-token>" \
 **Tasks:**
 ```
 [ ] 6.1 Unit Tests
-    [ ] Create tests/NotificationService.Tests/ project
-    [ ] Add packages: xUnit, Moq, FluentAssertions
-    [ ] Create Unit/EmailServiceTests.cs
-    [ ] Create Unit/NotificationServiceTests.cs
-    [ ] Create Unit/RealtimeServiceTests.cs
+    [ ] Install: @nestjs/testing (already in devDeps)
+    [ ] Create test/unit/email.service.spec.ts
+    [ ] Create test/unit/notification.service.spec.ts
+    [ ] Create test/unit/notification.gateway.spec.ts
     [ ] Achieve >= 80% coverage
 
 [ ] 6.2 Integration Tests
-    [ ] Add TestContainers package
-    [ ] Create Integration/RabbitMQConsumerTests.cs
-    [ ] Create Integration/SmtpEmailSenderTests.cs
-    [ ] Create Integration/NotificationRepositoryTests.cs
+    [ ] Install testcontainers (optional)
+    [ ] Create test/integration/rabbitmq.consumer.spec.ts
+    [ ] Create test/integration/email.integration.spec.ts
+    [ ] Create test/integration/notification.repository.spec.ts
 
 [ ] 6.3 Documentation
     [ ] Verify Swagger at /swagger
-    [ ] Add XML comments cho public APIs
-    [ ] Document environment variables
+    [ ] Add @ApiOperation, @ApiResponse decorators cho APIs
+    [ ] Document environment variables trong .env.example
 
 [ ] 6.4 CI/CD
     [ ] Create .github/workflows/notification-service.yml
     [ ] Build, Test, Docker push steps
 
 [ ] 6.5 Final Review
-    [ ] Security checklist (Section 5.3)
-    [ ] Deployment checklist (Section 11.3)
+    [ ] Security checklist (README Section 5.3)
+    [ ] Deployment checklist (README Section 11.3)
     [ ] Code review với team lead
     [ ] Merge to dev branch
 ```
 
 **Test Commands:**
 ```bash
-dotnet test
-dotnet test --collect:"XPlat Code Coverage"
-reportgenerator -reports:**/coverage.cobertura.xml -targetdir:coveragereport
+npm test
+npm run test:cov
+npm run test:e2e
 ```
 
 ---
@@ -420,7 +428,7 @@ _Section này để developer ghi chú trong quá trình triển khai_
 **Phase 5 Notes:**
 
 
-**Phase 6 Notes:
+**Phase 6 Notes:**
 
 ---
 
@@ -438,7 +446,7 @@ _Section này để developer ghi chú trong quá trình triển khai_
 
 ### Step 3: Set Environment Variable
 ```bash
-SmtpSettings__Password="xxxx xxxx xxxx xxxx"
+SMTP_PASSWORD="xxxx xxxx xxxx xxxx"
 ```
 
 > **Warning:** Never commit real passwords to git.
@@ -448,10 +456,12 @@ SmtpSettings__Password="xxxx xxxx xxxx xxxx"
 ## Appendix B: Useful Commands
 
 ```bash
-# EF Core Migrations
-dotnet ef migrations add MigrationName
-dotnet ef database update
-dotnet ef migrations remove
+# Prisma Migrations
+npx prisma migrate dev --name MigrationName
+npx prisma migrate deploy
+npx prisma migrate reset
+npx prisma generate
+npx prisma studio  # GUI database browser
 
 # Docker
 docker build -t notification-service .
@@ -460,14 +470,19 @@ docker run -p 5000:5000 --env-file .env notification-service
 # RabbitMQ Management
 # Access: http://localhost:15672 (guest/guest)
 
-# Test SignalR (browser console)
-const connection = new signalR.HubConnectionBuilder()
-    .withUrl("http://localhost:5000/hubs/notifications", {
-        accessTokenFactory: () => "your-jwt-token"
-    })
-    .build();
-await connection.start();
-await connection.invoke("JoinUserRoom");
+# NestJS CLI
+npx @nestjs/cli generate module notification
+npx @nestjs/cli generate controller notification
+npx @nestjs/cli generate service notification
+npx @nestjs/cli generate gateway notification
+
+# Test Socket.IO (browser console)
+import { io } from 'socket.io-client';
+const socket = io('http://localhost:5000/notifications', {
+  auth: { token: 'your-jwt-token' }
+});
+socket.on('connect', () => socket.emit('joinUserRoom'));
+socket.on('receiveNotification', (n) => console.log(n));
 ```
 
 ---

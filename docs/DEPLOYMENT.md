@@ -61,14 +61,14 @@ graph TB
     %% Backend Services
     subgraph "Railway (US Region)"
         API[⚙️ API Gateway<br/>NestJS:3000<br/>api.talentflow.ai]
-        Parser[🔧 CV Parser<br/>Spring Boot:8080 OR<br/>ASP.NET Core:5000]
-        Notif[📬 Notification<br/>NestJS:3001 OR<br/>ASP.NET Core:5001]
+        Parser[🔧 CV Parser<br/>Spring Boot:8080]
+        Notif[📬 Notification<br/>NestJS:5000]
         Redis[⚡ Redis<br/>:6379<br/>Cache only]
     end
 
     %% Database
     subgraph "Neon (Serverless)"
-        DB[(🗄️ PostgreSQL<br/>Prisma/EF Core)]
+        DB[(🗄️ PostgreSQL<br/>Prisma)]
     end
 
     %% External Services
@@ -137,12 +137,17 @@ graph TB
 └─────────────────────┘
       ↓
 ┌─────────────────────┐
-│  Railway            │ → CV Parser (Spring Boot/ASP.NET)
+│  Railway            │ → CV Parser (Spring Boot)
 │  (Background)       │    - CV Processing
 └─────────────────────┘
       ↓
 ┌─────────────────────┐
-│  Neon PostgreSQL    │ → Database (Prisma/EF Core)
+│  Railway            │ → Notification (NestJS)
+│  (Background)       │    - WebSocket (Socket.IO)
+└─────────────────────┘
+      ↓
+┌─────────────────────┐
+│  Neon PostgreSQL    │ → Database (Prisma)
 │  Serverless         │
 └─────────────────────┘
 
@@ -279,18 +284,19 @@ curl https://app.talentflow.ai
 **Add Service:**
 1. Click "New Service" → "GitHub Repo"
 2. Select: `talentflow-backend`
-3. Root Directory: `/apps/api-gateway` (nếu monorepo)
+3. Root Directory: `/api-gateway` (monorepo hiện tại)
+4. Config as Code Path: `/api-gateway/railway.json` (đường dẫn tuyệt đối)
 
 **Build Configuration:**
 ```json
-// railway.json (in apps/api-gateway/)
+// railway.json (in api-gateway/)
 {
   "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "npm run build"
+    "builder": "RAILPACK",
+    "buildCommand": "npm ci && npm exec prisma generate && npm run build"
   },
   "deploy": {
-    "startCommand": "node dist/apps/api-gateway/main.js",
+    "startCommand": "node dist/main.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
@@ -312,11 +318,12 @@ NODE_ENV=production
 
 **Add Another Service:**
 1. Same repo: `talentflow-backend`
-2. Root Directory: `/apps/ai-worker`
+2. Root Directory: `/cv-parser` hoặc `/notification` (theo service bạn triển khai)
 
 **Start Command:**
 ```bash
-node dist/apps/ai-worker/main.js
+# Notification (NestJS):
+node dist/main.js
 ```
 
 ### Step 4: Configure Custom Domain
@@ -447,7 +454,7 @@ RabbitMQ exchanges and queues are created by the application on startup:
 
 **Queues:**
 - `cv-processing` (routing key: `cv.uploaded`) → CV Parser (Spring Boot)
-- `cv-notifications` (routing key: `cv.*`) → Notification Service (ASP.NET Core)
+- `cv-notifications` (routing key: `cv.*`) → Notification Service (NestJS)
 - `cv-parsing-dlq` (Dead Letter Queue)
 
 ### Step 5: Monitor Queues

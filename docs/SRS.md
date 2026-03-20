@@ -1,7 +1,7 @@
 # PART 2: SOFTWARE REQUIREMENTS SPECIFICATION (SRS)
 
 **Project Name:** TalentFlow AI
-**Architecture Pattern:** Polyglot 3-Service Architecture (NestJS + Spring Boot + ASP.NET Core)
+**Architecture Pattern:** Polyglot 3-Service Architecture (NestJS + Spring Boot + NestJS)
 **Last Updated:** 2026-02-25
 
 > ⚠️ **IMPORTANT:** This document describes the **CURRENT** architecture (Polyglot 3-Service).
@@ -16,11 +16,11 @@ Hệ thống sử dụng kiến trúc **Polyglot 3-Service** trong **single repo
 * **Polyglot Services:** Mỗi service dùng tech stack phù hợp nhất:
   - **Service 1 (API Gateway):** NestJS - REST API, Auth, CRUD
   - **Service 2 (CV Parser):** Spring Boot - CPU-intensive PDF/OCR processing
-  - **Service 3 (Notification):** ASP.NET Core - WebSocket, Email
+  - **Service 3 (Notification):** NestJS - WebSocket (Socket.IO), Email
 * **Clean Architecture Layers:**
   - **Domain Layer:** Entities, Use Cases, Business Rules - core business logic không phụ thuộc framework.
   - **Application Layer:** Service Interfaces, DTOs, Application Logic - orchestrate use cases.
-  - **Infrastructure Layer:** Database (Prisma/EF Core), External APIs, Message Queue (RabbitMQ) - implementation details.
+  - **Infrastructure Layer:** Database (Prisma), External APIs, Message Queue (RabbitMQ) - implementation details.
   - **Presentation Layer:** REST Controllers, WebSocket Gateways - handle HTTP/WS requests.
 * **Communication:** Async queue-based architecture với **RabbitMQ (AMQP)** để đảm bảo polyglot support và reliability cho MVP.
 
@@ -76,7 +76,7 @@ graph TB
     subgraph "TalentFlow AI System"
         APIGateway[⚙️ API Gateway<br/>NestJS TypeScript<br/>REST API, Auth, CRUD]
         CVParser[🔧 CV Parser Service<br/>Spring Boot Java<br/>PDF/OCR Processing, AI Scoring]
-        Notification[📬 Notification Service<br/>ASP.NET Core C#<br/>WebSocket, Email]
+        Notification[📬 Notification Service<br/>NestJS TypeScript<br/>WebSocket Socket.IO, Email]
 
         Database[(🗄️ PostgreSQL<br/>Neon Serverless<br/>Users, Jobs, CVs, Applications)]
         Queue[🔄 Message Queue<br/>RabbitMQ AMQP<br/>Async Event Processing]
@@ -125,7 +125,7 @@ graph TB
 - **Frontend:** Next.js 16 web application for recruiters
 - **API Gateway:** NestJS service handling HTTP requests, authentication, CRUD
 - **CV Parser:** Spring Boot service for CPU-intensive PDF parsing & OCR
-- **Notification:** ASP.NET Core service for real-time WebSocket & email
+- **Notification:** NestJS service for real-time WebSocket (Socket.IO) & email
 - **Database:** PostgreSQL for relational data (users, jobs, applications)
 - **Queue:** RabbitMQ (AMQP) for async communication between services
 - **External:** Cloudflare R2 for file storage, Google Gemini AI for CV processing
@@ -138,14 +138,14 @@ graph TB
 │  - REST API, Auth, CRUD, File Upload       │
 └──────┬─────────────────────────┬───────────┘
        │                         │
-       │ BullMQ (Redis)         │ PostgreSQL (Shared)
+       │ RabbitMQ (AMQP)        │ PostgreSQL (Shared)
        │                         │
-┌──────▼───────────┐  ┌─────────▼───────────┐
+       ┌──────▼───────────┐  ┌─────────▼───────────┐
 │ Service 2:       │  │ Service 3:          │
 │ CV Parser        │  │ Notification        │
-│ (Spring Boot)    │  │ (ASP.NET Core)      │
+│ (Spring Boot)    │  │ (NestJS)            │
 │ - Tesseract OCR  │  │ - WebSocket         │
-│ - PDF parsing    │  │ - Email             │
+│ - PDF parsing    │  │ - Email Real-time   │
 └──────────────────┘  └─────────────────────┘
 ```
 
@@ -156,14 +156,14 @@ graph TB
 | Component | Technology | Description |
 | --- | --- | --- |
 | **Frontend** | **Next.js 16** | TypeScript, App Router, React Server Components, Server Actions, TailwindCSS, Shadcn/UI, React Query. |
-| **Backend Service 1** | **NestJS** | API Gateway - REST API, Auth (JWT + Passport), CRUD operations, BullMQ producer. |
+| **Backend Service 1** | **NestJS** | API Gateway - REST API, Auth (JWT + Passport), CRUD operations, RabbitMQ producer. |
 | **Backend Service 2** | **Spring Boot 3.x** | CV Parser - PDF/DOCX parsing (Apache PDFBox/POI), Tesseract OCR, LLM integration (Google Gemini), RabbitMQ consumer. |
-| **Backend Service 3** | **ASP.NET Core 8** | Notification Service - WebSocket (SignalR), Email (Gmail SMTP), RabbitMQ consumer. |
-| **ORM** | **Prisma / EF Core** | Type-safe database client, migrations, schema management. |
+| **Backend Service 3** | **NestJS** | Notification Service - WebSocket (Socket.IO), Email (Gmail SMTP via Nodemailer), RabbitMQ consumer. |
+| **ORM** | **Prisma** | Type-safe database client, migrations, schema management. |
 | **Database** | **PostgreSQL 16** | Primary relational database for structured data (shared by all services with logical separation). |
 | **Queue** | **RabbitMQ** | AMQP message broker for async communication between services, DLQ support, routing patterns. |
 | **Storage** | **Cloudflare R2** | S3-compatible object storage for CV files (FREE egress saves $33k vs AWS S3). |
-| **Cache** | **Redis 7.x** | BullMQ queue storage + session caching + rate limiting. |
+| **Cache** | **Redis 7.x** | Session caching + rate limiting. |
 | **Vector DB** | **Weaviate / Qdrant** | (Phase 2) Embeddings storage for Semantic Search and AI matching. |
 | **DevOps** | **Docker Compose** | Container orchestration for local development (PostgreSQL + Redis). |
 | **CI/CD** | **GitHub Actions** | Automated testing, building, and deployment pipelines. |
@@ -201,7 +201,7 @@ Service 2: CV Parser (Spring Boot - RabbitMQ Consumer)
   -> Update PostgreSQL (resume_text, ai_score)
   -> RabbitMQ Producer: Exchange "talentflow.events", Routing Key "cv.parsed"
 
-Service 3: Notification (ASP.NET Core - RabbitMQ Consumer)
+Service 3: Notification (NestJS - RabbitMQ Consumer)
   -> Consume from Queue "notification.events" (bindings: cv.parsed, cv.failed, application.created)
   -> WebSocket notification to Frontend (recruiter dashboard)
   -> Email notification via Gmail SMTP
@@ -232,9 +232,9 @@ Service 3: Notification (ASP.NET Core - RabbitMQ Consumer)
   - Emit event `cv.parsed` (payload: `{candidateId, applicationId, jobId, aiScore, parsedData, scoringReasoning, parsedAt}`) vào **RabbitMQ Exchange**: `talentflow.events` với routing key `cv.parsed`.
   - Nếu lỗi, emit event `cv.failed` với routing key `cv.failed`.
 
-* **FR-09 (Update & Notification):** **Service 3: Notification (ASP.NET Core)** nhận events từ RabbitMQ queue `notification.events`, sau đó:
-  - Gửi notification tới Frontend qua **SignalR WebSocket Gateway**.
-  - Gửi email notification tới recruiter qua **Gmail SMTP**.
+* **FR-09 (Update & Notification):** **Service 3: Notification (NestJS)** nhận events từ RabbitMQ queue `notification.events`, sau đó:
+  - Gửi notification tới Frontend qua **Socket.IO WebSocket Gateway**.
+  - Gửi email notification tới recruiter qua **Gmail SMTP (Nodemailer)**.
   - Update UI Kanban board real-time.
 
 ### 3.4. Search & Matching (NestJS Search Module)
@@ -377,16 +377,17 @@ talentflow-backend/  (Single Git Repository)
 │   ├── pom.xml (or build.gradle)
 │   └── application.yml
 │
-├── notification/                    # Service 3: ASP.NET Core Notification
-│   ├── Controllers/
-│   │   └── NotificationController.cs
-│   ├── Hubs/
-│   │   └── NotificationHub.cs      # SignalR WebSocket
-│   ├── Services/
-│   │   ├── RabbitMQConsumer.cs
-│   │   └── EmailService.cs         # Gmail SMTP
-│   ├── Program.cs
-│   └── appsettings.json
+├── notification/                    # Service 3: NestJS Notification
+│   ├── src/
+│   │   ├── main.ts
+│   │   ├── app.module.ts
+│   │   ├── notification/            # REST API + Socket.IO Gateway
+│   │   ├── email/                   # Nodemailer + Handlebars templates
+│   │   ├── rabbitmq/                # RabbitMQ consumer
+│   │   └── auth/                    # JWT Passport strategy
+│   ├── prisma/schema.prisma
+│   ├── package.json
+│   └── .env
 │
 ├── shared/                       # Shared code
 │   ├── types/                    # TypeScript types (for NestJS services)
@@ -417,10 +418,10 @@ talentflow-backend/  (Single Git Repository)
 - Database updates (Spring Data JPA)
 - RabbitMQ Producer (emit `cv.parsed` / `cv.failed` events)
 
-#### **Service 3: Notification (ASP.NET Core)** - Port 5000
-- RabbitMQ Consumer (listen `notification.events` queue)
-- WebSocket server (SignalR) for real-time updates
-- Email notifications (Gmail SMTP)
+#### **Service 3: Notification (NestJS)** - Port 5000
+- RabbitMQ Consumer (listen `notification.events` queue via amqplib)
+- WebSocket server (Socket.IO via @nestjs/websockets) for real-time updates
+- Email notifications (Gmail SMTP via Nodemailer)
 
 #### **libs/common**
 - Shared guards, interceptors, pipes, filters
@@ -442,7 +443,7 @@ Application Layer (Services, Use Cases)
     ↓
 Domain Layer (Entities, Business Logic)
     ↓
-Infrastructure Layer (Prisma, BullMQ, R2, External APIs)
+Infrastructure Layer (Prisma, RabbitMQ, R2, External APIs)
 ```
 
 **Example: CV Upload Flow (API Gateway - NestJS)**
@@ -559,6 +560,12 @@ JWT_REFRESH_EXPIRATION="7d"
 API_GATEWAY_PORT=3000
 CV_PARSER_PORT=8080
 NOTIFICATION_PORT=5000
+
+# Notification Service
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
 ```
 
 ### 6.5. Development Commands
@@ -578,7 +585,7 @@ npm run start:dev
 
 # Start specific app
 npm run start:dev api-gateway
-npm run start:dev ai-worker
+npm run start:dev notification-service
 
 # Run tests
 npm run test

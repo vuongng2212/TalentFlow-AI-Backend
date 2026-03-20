@@ -11,7 +11,7 @@
 |------|--------|------------|
 | Team Lead | TBD | Architecture, Integration, Scoring |
 | Core Java Dev | TBD | CV Parser - Parsing, Extraction |
-| .NET Dev | TBD | Notification Service |
+| .NET Dev → NestJS Dev | TBD | Notification Service |
 
 ---
 
@@ -121,18 +121,18 @@
 
 ---
 
-## Notification Service (C#/.NET)
+## Notification Service (TypeScript/NestJS)
 
 ### Phase 1: Project Setup
 
 | ID | Task | Owner | Points | Priority | Status |
 |----|------|-------|--------|----------|--------|
-| NTF-001 | Create .NET solution and Web API project | | 2 | P1-High | TODO |
-| NTF-002 | Add NuGet packages (RabbitMQ, MailKit, SignalR) | | 2 | P1-High | TODO |
-| NTF-003 | Configuration setup (appsettings, Config classes) | | 3 | P1-High | TODO |
-| NTF-004 | Database setup (EF Core, DbContext, migrations) | | 3 | P1-High | TODO |
-| NTF-005 | JWT Authentication setup | | 3 | P1-High | TODO |
-| NTF-006 | Health checks (RabbitMQ, PostgreSQL) | | 2 | P1-High | TODO |
+| NTF-001 | Create NestJS project (npx @nestjs/cli new notification) | | 2 | P1-High | TODO |
+| NTF-002 | Install npm packages (amqplib, @nestjs-modules/mailer, @nestjs/websockets) | | 2 | P1-High | TODO |
+| NTF-003 | Configuration setup (.env, @nestjs/config, validation schema) | | 3 | P1-High | TODO |
+| NTF-004 | Database setup (Prisma ORM, schema, migrations) | | 3 | P1-High | TODO |
+| NTF-005 | JWT Authentication setup (@nestjs/passport, @nestjs/jwt) | | 3 | P1-High | TODO |
+| NTF-006 | Health checks (@nestjs/terminus - RabbitMQ, PostgreSQL) | | 2 | P1-High | TODO |
 | NTF-007 | Docker setup and docker-compose update | | 2 | P1-High | TODO |
 
 **Gate:** Health endpoint returns healthy status
@@ -143,11 +143,11 @@
 
 | ID | Task | Owner | Points | Priority | Status |
 |----|------|-------|--------|----------|--------|
-| NTF-008 | Email Models and DTOs | | 2 | P1-High | TODO |
-| NTF-009 | IEmailService + SmtpEmailSender (MailKit) | | 3 | P1-High | TODO |
-| NTF-010 | Email retry logic with Polly | | 3 | P1-High | TODO |
-| NTF-011 | Email templates (HTML) | | 2 | P2-Medium | TODO |
-| NTF-012 | REST API endpoint with rate limiting | | 3 | P1-High | TODO |
+| NTF-008 | Email Models and DTOs (class-validator) | | 2 | P1-High | TODO |
+| NTF-009 | EmailService + Nodemailer integration (@nestjs-modules/mailer) | | 3 | P1-High | TODO |
+| NTF-010 | Email retry logic with exponential backoff | | 3 | P1-High | TODO |
+| NTF-011 | Email templates (Handlebars) | | 2 | P2-Medium | TODO |
+| NTF-012 | REST API endpoint with @nestjs/throttler rate limiting | | 3 | P1-High | TODO |
 
 **Gate:** Can send emails via API endpoint
 
@@ -157,9 +157,9 @@
 
 | ID | Task | Owner | Points | Priority | Status |
 |----|------|-------|--------|----------|--------|
-| NTF-013 | RabbitMQ connection and consumer infrastructure | | 3 | P1-High | TODO |
+| NTF-013 | RabbitMQ connection and consumer (amqplib) | | 3 | P1-High | TODO |
 | NTF-014 | Event DTOs matching API Gateway events | | 2 | P1-High | TODO |
-| NTF-015 | Background worker for event processing | | 5 | P1-High | TODO |
+| NTF-015 | OnModuleInit consumer with routing key binding | | 5 | P1-High | TODO |
 | NTF-016 | NotificationService business logic | | 3 | P1-High | TODO |
 | NTF-017 | ACK/NACK handling with DLQ | | 3 | P1-High | TODO |
 
@@ -167,13 +167,13 @@
 
 ---
 
-### Phase 4: SignalR Real-time
+### Phase 4: Socket.IO Real-time
 
 | ID | Task | Owner | Points | Priority | Status |
 |----|------|-------|--------|----------|--------|
-| NTF-018 | SignalR setup with JWT authentication | | 3 | P1-High | TODO |
-| NTF-019 | NotificationHub implementation | | 3 | P1-High | TODO |
-| NTF-020 | RealtimeService (send to user/role) | | 3 | P1-High | TODO |
+| NTF-018 | Socket.IO setup with JWT authentication (@nestjs/websockets) | | 3 | P1-High | TODO |
+| NTF-019 | NotificationGateway implementation | | 3 | P1-High | TODO |
+| NTF-020 | RealtimeService (sendToUser/sendToRole) | | 3 | P1-High | TODO |
 | NTF-021 | Integration with NotificationService | | 2 | P1-High | TODO |
 | NTF-022 | Browser WebSocket test | | 2 | P2-Medium | TODO |
 
@@ -229,7 +229,7 @@
 | Phase 1: Setup | 7 | 17 | TODO |
 | Phase 2: Email | 5 | 13 | TODO |
 | Phase 3: RabbitMQ | 5 | 16 | TODO |
-| Phase 4: SignalR | 5 | 13 | TODO |
+| Phase 4: Socket.IO | 5 | 13 | TODO |
 | Phase 5: History | 5 | 12 | TODO |
 | Phase 6: Testing | 5 | 17 | TODO |
 | **Total** | **32** | **88** | |

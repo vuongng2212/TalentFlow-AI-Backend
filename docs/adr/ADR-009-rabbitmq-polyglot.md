@@ -13,9 +13,9 @@
 After finalizing the technology stack decisions for the polyglot architecture:
 - **API Gateway:** NestJS (TypeScript)
 - **CV Parser:** Spring Boot (Java)
-- **Notification Service:** ASP.NET Core (C#)
+- **Notification Service:** NestJS (TypeScript)
 
-We discovered that **BullMQ** (chosen in ADR-007) has a critical limitation: BullMQ is a Node.js-only library with no official clients for Java or C#.
+We discovered that **BullMQ** (chosen in ADR-007) has a critical limitation: BullMQ is a Node.js-only library with no official clients for Java.
 
 ## Decision
 
@@ -27,7 +27,7 @@ We will use **RabbitMQ** as the message broker for inter-service communication i
 
 ### Why RabbitMQ Won
 
-1. **Native Polyglot Support:** Spring AMQP (Java) and RabbitMQ.Client (C#) are mature
+1. **Native Polyglot Support:** Spring AMQP (Java) and amqplib (Node.js) are mature
 2. **Built-in DLQ:** Critical for CV processing retries
 3. **Excellent Management UI:** Visual queue monitoring at port 15672
 4. **Flexible Routing:** Topic exchange for cv.* pattern matching
@@ -40,6 +40,7 @@ We will use **RabbitMQ** as the message broker for inter-service communication i
 | Node.js Support | amqplib | ioredis | Native |
 | Java/Spring | Spring AMQP | Jedis/Lettuce | None |
 | C#/.NET | RabbitMQ.Client | StackExchange.Redis | None |
+| **Notification (NestJS)** | **amqplib** | **ioredis** | **Native** |
 | DLQ | Built-in | Manual | Built-in |
 | Management UI | Built-in | Redis Insight | Bull Board |
 
@@ -66,7 +67,7 @@ Queues:
 │ notification.events                                              │
 │   - Bindings: cv.parsed, cv.failed, application.created,        │
 │               notification.send                                  │
-│   - Consumer: Notification Service (ASP.NET Core)               │
+│   - Consumer: Notification Service (NestJS via amqplib)           │
 │   - DLQ: notification.events.dlq                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -87,7 +88,7 @@ Queues:
 |---------|----------|---------|-------|
 | API Gateway | Node.js | amqplib | Producer only |
 | CV Parser | Java | spring-boot-starter-amqp | cv_parser.jobs |
-| Notification | C# | RabbitMQ.Client | notification.events |
+| Notification | TypeScript | amqplib | notification.events |
 
 ### Message Payload Examples
 

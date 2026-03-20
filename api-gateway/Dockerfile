@@ -1,63 +1,55 @@
-# Build stage
+# ===================
+# Stage 1: Install dependencies
+# ===================
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# ===================
+# Stage 2: Build
+# ===================
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Enable corepack for pnpm
-RUN corepack enable
-
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
-
-# Install dependencies
-RUN pnpm install --frozen-lockfile
-
-# Copy source code
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate Prisma client
-RUN npx prisma generate
+# Generate Prisma client, compile NestJS, then remove dev dependencies.
+RUN npm exec prisma generate \
+ && npm run build \
+ && npm prune --omit=dev
 
-# Build application
-RUN pnpm run build
+# Fail early if build output is missing
+RUN test -f dist/src/main.js || (echo "ERROR: dist/src/main.js not found after build" && exit 1)
 
-# Production stage
-FROM node:20-alpine AS production
+# ===================
+# Stage 3: Production
+# ===================
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Enable corepack for pnpm
-RUN corepack enable
+ENV NODE_ENV=production
 
-# Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
-
-# Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
-
-# Copy built application from builder stage
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/prisma ./prisma
 
-# Copy Prisma schema for migrations
-COPY prisma ./prisma
-
-# Set ownership to non-root user
 RUN chown -R nestjs:nodejs /app
 
-# Switch to non-root user
 USER nestjs
 
-# Expose application port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-3000}/health || exit 1
 
-# Start application
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]

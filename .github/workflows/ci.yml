@@ -8,7 +8,6 @@ on:
 
 env:
   NODE_VERSION: '20'
-  PNPM_VERSION: '9'
 
 jobs:
   lint:
@@ -21,29 +20,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-          cache-dependency-path: api-gateway/pnpm-lock.yaml
+          cache: 'npm'
+          cache-dependency-path: api-gateway/package-lock.json
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Generate Prisma client
-        run: npx prisma generate
+        run: npm exec prisma generate
 
       - name: Run ESLint
-        run: pnpm run lint
+        run: npm run lint
 
       - name: Check formatting
-        run: npx prettier --check "src/**/*.ts" "test/**/*.ts"
+        run: npm exec prettier --check "src/**/*.ts" "test/**/*.ts"
 
   test:
     name: Test
@@ -90,6 +84,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/talentflow_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/talentflow_test
       REDIS_URL: redis://localhost:6379
       RABBITMQ_URL: amqp://localhost:5672
       JWT_ACCESS_SECRET: test-access-secret-key-for-ci
@@ -103,29 +98,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-          cache-dependency-path: api-gateway/pnpm-lock.yaml
+          cache: 'npm'
+          cache-dependency-path: api-gateway/package-lock.json
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Generate Prisma client
-        run: npx prisma generate
+        run: npm exec prisma generate
 
       - name: Run database migrations
-        run: npx prisma migrate deploy
+        run: npm exec prisma migrate deploy
 
       - name: Run unit tests with coverage
-        run: pnpm run test:cov
+        run: npm run test:cov
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -146,26 +136,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-          cache-dependency-path: api-gateway/pnpm-lock.yaml
+          cache: 'npm'
+          cache-dependency-path: api-gateway/package-lock.json
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Generate Prisma client
-        run: npx prisma generate
+        run: npm exec prisma generate
 
       - name: Build application
-        run: pnpm run build
+        run: npm run build
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
