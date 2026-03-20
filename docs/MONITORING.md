@@ -2,7 +2,7 @@
 
 **Project:** TalentFlow AI Backend
 **Last Updated:** 2026-02-03
-**Architecture:** Polyglot 3-Service (NestJS + Spring Boot/ASP.NET Core)
+**Architecture:** Polyglot 3-Service (NestJS + Spring Boot + NestJS)
 **Monitoring Stack:** ELK + Prometheus + Grafana
 
 ---
@@ -31,7 +31,7 @@ For a **Polyglot 3-Service Architecture**, comprehensive monitoring is critical:
 - **Early Detection:** Catch issues before users report them
 - **Performance Optimization:** Identify bottlenecks across different tech stacks
 - **SLA Compliance:** Ensure 99%+ uptime for production
-- **Debugging:** Trace requests across NestJS, Spring Boot, and ASP.NET services
+- **Debugging:** Trace requests across NestJS and Spring Boot services
 
 ### Monitoring Layers
 
@@ -63,7 +63,7 @@ For a **Polyglot 3-Service Architecture**, comprehensive monitoring is critical:
 
 ### Framework-Agnostic Principles
 
-Regardless of your tech stack (NestJS, Spring Boot, ASP.NET Core), follow these principles:
+Regardless of your tech stack (NestJS, Spring Boot), follow these principles:
 
 1. **Golden Signals** (Google SRE):
    - **Latency:** How long does it take?
@@ -91,7 +91,7 @@ Regardless of your tech stack (NestJS, Spring Boot, ASP.NET Core), follow these 
 | **CV Parser** | Processing Time | < 10s | Application Logs |
 | **CV Parser** | Queue Lag | < 5 msgs | RabbitMQ Management |
 | **Notification** | WebSocket Connections | Monitor | Prometheus |
-| **Database** | Query Time (p95) | < 50ms | Prisma/EF Metrics |
+| **Database** | Query Time (p95) | < 50ms | Prisma Metrics |
 | **Database** | Connection Pool | < 80% | Postgres Exporter |
 | **Redis** | Memory Usage | < 1GB | Redis Exporter |
 | **System** | CPU Usage | < 70% | Node Exporter |
@@ -323,15 +323,9 @@ scrape_configs:
     metrics_path: '/metrics'
 
   # Notification Service (NestJS)
-  - job_name: 'notification-nestjs'
+  - job_name: 'notification'
     static_configs:
-      - targets: ['notification:3001']
-    metrics_path: '/metrics'
-
-  # Notification Service (ASP.NET Core)
-  - job_name: 'notification-dotnet'
-    static_configs:
-      - targets: ['notification:5001']
+      - targets: ['notification:5000']
     metrics_path: '/metrics'
 
   # Node Exporter (System metrics)
@@ -448,7 +442,7 @@ public class CvParserMetrics {
 }
 ```
 
-#### ASP.NET Core (CV Parser or Notification)
+#### ASP.NET Core (CV Parser - if applicable)
 
 ```csharp
 // Install: dotnet add package prometheus-net.AspNetCore
@@ -766,7 +760,7 @@ Log.Error(exception, "CV parsing failed for {UserId} and {CvId}", userId, cvId);
 ### OpenTelemetry Setup
 
 **Why OpenTelemetry:**
-- Framework-agnostic (works with NestJS, Spring Boot, ASP.NET)
+- Framework-agnostic (works with NestJS, Spring Boot)
 - Industry standard
 - Supports traces, metrics, and logs
 
@@ -893,9 +887,7 @@ All services MUST expose health check endpoints:
 |---------|----------|------|
 | API Gateway (NestJS) | GET /health | 3000 |
 | CV Parser (Spring Boot) | GET /actuator/health | 8080 |
-| CV Parser (ASP.NET) | GET /health | 5000 |
-| Notification (NestJS) | GET /health | 3001 |
-| Notification (ASP.NET) | GET /health | 5001 |
+| Notification (NestJS) | GET /health | 5000 |
 
 ### Health Check Response Format
 

@@ -1,7 +1,7 @@
 # Team Decisions & Action Plan
 
 **Ngày quyết định:** 2026-02-01
-**Team:** 3 Full-stack Developers (NestJS, Spring Boot, ASP.NET Core)
+**Team:** 3 Full-stack Developers (NestJS, Spring Boot)
 **Dự án:** TalentFlow AI
 
 ---
@@ -11,8 +11,8 @@
 ### 1. Message Queue: RabbitMQ (AMQP) ✅
 **Quyết định:** Sử dụng RabbitMQ (AMQP) cho polyglot architecture
 **Lý do:**
-- Polyglot 3-service architecture (NestJS + Spring Boot + ASP.NET Core)
-- Native support cho Java (Spring AMQP), C# (RabbitMQ.Client), Node.js (amqplib)
+- Polyglot 3-service architecture (NestJS + Spring Boot + NestJS)
+- Native support cho Java (Spring AMQP), Node.js (amqplib)
 - Built-in DLQ (Dead Letter Queue) cho CV processing retries
 - Excellent Management UI tại http://localhost:15672
 - BullMQ chỉ hỗ trợ Node.js, không phù hợp với polyglot
@@ -109,7 +109,7 @@
 - 🎯 **Demo #1 cho khách hàng**
 
 #### **Phase 2: Backend Foundation (Tuần 3-4)**
-- ✅ NestJS monorepo setup
+- ✅ Polyglot 3-service repo setup
 - ✅ PostgreSQL + Prisma
 - ✅ Auth API (JWT)
 - ✅ Jobs CRUD API
@@ -119,7 +119,7 @@
 #### **Phase 3: CV Upload Feature (Tuần 5-6)**
 - ✅ Frontend: CV upload UI
 - ✅ Backend: File upload (MinIO/S3)
-- ✅ Kafka setup (CV processing pipeline)
+- ✅ RabbitMQ setup (CV processing pipeline)
 - ✅ Basic CV parsing (text extraction)
 - 🎯 **Demo #3: End-to-end CV Upload**
 
@@ -186,10 +186,10 @@
 
 ### 🟡 Priority 2: Backend Foundation (Tuần 3-4)
 
-#### Developer 1: NestJS Setup
-- [ ] Initialize NestJS monorepo
-  ```bash
-  nest new talentflow-backend
+#### Developer 1: Polyglot Repo Setup
+  mkdir talentflow-backend && cd talentflow-backend
+  nest new api-gateway
+  # Setup other services (cv-parser, notification)
   ```
 - [ ] Setup Prisma
   ```bash
@@ -247,12 +247,12 @@
   - File validation (PDF/DOCX, max 10MB)
   - Upload to MinIO/S3
   - Save metadata to PostgreSQL
-- [ ] Kafka producer: emit `cv.uploaded` event
+- [ ] RabbitMQ producer: emit `cv.uploaded` event
 - [ ] Write tests
 
 #### Developer 2: Backend - AI Worker
 - [ ] Create `ai-worker` app trong monorepo
-- [ ] Kafka consumer: listen `cv.uploaded`
+- [ ] RabbitMQ consumer: listen `cv.uploaded`
 - [ ] CV parsing:
   - PDF text extraction (`pdf-parse`)
   - DOCX text extraction (`mammoth`)
@@ -268,7 +268,7 @@
 
 #### End of Week 6:
 - 🎯 **End-to-end CV Upload** working
-- 🎯 **Kafka pipeline** functional
+- 🎯 **RabbitMQ pipeline** functional
 - 🎯 **Demo #3 cho khách hàng**
 
 ---
@@ -296,7 +296,7 @@
 - [ ] Create Grafana dashboards:
   - API latency
   - Error rate
-  - Kafka consumer lag
+  - RabbitMQ consumer lag
   - Database connections
 - [ ] Setup alerts (critical errors, high latency)
 
@@ -382,14 +382,14 @@
 - NestJS Advanced (4 hours)
   - Guards, Interceptors, Pipes
   - Testing với Jest
-- Kafka Basics (4 hours)
-  - [Kafka in 6 Minutes](https://www.youtube.com/watch?v=Ch5VhJzaoaI)
-  - KafkaJS library
+  - RabbitMQ Basics (4 hours)
+  - [RabbitMQ in 5 Minutes](https://www.youtube.com/watch?v=deG25y_r6OY)
+  - amqplib library
 
 ### Day 3: Practice (8 hours)
 **Both Developers:**
 - Xây dựng Todo App nhỏ với NestJS + Prisma (4 hours)
-- Setup Kafka producer/consumer đơn giản (2 hours)
+- Setup RabbitMQ producer/consumer đơn giản (2 hours)
 - Write tests (2 hours)
 
 **Total:** 24 hours (3 days)
@@ -430,7 +430,7 @@
 **Goal:** End-to-end CV processing
 **Deliverables:**
 - File upload endpoint
-- Kafka pipeline
+- RabbitMQ pipeline
 - CV parsing (text extraction)
 - Upload UI
 - Real-time status updates

@@ -132,7 +132,7 @@ But with R2: $0 egress! 🎉
 │  2. Generate key       │
 │  3. Upload to R2       │
 │  4. Save metadata DB   │
-│  5. Emit BullMQ event  │
+│  5. Emit RabbitMQ event  │
 └────────┬───────────────┘
          │
          ▼
@@ -721,7 +721,7 @@ rclone sync r2:talentflow-cvs s3:talentflow-backup
 ## Related Decisions
 
 - [ADR-006: Hybrid Microservices](./ADR-006-hybrid-microservices.md) - Architecture
-- [ADR-007: BullMQ](./ADR-007-bullmq-over-kafka.md) - Queue technology
+- [ADR-009: RabbitMQ](./ADR-009-rabbitmq-polyglot.md) - Message Queue technology
 
 ---
 

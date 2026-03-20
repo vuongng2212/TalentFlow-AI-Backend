@@ -36,7 +36,7 @@ sequenceDiagram
     participant P as CV Parser<br/>(Spring Boot)
     participant D as Database<br/>(PostgreSQL)
     participant R as Storage<br/>(Cloudflare R2)
-    participant N as Notification<br/>(ASP.NET Core)
+    participant N as Notification<br/>(NestJS)
     participant AI as Claude AI
 
     %% Upload Phase
