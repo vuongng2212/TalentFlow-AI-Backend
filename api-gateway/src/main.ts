@@ -30,7 +30,7 @@ async function bootstrap() {
     app.useLogger(logger);
   }
 
-  const port = configService.get<number>('PORT', 3000);
+  const port = configService.get<number>('PORT', 8080);
   const bodyLimitMb = configService.get<number>('BODY_LIMIT_MB', 10);
   const corsOriginsRaw = configService.get<string>('CORS_ORIGINS') || '';
   const corsOrigins = corsOriginsRaw
