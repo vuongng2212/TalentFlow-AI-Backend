@@ -92,9 +92,13 @@ async function bootstrap() {
 
     // Save Swagger spec to file if GENERATE_SWAGGER env var is true
     if (process.env.GENERATE_SWAGGER === 'true') {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
       const fs = require('fs');
-      fs.writeFileSync('./swagger-spec.json', JSON.stringify(document, null, 2));
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      fs.writeFileSync(
+        './swagger-spec.json',
+        JSON.stringify(document, null, 2),
+      );
       const logger = new Logger('Swagger');
       logger.log('Swagger spec generated at ./swagger-spec.json');
 

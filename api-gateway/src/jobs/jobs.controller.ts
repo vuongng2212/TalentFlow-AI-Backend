@@ -72,7 +72,11 @@ export class JobsController {
   @Get(':id')
   @Public()
   @ApiOperation({ summary: 'Get a job by ID' })
-  @ApiParam({ name: 'id', description: 'Job ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiParam({
+    name: 'id',
+    description: 'Job ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({
     status: 200,
     description: 'Return the job details',
@@ -87,7 +91,11 @@ export class JobsController {
   @ApiBearerAuth('access-token')
   @Roles(Role.RECRUITER, Role.ADMIN)
   @ApiOperation({ summary: 'Update a job posting' })
-  @ApiParam({ name: 'id', description: 'Job ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiParam({
+    name: 'id',
+    description: 'Job ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({
     status: 200,
     description: 'Job updated successfully',
@@ -95,7 +103,10 @@ export class JobsController {
   })
   @ApiResponse({ status: 400, description: 'Bad Request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - not the owner or admin' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - not the owner or admin',
+  })
   @ApiResponse({ status: 404, description: 'Job not found' })
   async update(
     @Param('id') id: string,
@@ -110,10 +121,17 @@ export class JobsController {
   @Roles(Role.RECRUITER, Role.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a job (soft delete)' })
-  @ApiParam({ name: 'id', description: 'Job ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiParam({
+    name: 'id',
+    description: 'Job ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({ status: 204, description: 'Job deleted successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - not the owner or admin' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - not the owner or admin',
+  })
   @ApiResponse({ status: 404, description: 'Job not found' })
   async remove(
     @Param('id') id: string,

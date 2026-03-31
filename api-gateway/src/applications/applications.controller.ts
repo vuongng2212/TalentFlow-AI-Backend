@@ -121,7 +121,11 @@ export class ApplicationsController {
 
   @Get()
   @ApiOperation({ summary: 'Get applications (filtered by role)' })
-  @ApiResponse({ status: 200, description: 'Return paginated list of applications', type: [ApplicationResponseDto] })
+  @ApiResponse({
+    status: 200,
+    description: 'Return paginated list of applications',
+    type: [ApplicationResponseDto],
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async findAll(
     @CurrentUser() user: UserPayload,
@@ -132,14 +136,21 @@ export class ApplicationsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get an application by ID' })
-  @ApiParam({ name: 'id', description: 'Application ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiParam({
+    name: 'id',
+    description: 'Application ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({
     status: 200,
     description: 'Return the application details',
     type: ApplicationResponseDto,
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - not authorized to view this application' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - not authorized to view this application',
+  })
   @ApiResponse({ status: 404, description: 'Application not found' })
   async findOne(
     @Param('id') id: string,
@@ -153,7 +164,11 @@ export class ApplicationsController {
     summary:
       'Update an application (stage/status/notes by recruiter, cover letter by candidate)',
   })
-  @ApiParam({ name: 'id', description: 'Application ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiParam({
+    name: 'id',
+    description: 'Application ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({
     status: 200,
     description: 'Application updated successfully',
@@ -161,7 +176,10 @@ export class ApplicationsController {
   })
   @ApiResponse({ status: 400, description: 'Bad Request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - not authorized to update this application' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - not authorized to update this application',
+  })
   @ApiResponse({ status: 404, description: 'Application not found' })
   async update(
     @Param('id') id: string,
@@ -179,13 +197,20 @@ export class ApplicationsController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Withdraw an application (candidates only)' })
-  @ApiParam({ name: 'id', description: 'Application ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiParam({
+    name: 'id',
+    description: 'Application ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({
     status: 204,
     description: 'Application withdrawn successfully',
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - not authorized to withdraw this application' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - not authorized to withdraw this application',
+  })
   @ApiResponse({ status: 404, description: 'Application not found' })
   async remove(
     @Param('id') id: string,

@@ -20,7 +20,8 @@ export class SignupDto {
 
   @ApiProperty({
     example: 'StrongPass123!',
-    description: 'The password for the account (min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char)',
+    description:
+      'The password for the account (min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char)',
     minLength: 8,
   })
   @IsString()

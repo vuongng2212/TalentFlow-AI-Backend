@@ -41,7 +41,11 @@ export class UsersController {
   @Get()
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Get all users with pagination (admin only)' })
-  @ApiResponse({ status: 200, description: 'Return paginated list of users', type: [UserResponseDto] })
+  @ApiResponse({
+    status: 200,
+    description: 'Return paginated list of users',
+    type: [UserResponseDto],
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - requires ADMIN role' })
   async findAll(@Query() query: QueryUsersDto) {
@@ -50,7 +54,11 @@ export class UsersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a user profile by ID' })
-  @ApiParam({ name: 'id', description: 'User ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiParam({
+    name: 'id',
+    description: 'User ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({
     status: 200,
     description: 'Return the user profile',
@@ -64,7 +72,11 @@ export class UsersController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a user profile (self or admin)' })
-  @ApiParam({ name: 'id', description: 'User ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiParam({
+    name: 'id',
+    description: 'User ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({
     status: 200,
     description: 'User updated successfully',
@@ -90,7 +102,11 @@ export class UsersController {
   @Patch(':id/role')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Change a user role (admin only)' })
-  @ApiParam({ name: 'id', description: 'User ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiParam({
+    name: 'id',
+    description: 'User ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({
     status: 200,
     description: 'User role updated successfully',
@@ -111,7 +127,11 @@ export class UsersController {
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Soft-delete a user (admin only)' })
-  @ApiParam({ name: 'id', description: 'User ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiParam({
+    name: 'id',
+    description: 'User ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({ status: 204, description: 'User deleted successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - requires ADMIN role' })
