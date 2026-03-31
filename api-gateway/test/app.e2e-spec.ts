@@ -40,7 +40,10 @@ describe('AppController (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    // Attempt to gracefully close all resources to prevent open handles
+    if (app) {
+      await app.close();
+    }
   });
 
   it('/ (GET)', () => {

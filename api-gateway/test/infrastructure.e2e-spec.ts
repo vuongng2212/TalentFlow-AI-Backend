@@ -57,7 +57,10 @@ describe('Infrastructure (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    // Attempt to gracefully close all resources to prevent open handles
+    if (app) {
+      await app.close();
+    }
   });
 
   describe('Health Checks', () => {

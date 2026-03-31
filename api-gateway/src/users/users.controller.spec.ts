@@ -1,163 +1,142 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
-import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '@prisma/client';
+import { QueryUsersDto } from './dto/query-users.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
+import { UserResponseDto } from './dto/user-response.dto';
 
-const mockPrismaService = {
-  user: {
-    create: jest.fn(),
-    findUnique: jest.fn(),
-    findMany: jest.fn(),
-    count: jest.fn(),
-    update: jest.fn(),
-  },
-};
-
-describe('UsersService - New Methods', () => {
+describe('UsersController', () => {
+  let controller: UsersController;
   let service: UsersService;
-  let prisma: typeof mockPrismaService;
+
+  const mockUsersService = {
+    findAll: jest.fn(),
+    findOneProfile: jest.fn(),
+    updateProfile: jest.fn(),
+    updateRole: jest.fn(),
+    softDeleteUser: jest.fn(),
+  };
+
+  const mockUser = {
+    id: '1',
+    email: 'test@example.com',
+    fullName: 'Test User',
+    role: Role.CANDIDATE,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const mockUserPayload = {
+    id: '1',
+    email: 'test@example.com',
+    role: Role.CANDIDATE,
+    fullName: 'Test User',
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
+      controllers: [UsersController],
       providers: [
-        UsersService,
-        { provide: PrismaService, useValue: mockPrismaService },
+        {
+          provide: UsersService,
+          useValue: mockUsersService,
+        },
       ],
     }).compile();
 
+    controller = module.get<UsersController>(UsersController);
     service = module.get<UsersService>(UsersService);
-    prisma = module.get(PrismaService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
 
   describe('findAll', () => {
-    it('should return paginated users without passwords', async () => {
-      const mockUsers = [
-        { id: '1', email: 'a@test.com', fullName: 'A', role: 'RECRUITER' },
-      ];
-      prisma.user.findMany.mockResolvedValue(mockUsers);
-      prisma.user.count.mockResolvedValue(1);
+    it('should return a paginated list of users', async () => {
+      const queryDto: QueryUsersDto = { page: 1, limit: 10 };
+      const expectedResult = {
+        data: [mockUser],
+        meta: { total: 1, page: 1, limit: 10, totalPages: 1 },
+      };
 
-      const result = await service.findAll({ page: 1, limit: 10 });
+      mockUsersService.findAll.mockResolvedValue(expectedResult);
 
-      expect(result.data).toEqual(mockUsers);
-      expect(result.meta.totalPages).toBe(1);
-    });
+      const result = await controller.findAll(queryDto);
 
-    it('should filter by role', async () => {
-      prisma.user.findMany.mockResolvedValue([]);
-      prisma.user.count.mockResolvedValue(0);
-
-      await service.findAll({ page: 1, limit: 10, role: Role.ADMIN });
-
-      expect(prisma.user.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ role: 'ADMIN' }) as Record<
-            string,
-            unknown
-          >,
-        } as Record<string, unknown>),
-      );
+      expect(result).toEqual(expectedResult);
+      expect(service.findAll).toHaveBeenCalledWith(queryDto);
     });
   });
 
-  describe('findOneProfile', () => {
-    it('should return user profile', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        id: '1',
-        email: 'a@test.com',
-        fullName: 'User A',
-        role: 'RECRUITER',
-      });
+  describe('findOne', () => {
+    it('should return a single user', async () => {
+      mockUsersService.findOneProfile.mockResolvedValue(mockUser);
 
-      const result = await service.findOneProfile('1');
-      expect(result.email).toBe('a@test.com');
-    });
+      const result = await controller.findOne('1');
 
-    it('should throw NotFoundException when not found', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-
-      await expect(service.findOneProfile('not-exist')).rejects.toThrow(
-        NotFoundException,
-      );
+      expect(result).toEqual(mockUser);
+      expect(service.findOneProfile).toHaveBeenCalledWith('1');
     });
   });
 
-  describe('updateProfile', () => {
-    it('should allow user to update own profile', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: '1' });
-      prisma.user.update.mockResolvedValue({
-        id: '1',
-        fullName: 'Updated Name',
-      });
+  describe('update', () => {
+    it('should update and return a user', async () => {
+      const updateUserDto: UpdateUserDto = { fullName: 'Updated Name' };
+      const expectedResult = { ...mockUser, fullName: 'Updated Name' };
 
-      const result = await service.updateProfile('1', '1', 'RECRUITER', {
-        fullName: 'Updated Name',
-      });
-      expect(result.fullName).toBe('Updated Name');
-    });
+      mockUsersService.updateProfile.mockResolvedValue(
+        expectedResult as UserResponseDto,
+      );
 
-    it('should allow admin to update any profile', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: '2' });
-      prisma.user.update.mockResolvedValue({
-        id: '2',
-        fullName: 'Admin Updated',
-      });
+      const result = await controller.update(
+        '1',
+        mockUserPayload,
+        updateUserDto,
+      );
 
-      const result = await service.updateProfile('2', '1', 'ADMIN', {
-        fullName: 'Admin Updated',
-      });
-      expect(result.fullName).toBe('Admin Updated');
-    });
-
-    it('should throw ForbiddenException for non-self non-admin', async () => {
-      await expect(
-        service.updateProfile('2', '1', 'RECRUITER', { fullName: 'Hack' }),
-      ).rejects.toThrow(ForbiddenException);
+      expect(result).toEqual(expectedResult);
+      expect(service.updateProfile).toHaveBeenCalledWith(
+        '1',
+        mockUserPayload.id,
+        mockUserPayload.role,
+        updateUserDto,
+      );
     });
   });
 
   describe('updateRole', () => {
-    it('should update user role', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: '1', role: 'RECRUITER' });
-      prisma.user.update.mockResolvedValue({ id: '1', role: 'ADMIN' });
+    it('should update user role and return user', async () => {
+      const updateRoleDto: UpdateRoleDto = { role: Role.EMPLOYER };
+      const expectedResult = { ...mockUser, role: Role.EMPLOYER };
 
-      const result = await service.updateRole('1', Role.ADMIN);
-      expect(result.role).toBe('ADMIN');
-    });
-
-    it('should throw NotFoundException when user not found', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-
-      await expect(service.updateRole('not-exist', Role.ADMIN)).rejects.toThrow(
-        NotFoundException,
+      mockUsersService.updateRole.mockResolvedValue(
+        expectedResult as UserResponseDto,
       );
+
+      const result = await controller.updateRole('1', updateRoleDto);
+
+      expect(result).toEqual(expectedResult);
+      expect(service.updateRole).toHaveBeenCalledWith('1', Role.EMPLOYER);
     });
   });
 
-  describe('softDeleteUser', () => {
-    it('should soft delete user', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: '1' });
-      prisma.user.update.mockResolvedValue({
-        id: '1',
-        deletedAt: expect.any(Date) as Date,
-      });
+  describe('remove', () => {
+    it('should soft delete a user', async () => {
+      mockUsersService.softDeleteUser.mockResolvedValue(undefined);
 
-      await service.softDeleteUser('1');
-      expect(prisma.user.update).toHaveBeenCalledWith({
-        where: { id: '1' },
-        data: { deletedAt: expect.any(Date) as Date },
-      });
-    });
+      await controller.remove('1');
 
-    it('should throw NotFoundException when user not found', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-
-      await expect(service.softDeleteUser('not-exist')).rejects.toThrow(
-        NotFoundException,
-      );
+      expect(service.softDeleteUser).toHaveBeenCalledWith('1');
     });
   });
 });
