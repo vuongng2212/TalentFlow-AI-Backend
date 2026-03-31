@@ -5,24 +5,24 @@ version: '3.8'
 
 services:
   # PostgreSQL Database
-  postgres:
-    image: postgres:16-alpine
-    container_name: talentflow-postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: talentflow_dev
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - talentflow-network
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: talentflow-postgres
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: password
+  #     POSTGRES_DB: talentflow_dev
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - talentflow-network
 
   # Redis (Cache only - RabbitMQ is used for message queue)
   redis:
@@ -102,8 +102,8 @@ services:
       - talentflow-network
 
 volumes:
-  postgres_data:
-    driver: local
+  # postgres_data:
+  #   driver: local
   redis_data:
     driver: local
   rabbitmq_data:

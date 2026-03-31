@@ -34,13 +34,13 @@ interface UserPayload {
   fullName: string;
 }
 
-@ApiTags('jobs')
-@ApiBearerAuth('access-token')
+@ApiTags('Jobs')
 @Controller('jobs')
 export class JobsController {
   constructor(private readonly jobsService: JobsService) {}
 
   @Post()
+  @ApiBearerAuth('access-token')
   @Roles(Role.RECRUITER, Role.ADMIN)
   @ApiOperation({ summary: 'Create a new job posting' })
   @ApiResponse({
@@ -48,7 +48,7 @@ export class JobsController {
     description: 'Job created successfully',
     type: JobResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 400, description: 'Bad Request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({
     status: 403,
@@ -64,7 +64,7 @@ export class JobsController {
   @Get()
   @Public()
   @ApiOperation({ summary: 'Get all jobs with pagination and filters' })
-  @ApiResponse({ status: 200, description: 'Return paginated jobs' })
+  @ApiResponse({ status: 200, description: 'Return paginated jobs list' })
   async findAll(@Query() query: QueryJobsDto) {
     return this.jobsService.findAll(query);
   }
@@ -72,10 +72,14 @@ export class JobsController {
   @Get(':id')
   @Public()
   @ApiOperation({ summary: 'Get a job by ID' })
-  @ApiParam({ name: 'id', description: 'Job ID' })
+  @ApiParam({
+    name: 'id',
+    description: 'Job ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Return the job',
+    description: 'Return the job details',
     type: JobResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Job not found' })
@@ -84,15 +88,25 @@ export class JobsController {
   }
 
   @Put(':id')
+  @ApiBearerAuth('access-token')
   @Roles(Role.RECRUITER, Role.ADMIN)
-  @ApiOperation({ summary: 'Update a job' })
-  @ApiParam({ name: 'id', description: 'Job ID' })
+  @ApiOperation({ summary: 'Update a job posting' })
+  @ApiParam({
+    name: 'id',
+    description: 'Job ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({
     status: 200,
     description: 'Job updated successfully',
     type: JobResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Forbidden - not the owner' })
+  @ApiResponse({ status: 400, description: 'Bad Request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - not the owner or admin',
+  })
   @ApiResponse({ status: 404, description: 'Job not found' })
   async update(
     @Param('id') id: string,
@@ -103,12 +117,21 @@ export class JobsController {
   }
 
   @Delete(':id')
+  @ApiBearerAuth('access-token')
   @Roles(Role.RECRUITER, Role.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a job (soft delete)' })
-  @ApiParam({ name: 'id', description: 'Job ID' })
+  @ApiParam({
+    name: 'id',
+    description: 'Job ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({ status: 204, description: 'Job deleted successfully' })
-  @ApiResponse({ status: 403, description: 'Forbidden - not the owner' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - not the owner or admin',
+  })
   @ApiResponse({ status: 404, description: 'Job not found' })
   async remove(
     @Param('id') id: string,
