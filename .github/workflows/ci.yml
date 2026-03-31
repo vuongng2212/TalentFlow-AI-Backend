@@ -150,7 +150,7 @@ jobs:
         run: npm exec prisma generate
 
       - name: Verify Prisma Migrations (Drift Check)
-        run: npx prisma migrate diff --from-schema-datamodel prisma/schema.prisma --to-migrations prisma/migrations --exit-code
+        run: npx prisma migrate diff --from-schema-datamodel prisma/schema.prisma --to-migrations prisma/migrations --shadow-database-url "$DATABASE_URL" --exit-code
 
       - name: Build application
         run: npm run build
