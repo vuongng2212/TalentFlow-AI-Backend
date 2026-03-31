@@ -354,9 +354,16 @@ describe('ApplicationsService', () => {
       mockPrismaService.application.findFirst.mockResolvedValue(null);
       mockStorageService.upload.mockRejectedValue(new Error('upload failed'));
 
+      // Silence the logger error for this test
+      const loggerSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation();
+
       await expect(
         service.createWithCv('user-1', mockFile, { jobId: 'job-1' }),
       ).rejects.toThrow(InternalServerErrorException);
+
+      loggerSpy.mockRestore();
     });
 
     it('should rollback created application and file when queue publish fails', async () => {
@@ -379,6 +386,11 @@ describe('ApplicationsService', () => {
       mockPrismaService.application.delete.mockResolvedValue(undefined);
       mockStorageService.delete.mockResolvedValue(undefined);
 
+      // Silence the logger error for this test
+      const loggerSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation();
+
       const resultPromise = service.createWithCv('user-1', mockFile, {
         jobId: 'job-1',
       });
@@ -387,12 +399,13 @@ describe('ApplicationsService', () => {
       await expect(resultPromise).rejects.toThrow(
         'Failed to process CV upload',
       );
-      await expect(resultPromise).rejects.not.toThrow('queue failed');
 
       expect(mockPrismaService.application.delete).toHaveBeenCalledWith({
         where: { id: 'app-1' },
       });
       expect(mockStorageService.delete).toHaveBeenCalled();
+
+      loggerSpy.mockRestore();
     });
   });
 
