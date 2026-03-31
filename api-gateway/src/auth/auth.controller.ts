@@ -10,10 +10,11 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
+import { AuthResponseDto, LoginResponseDto } from './dto/auth-response.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
@@ -33,8 +34,7 @@ interface UserPayload {
   tokenId?: string;
 }
 
-@ApiTags('auth')
-@ApiBearerAuth('access-token')
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -48,6 +48,10 @@ export class AuthController {
 
   @Public()
   @Post('signup')
+  @ApiOperation({ summary: 'Register a new user' })
+  @ApiResponse({ status: 201, description: 'User successfully registered.', type: LoginResponseDto })
+  @ApiResponse({ status: 400, description: 'Bad Request - Invalid input.' })
+  @ApiResponse({ status: 409, description: 'Conflict - Email already in use.' })
   async signup(@Body() signupDto: SignupDto) {
     const user = await this.authService.signup(
       signupDto.email,
@@ -65,6 +69,10 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'User login' })
+  @ApiResponse({ status: 200, description: 'Login successful, returns cookies.', type: LoginResponseDto })
+  @ApiResponse({ status: 400, description: 'Bad Request.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Invalid credentials.' })
   async login(
     @Body() loginDto: LoginDto,
     @Req() req: Request,
@@ -97,6 +105,9 @@ export class AuthController {
   @UseGuards(JwtRefreshGuard)
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refresh access token using refresh token cookie' })
+  @ApiResponse({ status: 200, description: 'Token successfully refreshed.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Invalid or expired refresh token.' })
   async refresh(
     @CurrentUser() user: UserPayload,
     @Req() req: Request,
@@ -124,6 +135,10 @@ export class AuthController {
   }
 
   @Get('me')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Get current user profile' })
+  @ApiResponse({ status: 200, description: 'Profile retrieved successfully.', type: LoginResponseDto })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
   getProfile(@CurrentUser() user: UserPayload) {
     return {
       user: {
@@ -137,6 +152,10 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Logout and clear cookies' })
+  @ApiResponse({ status: 200, description: 'Logout successful.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async logout(
     @CurrentUser() user: UserPayload,
     @Req() req: Request,
