@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: api-gateway-monitor
+  namespace: talentflow
+  labels:
+    release: prometheus # Matches the prometheus operator selector
+spec:
+  selector:
+    matchLabels:
+      app: api-gateway
+  endpoints:
+    - port: http
+      path: /api/v1/metrics
+      interval: 15s
+      scrapeTimeout: 10s

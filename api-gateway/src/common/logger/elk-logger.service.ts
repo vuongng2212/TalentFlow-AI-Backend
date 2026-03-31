@@ -2,26 +2,41 @@ import { LoggerService, Injectable, Scope } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as winston from 'winston';
 import { ElasticsearchTransport } from 'winston-elasticsearch';
+import { ClsService } from 'nestjs-cls';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class ElkLoggerService implements LoggerService {
   private logger: winston.Logger;
   private context?: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly cls: ClsService,
+  ) {
     const transports: winston.transport[] = [
       new winston.transports.Console({
         format: winston.format.combine(
           winston.format.timestamp(),
           winston.format.colorize(),
           winston.format.printf(
-            ({ timestamp, level, message, context, ...meta }) => {
+            ({
+              timestamp,
+              level,
+              message,
+              context,
+              correlationId,
+              ...meta
+            }) => {
               const contextStr =
                 context && typeof context === 'string' ? `[${context}] ` : '';
+              const corrStr =
+                correlationId && typeof correlationId === 'string'
+                  ? `[${correlationId}] `
+                  : '';
               const metaStr = Object.keys(meta).length
                 ? ` ${JSON.stringify(meta)}`
                 : '';
-              return `${String(timestamp)} ${String(level)}: ${contextStr}${String(message)}${metaStr}`;
+              return `${String(timestamp)} ${String(level)}: ${corrStr}${contextStr}${String(message)}${metaStr}`;
             },
           ),
         ),
@@ -69,33 +84,43 @@ export class ElkLoggerService implements LoggerService {
   }
 
   log(message: unknown, context?: string): void {
+    const correlationId = this.cls.getId();
     this.logger.info(this.formatMessage(message), {
       context: context || this.context,
+      correlationId,
     });
   }
 
   error(message: unknown, trace?: string, context?: string): void {
+    const correlationId = this.cls.getId();
     this.logger.error(this.formatMessage(message), {
       context: context || this.context,
       trace,
+      correlationId,
     });
   }
 
   warn(message: unknown, context?: string): void {
+    const correlationId = this.cls.getId();
     this.logger.warn(this.formatMessage(message), {
       context: context || this.context,
+      correlationId,
     });
   }
 
   debug(message: unknown, context?: string): void {
+    const correlationId = this.cls.getId();
     this.logger.debug(this.formatMessage(message), {
       context: context || this.context,
+      correlationId,
     });
   }
 
   verbose(message: unknown, context?: string): void {
+    const correlationId = this.cls.getId();
     this.logger.verbose(this.formatMessage(message), {
       context: context || this.context,
+      correlationId,
     });
   }
 

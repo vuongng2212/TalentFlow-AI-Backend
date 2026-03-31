@@ -4,7 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import hpp from 'hpp';
-import { json, urlencoded } from 'express';
+import { json, urlencoded, Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
 import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -55,6 +55,14 @@ async function bootstrap() {
 
   app.use(json({ limit: `${bodyLimitMb}mb` }));
   app.use(urlencoded({ extended: true, limit: `${bodyLimitMb}mb` }));
+
+  // Disable gzip for upload routes
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.includes('/upload')) {
+      res.setHeader('Cache-Control', 'no-transform');
+    }
+    next();
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

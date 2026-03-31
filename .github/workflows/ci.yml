@@ -149,6 +149,9 @@ jobs:
       - name: Generate Prisma client
         run: npm exec prisma generate
 
+      - name: Verify Prisma Migrations (Drift Check)
+        run: npx prisma migrate diff --from-schema-datamodel prisma/schema.prisma --to-migrations prisma/migrations --exit-code
+
       - name: Build application
         run: npm run build
 

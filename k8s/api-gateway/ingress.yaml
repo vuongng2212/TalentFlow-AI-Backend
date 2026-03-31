@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-gateway-ingress
+  namespace: talentflow
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # Additional NGINX config for gzip/performance
+    nginx.ingress.kubernetes.io/gzip-level: "6"
+    # Ensure gzip is off for specific paths handled by backend
+spec:
+  tls:
+    - hosts:
+        - api.talentflow.ai
+      secretName: api-gateway-tls
+  rules:
+    - host: api.talentflow.ai
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway-service
+                port:
+                  number: 80

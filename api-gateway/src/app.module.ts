@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ClsModule } from 'nestjs-cls';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AppConfigModule } from './common/config/config.module';
@@ -23,9 +24,29 @@ import { RequestLoggerInterceptor } from './common/interceptors/request-logger.i
 import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { randomUUID } from 'crypto';
 
 @Module({
   imports: [
+    ClsModule.forRoot({
+      global: true,
+      middleware: {
+        mount: true,
+        generateId: true,
+        idGenerator: (
+          req: Request & {
+            headers: Record<string, string | string[] | undefined>;
+          },
+        ) => {
+          const correlationId = req.headers['x-correlation-id'];
+          return Array.isArray(correlationId)
+            ? String(correlationId[0])
+            : typeof correlationId === 'string'
+              ? correlationId
+              : randomUUID();
+        },
+      },
+    }),
     AppConfigModule,
     LoggerModule,
     ThrottlerModule.forRootAsync({
