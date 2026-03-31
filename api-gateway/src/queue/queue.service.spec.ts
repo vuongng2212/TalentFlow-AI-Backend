@@ -170,7 +170,9 @@ describe('QueueService', () => {
       'RabbitMQ channel not initialized',
     );
 
-    expect(logErrorSpy).toHaveBeenCalledWith('Cannot publish: channel not initialized');
+    expect(logErrorSpy).toHaveBeenCalledWith(
+      'Cannot publish: channel not initialized',
+    );
   });
 
   it('should throw when outbound buffer is full', async () => {
@@ -185,7 +187,9 @@ describe('QueueService', () => {
       'RabbitMQ outbound buffer full',
     );
 
-    expect(logErrorSpy).toHaveBeenCalledWith('Message was not published - channel buffer full');
+    expect(logErrorSpy).toHaveBeenCalledWith(
+      'Message was not published - channel buffer full',
+    );
   });
 
   it('should throw when RABBITMQ_URL is missing', async () => {
@@ -224,7 +228,10 @@ describe('QueueService', () => {
     errorListener?.(new Error('socket closed'));
 
     await expect(service.isHealthy()).resolves.toBe(false);
-    expect(logErrorSpy).toHaveBeenCalledWith('RabbitMQ connection error', expect.any(Object));
+    expect(logErrorSpy).toHaveBeenCalledWith(
+      'RabbitMQ connection error',
+      expect.any(Object),
+    );
   });
 
   it('should mark service unhealthy on connection close event', async () => {

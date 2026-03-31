@@ -6,7 +6,6 @@ import { ClsService } from 'nestjs-cls';
 describe('ElkLoggerService', () => {
   let service: ElkLoggerService;
   let configService: jest.Mocked<ConfigService>;
-  let clsService: jest.Mocked<ClsService>;
 
   const mockClsService = {
     getId: jest.fn().mockReturnValue('test-correlation-id'),
@@ -35,7 +34,6 @@ describe('ElkLoggerService', () => {
 
     service = await module.resolve<ElkLoggerService>(ElkLoggerService);
     configService = module.get(ConfigService);
-    clsService = module.get(ClsService) as any;
   });
 
   afterEach(() => {
