@@ -22,9 +22,9 @@ docker-compose up -d
 ### API Gateway (`api-gateway/`)
 Primary development happens here.
 
--   **Install**: `pnpm install`
--   **Dev Server**: `pnpm run start:dev` (starts on port 3000)
--   **Build**: `pnpm run build`
+-   **Install**: `npm install`
+-   **Dev Server**: `npm run start:dev` (starts on port 3000)
+-   **Build**: `npm run build`
 -   **Database**:
     -   Generate client: `npx prisma generate`
     -   Migrate: `npx prisma migrate dev`
@@ -33,15 +33,15 @@ Primary development happens here.
 
 ## Testing (`api-gateway/`)
 
--   **Unit Tests**: `pnpm run test`
+-   **Unit Tests**: `npm run test`
     -   Run single test: `npx jest src/path/to/test.spec.ts`
--   **E2E Tests**: `pnpm run test:e2e`
--   **Coverage**: `pnpm run test:cov`
+-   **E2E Tests**: `npm run test:e2e`
+-   **Coverage**: `npm run test:cov`
 
 ## Code Quality
 
--   **Lint**: `pnpm run lint` (ESLint)
--   **Format**: `pnpm run format` (Prettier)
+-   **Lint**: `npm run lint` (ESLint)
+-   **Format**: `npm run format` (Prettier)
 
 ## Architecture & Structure
 
