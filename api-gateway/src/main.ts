@@ -89,6 +89,21 @@ async function bootstrap() {
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);
+
+    // Save Swagger spec to file if GENERATE_SWAGGER env var is true
+    if (process.env.GENERATE_SWAGGER === 'true') {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const fs = require('fs');
+      fs.writeFileSync('./swagger-spec.json', JSON.stringify(document, null, 2));
+      const logger = new Logger('Swagger');
+      logger.log('Swagger spec generated at ./swagger-spec.json');
+
+      // If we only want to generate the swagger spec and exit (e.g. CI/CD)
+      if (process.env.EXIT_AFTER_GENERATE === 'true') {
+        process.exit(0);
+      }
+    }
+
     SwaggerModule.setup('/api/docs', app, document, {
       swaggerOptions: {
         persistAuthorization: true,
