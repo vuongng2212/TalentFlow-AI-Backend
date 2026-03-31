@@ -2,7 +2,7 @@
 
 **Project:** TalentFlow AI Backend
 **Last Updated:** 2026-02-03
-**Architecture:** Polyglot 3-Service (NestJS + Spring Boot/ASP.NET Core)
+**Architecture:** Polyglot 3-Service (NestJS + Spring Boot + NestJS)
 
 ---
 
@@ -56,7 +56,7 @@ For TalentFlow AI's **Polyglot 3-Service Architecture**:
 | **CV Parser** | Processing Time (avg) | < 10s | Application Logs |
 | **CV Parser** | Processing Time (p95) | < 15s | Application Logs |
 | **Notification** | WebSocket Latency | < 50ms | Custom Metrics |
-| **Database** | Query Time (p95) | < 50ms | Prisma/EF Metrics |
+| **Database** | Query Time (p95) | < 50ms | Prisma Metrics |
 | **Database** | Connection Pool | < 80% | Postgres Exporter |
 | **RabbitMQ** | Queue Lag | < 5 msgs | RabbitMQ Management |
 | **Redis** | Memory Usage | < 1GB | Redis Exporter |

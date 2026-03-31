@@ -55,10 +55,10 @@ We use a **Flexible Polyglot 3-Service Architecture** that lets you choose the b
        │                         │
 ┌──────▼────────────────────────┐  ┌──────▼──────────────────────┐
 │ Service 2: CV Parser          │  │ Service 3: Notification      │
-│ (Spring Boot)                 │  │ (ASP.NET Core)               │
+│ (Spring Boot)                 │  │ (NestJS)                     │
 │ - RabbitMQ Consumer           │  │ - RabbitMQ Consumer          │
-│ - PDF/DOCX parsing            │  │ - WebSocket real-time        │
-│ - Tesseract OCR               │  │ - Email notifications        │
+│ - PDF/DOCX parsing            │  │ - WebSocket (Socket.IO)      │
+│ - Tesseract OCR               │  │ - Email (Nodemailer)         │
 │ - AI Score (LLM API)          │  │                              │
 └───────────────────────────────┘  └──────────────────────────────┘
 ```
@@ -126,37 +126,20 @@ We use a **Flexible Polyglot 3-Service Architecture** that lets you choose the b
 - ✅ Want async/await patterns for I/O
 - ✅ Need Windows-specific integrations
 
-### Service 3: Notification (Choose One)
-
-#### Option A: NestJS (TypeScript) - Recommended
+### Service 3: Notification (NestJS - Required)
 | Component | Technology | Version |
 |-----------|------------|---------|
 | **Runtime** | Node.js | 20.x |
 | **Framework** | NestJS | 10.x |
-| **WebSocket** | Socket.io | 4.x |
-| **Email** | SendGrid/Resend | - |
+| **WebSocket** | Socket.IO | 4.x |
+| **Email** | Nodemailer | 6.x |
 | **Testing** | Jest | 29.x |
 
-**When to choose NestJS:**
+**Why NestJS for Notification:**
 - ✅ Team already using NestJS for API Gateway
-- ✅ WebSocket support is first-class
+- ✅ WebSocket support is first-class (Socket.IO)
 - ✅ Prefer TypeScript for all Node services
-- ✅ Want code sharing with API Gateway
-
-#### Option B: ASP.NET Core (C#)
-| Component | Technology | Version |
-|-----------|------------|---------|
-| **Runtime** | .NET SDK | 8.0+ |
-| **Framework** | ASP.NET Core | 8.x |
-| **WebSocket** | SignalR | 8.x |
-| **Email** | SendGrid / FluentEmail | Latest |
-| **Testing** | xUnit + Moq | - |
-
-**When to choose ASP.NET Core:**
-- ✅ Team has C# expertise
-- ✅ SignalR for real-time communication
-- ✅ Want unified .NET stack across services
-- ✅ Prefer strongly-typed language
+- ✅ Want code sharing with API Gateway (DTOs, Types)
 
 ### Shared Infrastructure
 | Component | Technology | Version |
@@ -178,8 +161,8 @@ Use this matrix to choose the right framework for each service based on your tea
 | **Java only** | ✅ Spring Boot | ⚠️ NestJS (learning curve) | 2-3 days |
 | **C# only** | ✅ ASP.NET Core | ✅ ASP.NET Core | 1-2 days |
 | **TypeScript + Java** | ✅ Spring Boot | ✅ NestJS | 1 day |
-| **TypeScript + C#** | ✅ ASP.NET Core | ✅ NestJS or ASP.NET | 1 day |
-| **Java + C#** | ✅ Either (pick one) | ✅ ASP.NET Core | 1-2 days |
+| **TypeScript + C#** | ✅ ASP.NET Core | ✅ NestJS | 1 day |
+| **Java + C#** | ✅ Either (pick one) | ✅ NestJS | 1-2 days |
 | **All 3 languages** | ✅ Any | ✅ Any | < 1 day |
 
 **Recommended Combinations:**
@@ -191,26 +174,12 @@ Use this matrix to choose the right framework for each service based on your tea
    - **Pros:** Code sharing, unified language, fast onboarding
    - **Cons:** CV Parser performance issues with Tesseract
 
-2. **TypeScript + Java** (Balanced - Recommended):
+3. **TypeScript + Java/C#** (Multi-language):
    - Service 1: NestJS ✅
-   - Service 2: Spring Boot ✅ (Best PDF/OCR libraries)
+   - Service 2: Spring Boot or ASP.NET Core ✅
    - Service 3: NestJS ✅
-   - **Pros:** Best tool for each job, mature Java libraries
-   - **Cons:** Two languages to maintain
-
-3. **TypeScript + C#** (Windows/Azure teams):
-   - Service 1: NestJS ✅
-   - Service 2: ASP.NET Core ✅
-   - Service 3: ASP.NET Core ✅
-   - **Pros:** Great .NET libraries, async patterns
-   - **Cons:** Two languages to maintain
-
-4. **Full C# Stack** (.NET shops):
-   - Service 1: NestJS ✅ (Best for API Gateway)
-   - Service 2: ASP.NET Core ✅
-   - Service 3: ASP.NET Core ✅
-   - **Pros:** Unified .NET stack, strong typing
-   - **Cons:** Need to learn NestJS for Service 1
+   - **Pros:** Best tool for each job, mature libraries
+   - **Cons:** More languages to maintain
 
 ---
 
@@ -371,9 +340,7 @@ dotnet run
 dotnet watch run
 ```
 
-#### Service 3: Notification - Choose Your Stack
-
-##### Option A: NestJS (TypeScript)
+#### Service 3: Notification (NestJS)
 
 ```bash
 cd notification-service
@@ -383,21 +350,6 @@ npm install
 
 # Start in development mode
 npm run start:dev
-```
-
-##### Option B: ASP.NET Core (C#)
-
-```bash
-cd notification-service
-
-# Restore dependencies
-dotnet restore
-
-# Start application
-dotnet run
-
-# Or watch mode
-dotnet watch run
 ```
 
 ### 5. Verify Installation
@@ -413,8 +365,7 @@ Open your browser and navigate to:
 - **ASP.NET Core**: http://localhost:5000/health
 
 **Service 3 (Notification):**
-- **NestJS**: http://localhost:3001/health
-- **ASP.NET Core**: http://localhost:5001/health
+- **NestJS**: http://localhost:5000/health
 
 ---
 
@@ -451,7 +402,7 @@ talentflow-backend/  (Single Git Repository)
 │   ├── pom.xml (or build.gradle)
 │   └── application.yml
 │
-├── notification-service/         # Service 3: Notification (NestJS OR ASP.NET Core)
+├── notification-service/         # Service 3: Notification (NestJS)
 │   ├── src/
 │   │   ├── gateways/
 │   │   │   └── websocket.gateway.ts
@@ -553,9 +504,7 @@ dotnet test                    # Run all tests
 dotnet test --filter "Category=Unit"  # Unit tests only
 ```
 
-### Service 3: Notification - Choose Your Stack
-
-#### NestJS (TypeScript)
+### Service 3: Notification (NestJS)
 
 ```bash
 cd notification-service
@@ -564,23 +513,6 @@ cd notification-service
 npm run start:dev
 npm run test
 npm run lint
-```
-
-#### ASP.NET Core (C#)
-
-```bash
-cd notification-service
-
-# Development
-dotnet run                     # Start application
-dotnet watch run               # Watch mode (hot reload)
-
-# Build
-dotnet build
-dotnet publish -c Release
-
-# Testing
-dotnet test
 ```
 
 ### Development Workflow
@@ -687,7 +619,7 @@ mvn test
 | [ADR-002](docs/adr/ADR-002-kafka-message-queue.md) | Apache Kafka | ❌ SUPERSEDED |
 | [ADR-003](docs/adr/ADR-003-prisma-orm.md) | Prisma ORM | ✅ Active |
 | [ADR-006](docs/adr/ADR-006-hybrid-microservices.md) | **3-Service Architecture** | ✅ **CURRENT** |
-| [ADR-007](docs/adr/ADR-007-bullmq-over-kafka.md) | **BullMQ Queue** | ⚠️ Partial (Node.js only) |
+| [ADR-007](docs/adr/ADR-007-bullmq-over-kafka.md) | **BullMQ Queue** | ❌ SUPERSEDED |
 | [ADR-008](docs/adr/ADR-008-cloudflare-r2.md) | **Cloudflare R2 Storage** | ✅ **CURRENT** |
 | [ADR-009](docs/adr/ADR-009-rabbitmq-polyglot.md) | **RabbitMQ (Polyglot)** | ✅ **CURRENT** |
 

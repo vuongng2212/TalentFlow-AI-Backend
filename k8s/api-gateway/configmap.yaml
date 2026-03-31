@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+  namespace: talentflow
+  labels:
+    app: api-gateway
+data:
+  NODE_ENV: "production"
+  PORT: "8080"
+  RATE_LIMIT_TTL_SEC: "60"
+  RATE_LIMIT_MAX: "100"
+  BODY_LIMIT_MB: "10"
+  TIMEOUT_MS: "15000"
+  CORS_ORIGINS: "https://app.talentflow.ai"
+  SWAGGER_ENABLED: "false"
+  # S3/MinIO
+  R2_ENDPOINT: "http://minio-service.talentflow.svc.cluster.local:9000"
+  R2_BUCKET: "talentflow-cvs"
+  R2_PUBLIC_URL: "https://storage.talentflow.ai/talentflow-cvs"
+  # Logging & Metrics
+  LOG_LEVEL: "info"
+  ELK_HOST: "http://elasticsearch.logging.svc.cluster.local:9200"
+  ELK_LOG_LEVEL: "info"
+  ELK_INDEX_PREFIX: "talentflow-api"
+  QUEUE_METRICS_POLL_INTERVAL_MS: "30000"

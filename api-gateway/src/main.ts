@@ -4,7 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import hpp from 'hpp';
-import { json, urlencoded } from 'express';
+import { json, urlencoded, Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
 import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -30,7 +30,7 @@ async function bootstrap() {
     app.useLogger(logger);
   }
 
-  const port = configService.get<number>('PORT', 3000);
+  const port = configService.get<number>('PORT', 8080);
   const bodyLimitMb = configService.get<number>('BODY_LIMIT_MB', 10);
   const corsOriginsRaw = configService.get<string>('CORS_ORIGINS') || '';
   const corsOrigins = corsOriginsRaw
@@ -55,6 +55,14 @@ async function bootstrap() {
 
   app.use(json({ limit: `${bodyLimitMb}mb` }));
   app.use(urlencoded({ extended: true, limit: `${bodyLimitMb}mb` }));
+
+  // Disable gzip for upload routes
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.includes('/upload')) {
+      res.setHeader('Cache-Control', 'no-transform');
+    }
+    next();
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -89,6 +97,25 @@ async function bootstrap() {
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);
+
+    // Save Swagger spec to file if GENERATE_SWAGGER env var is true
+    if (process.env.GENERATE_SWAGGER === 'true') {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+      const fs = require('fs');
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      fs.writeFileSync(
+        './swagger-spec.json',
+        JSON.stringify(document, null, 2),
+      );
+      const logger = new Logger('Swagger');
+      logger.log('Swagger spec generated at ./swagger-spec.json');
+
+      // If we only want to generate the swagger spec and exit (e.g. CI/CD)
+      if (process.env.EXIT_AFTER_GENERATE === 'true') {
+        process.exit(0);
+      }
+    }
+
     SwaggerModule.setup('/api/docs', app, document, {
       swaggerOptions: {
         persistAuthorization: true,

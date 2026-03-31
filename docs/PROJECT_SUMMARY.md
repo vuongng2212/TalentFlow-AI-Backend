@@ -1,7 +1,7 @@
 # TalentFlow AI - Tổng Quan Dự Án
 
 **Cập nhật:** 2026-02-25
-**Team:** 3 Full-stack Developers (NestJS, Spring Boot, ASP.NET Core)
+**Team:** 3 Full-stack Developers (NestJS, Spring Boot)
 **Trạng thái:** ✅ Sẵn sàng phát triển - **ARCHITECTURE UPDATED**
 
 ---
@@ -38,7 +38,7 @@
 6. **adr/ADR-004-deployment-strategy.md** - Chiến lược triển khai
 7. **adr/ADR-005-separate-repos.md** - Tách repos Frontend/Backend ✅
 8. **adr/ADR-006-hybrid-microservices.md** - **Hybrid Microservices Architecture** ✅
-9. **adr/ADR-007-bullmq-over-kafka.md** - **BullMQ thay vì Kafka** (Node.js-only)
+9. **adr/ADR-007-bullmq-over-kafka.md** - ~~BullMQ thay vì Kafka~~ **[SUPERSEDED BY ADR-009]**
 10. **adr/ADR-008-cloudflare-r2.md** - **Cloudflare R2 Storage** ✅
 11. **adr/ADR-009-rabbitmq-polyglot.md** - **RabbitMQ cho Polyglot** 🆕
 
@@ -67,10 +67,10 @@
 - ✅ **Mới:** 3 Services (1 repo) + RabbitMQ (AMQP Message Broker)
 
 **Lý do thay đổi:**
-1. Team 3 người với tech stack đa dạng (NestJS, Spring Boot, ASP.NET Core)
+1. Team có sự thay đổi thành viên → Notification Service chuyển từ ASP.NET Core sang NestJS
 2. Frontend đã hoàn thành → Chỉ cần tích hợp API
 3. Tesseract OCR + PDF parsing blocking event loop → Cần Spring Boot service riêng
-4. RabbitMQ hỗ trợ polyglot (Java, C#, Node.js) native, không như BullMQ
+4. RabbitMQ hỗ trợ polyglot (Java, Node.js) native, không như BullMQ
 
 ### **3 Services:**
 
@@ -85,10 +85,10 @@
 ┌──────▼─────────────┐  ┌────────▼────────┐
 │ Service 2:         │  │ Service 3:      │
 │ CV Parser          │  │ Notification    │
-│ (Spring Boot)      │  │ (ASP.NET Core)  │
-│ - Tesseract OCR    │  │ - WebSocket     │
+│ (Spring Boot)      │  │ (NestJS)        │
+│ - Tesseract OCR    │  │ - Socket.IO     │
 │ - PDF parsing      │  │ - Gmail SMTP    │
-│ - Google Gemini    │  │                 │
+│ - Google Gemini    │  │ - Nodemailer    │
 └────────────────────┘  └─────────────────┘
 ```
 
@@ -97,7 +97,7 @@
 talentflow-backend/  (Single Git Repo)
 ├── api-gateway/          # Service 1: NestJS
 ├── cv-parser/            # Service 2: Spring Boot
-├── notification/         # Service 3: ASP.NET Core
+├── notification/         # Service 3: NestJS
 ├── shared/               # Shared types, configs
 └── docs/                 # Documentation
 ```
@@ -105,9 +105,9 @@ talentflow-backend/  (Single Git Repo)
 **Tech Stack:**
 - **Queue:** RabbitMQ (AMQP) - Exchange: `talentflow.events`
 - **LLM:** Google Gemini (gemini-2.5-flash)
-- **Email:** Gmail SMTP (via MailKit)
+- **Email:** Gmail SMTP (via Nodemailer)
 - **Storage:** Cloudflare R2 / MinIO (S3-compatible)
-- **Database:** PostgreSQL + Prisma/EF Core ✅
+- **Database:** PostgreSQL + Prisma ✅
 - **Deploy:** Railway + Docker Compose ✅
 
 **Chi tiết:** Xem [ADR-006](./adr/ADR-006-hybrid-microservices.md) và [ADR-009](./adr/ADR-009-rabbitmq-polyglot.md)
@@ -117,7 +117,7 @@ talentflow-backend/  (Single Git Repo)
 ## ✅ Quyết Định Chính Thức (Đã Xác Nhận)
 
 ### 1. ☑️ Architecture: Polyglot 3-Service 🆕
-**Quyết định:** 3 services trong 1 repository (NestJS + Spring Boot + ASP.NET Core)
+**Quyết định:** 3 services trong 1 repository (NestJS + Spring Boot + NestJS)
 **Supersedes:** ADR-001 (NestJS Monorepo)
 **Action:** Single repo với 3 service folders, deploy độc lập
 
@@ -125,7 +125,7 @@ talentflow-backend/  (Single Git Repo)
 **Quyết định:** RabbitMQ thay vì BullMQ (cho polyglot architecture)
 **Exchange:** `talentflow.events` (topic)
 **Queues:** `cv_parser.jobs`, `notification.events`
-**Lý do:** Native support cho Java (Spring AMQP), C# (RabbitMQ.Client), Node.js (amqplib)
+**Lý do:** Native support cho Java (Spring AMQP), Node.js (amqplib)
 **Tài liệu:** [ADR-009](./adr/ADR-009-rabbitmq-polyglot.md)
 
 ### 3. ☑️ LLM Provider: Google Gemini 🆕
@@ -133,7 +133,7 @@ talentflow-backend/  (Single Git Repo)
 **Lý do:** Cost-effective, fast, structured output support
 
 ### 4. ☑️ Email Provider: Gmail SMTP
-**Quyết định:** Gmail SMTP với MailKit cho cả dev và production
+**Quyết định:** Gmail SMTP với Nodemailer cho cả dev và production
 **Lý do:** Team project, không cần throughput cao của SendGrid/Resend
 
 ### 5. ☑️ Storage: Cloudflare R2 / MinIO
@@ -185,7 +185,7 @@ talentflow-backend/  (Single Git Repo)
 ### 🟡 Sprint 2 (Tuần 3-4): Backend Foundation
 **Mục tiêu:** Working Auth + Jobs API
 **Deliverables:**
-- NestJS monorepo
+- Polyglot 3-service repo architecture
 - Auth module (JWT)
 - Jobs CRUD API
 - Frontend → Backend integration
@@ -203,7 +203,7 @@ talentflow-backend/  (Single Git Repo)
 - CV parsing (text extraction) via Spring Boot
 - Google Gemini integration for scoring
 - Upload UI
-- Real-time status updates via SignalR
+- Real-time status updates via Socket.IO
 **🎯 Demo #3:** End of Week 6
 
 ---

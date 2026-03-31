@@ -2,10 +2,10 @@
 
 **Version:** 2.0
 **Created:** 2026-02-24
-**Updated:** 2026-02-24
+**Updated:** 2026-03-20
 **Status:** Planning
-**Tech Stack:** ASP.NET Core 8 (C# 12)
-**Developer:** Yuki
+**Tech Stack:** NestJS (TypeScript)
+**Developer:** TBD
 
 ---
 
@@ -31,7 +31,7 @@
 
 Notification Service là microservice chịu trách nhiệm:
 - **Email**: Gửi email transactional (xác nhận ứng tuyển, mời phỏng vấn, kết quả)
-- **Real-time**: Push notification qua WebSocket (SignalR) đến frontend
+- **Real-time**: Push notification qua WebSocket (Socket.IO) đến frontend
 - **In-app**: Lưu trữ và quản lý notification history
 - **Queue Consumer**: Nhận events từ API Gateway và CV Parser qua RabbitMQ
 
@@ -47,7 +47,7 @@ Notification Service là microservice chịu trách nhiệm:
 │                                                                              │
 │  ┌─────────────┐         ┌─────────────┐         ┌─────────────┐           │
 │  │ API Gateway │         │  CV Parser  │         │Notification │           │
-│  │  (NestJS)   │         │(Spring Boot)│         │  (ASP.NET)  │           │
+│  │  (NestJS)   │         │(Spring Boot)│         │  (NestJS)   │           │
 │  └──────┬──────┘         └──────┬──────┘         └──────┬──────┘           │
 │         │                       │                       ▲                   │
 │         │ PUBLISH               │ PUBLISH               │ SUBSCRIBE         │
@@ -65,10 +65,10 @@ Notification Service là microservice chịu trách nhiệm:
 │                                                                              │
 │         ┌─────────────────────┐                                             │
 │         │ Notification Service│                                             │
-│         │    (ASP.NET)        │                                             │
+│         │    (NestJS)         │                                             │
 │         └──────────┬──────────┘                                             │
 │                    │                                                         │
-│                    │ SignalR WebSocket (Authenticated)                       │
+│                    │ Socket.IO WebSocket (Authenticated)                     │
 │                    ▼                                                         │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                         │
 │  │  Browser 1  │  │  Browser 2  │  │  Browser 3  │  ← Frontend clients     │
@@ -84,7 +84,7 @@ Notification Service là microservice chịu trách nhiệm:
 |---------|---------|------|----------------------|
 | PostgreSQL | Notification history | 5432 | Supabase / Neon |
 | RabbitMQ | Message queue (AMQP) | 5672 | CloudAMQP |
-| Redis | Caching, SignalR backplane | 6379 | Upstash |
+| Redis | Caching, Socket.IO adapter | 6379 | Upstash |
 | Gmail SMTP | Email sending | 587 | Gmail / SendGrid |
 
 ### 1.4 Core Features
@@ -94,28 +94,28 @@ Notification Service là microservice chịu trách nhiệm:
 | Email Sending | P0 (MVP) | Gửi email qua Gmail SMTP |
 | RabbitMQ Consumer | P0 (MVP) | Subscribe events từ RabbitMQ |
 | Health Check | P0 (MVP) | Kubernetes readiness/liveness |
-| JWT Authentication | P0 (MVP) | Bảo vệ API và SignalR Hub |
-| SignalR Hub | P1 | Real-time WebSocket notifications |
+| JWT Authentication | P0 (MVP) | Bảo vệ API và WebSocket Gateway |
+| Socket.IO Gateway | P1 | Real-time WebSocket notifications |
 | Notification History | P1 | Lưu trữ và truy vấn notification |
-| Email Templates | P2 | HTML templates với Scriban |
-| Retry Mechanism | P2 | Retry failed emails với Polly |
+| Email Templates | P2 | HTML templates với Handlebars |
+| Retry Mechanism | P2 | Retry failed emails với exponential backoff |
 
 ---
 
 ## 2. Architecture
 
-### 2.1 Architecture Pattern: Clean Architecture (Simplified)
+### 2.1 Architecture Pattern: Modular NestJS Architecture
 
 ```
 +-----------------------------------------------------------------------------+
-|                         NOTIFICATION SERVICE                                 |
+|                         NOTIFICATION SERVICE (NestJS)                         |
 +-----------------------------------------------------------------------------+
 |                                                                              |
 |  +-----------------------------------------------------------------------+  |
 |  |                           API LAYER                                   |  |
 |  |  +-------------------+  +-------------------+  +-------------------+  |  |
-|  |  |   Controllers     |  |   SignalR Hub     |  |   Health Checks   |  |  |
-|  |  |   [Authorize]     |  |   [Authorize]     |  |                   |  |  |
+|  |  |   Controllers     |  | Socket.IO Gateway |  |   Health Module   |  |  |
+|  |  |   @UseGuards()    |  |   @UseGuards()    |  |   @nestjs/terminus|  |  |
 |  |  +-------------------+  +-------------------+  +-------------------+  |  |
 |  +-----------------------------------------------------------------------+  |
 |                                    |                                         |
@@ -123,8 +123,8 @@ Notification Service là microservice chịu trách nhiệm:
 |  +-----------------------------------------------------------------------+  |
 |  |                        APPLICATION LAYER                              |  |
 |  |  +-------------------+  +-------------------+  +-------------------+  |  |
-|  |  |  INotification    |  |  IEmailService    |  |  IRealtimeService |  |  |
-|  |  |     Service       |  |                   |  |                   |  |  |
+|  |  | NotificationSvc   |  |  EmailService     |  |  RealtimeService  |  |  |
+|  |  |                   |  |                   |  |                   |  |  |
 |  |  +-------------------+  +-------------------+  +-------------------+  |  |
 |  +-----------------------------------------------------------------------+  |
 |                                    |                                         |
@@ -132,15 +132,15 @@ Notification Service là microservice chịu trách nhiệm:
 |  +-----------------------------------------------------------------------+  |
 |  |                      INFRASTRUCTURE LAYER                             |  |
 |  |  +-------------+  +-------------+  +-------------+  +-------------+   |  |
-|  |  | SmtpEmail   |  | RabbitMQ    |  | SignalR     |  | EF Core     |   |  |
-|  |  | Sender      |  | Consumer    |  | Broadcaster |  | Repository  |   |  |
+|  |  | Nodemailer  |  | RabbitMQ    |  | Socket.IO   |  | Prisma      |   |  |
+|  |  | Transport   |  | Consumer    |  | Adapter     |  | Service     |   |  |
 |  |  +-------------+  +-------------+  +-------------+  +-------------+   |  |
 |  +-----------------------------------------------------------------------+  |
 |                                                                              |
 |  +-----------------------------------------------------------------------+  |
-|  |                      BACKGROUND SERVICES                              |  |
+|  |                      CONSUMERS (RabbitMQ)                             |  |
 |  |  +---------------------------+  +---------------------------+         |  |
-|  |  |  RabbitMQConsumerWorker   |  |    EmailRetryWorker       |         |  |
+|  |  |  NotificationConsumer     |  |    EmailRetryConsumer     |         |  |
 |  |  +---------------------------+  +---------------------------+         |  |
 |  +-----------------------------------------------------------------------+  |
 |                                                                              |
@@ -151,50 +151,66 @@ Notification Service là microservice chịu trách nhiệm:
 
 | Aspect | Benefit |
 |--------|---------|
-| **Separation of Concerns** | API, Business Logic, Infrastructure tách biệt |
-| **Testability** | Dễ mock interfaces, unit test từng layer |
+| **NestJS Modules** | Mỗi feature là 1 module, dễ quản lý dependency injection |
+| **Testability** | Dễ mock services, unit test từng module |
 | **Flexibility** | Dễ thay đổi email provider (SMTP → SendGrid) |
-| **Maintainability** | Code rõ ràng, dễ đọc và maintain |
-| **Security** | Authentication/Authorization ở API layer |
+| **Consistency** | Cùng tech stack với API Gateway (NestJS) |
+| **Security** | Authentication/Authorization qua Guards |
 
 ### 2.3 Data Flow
 
 ```
 1. INBOUND (RabbitMQ → Service)
-   RabbitMQ Queue --> RabbitMQConsumerWorker --> NotificationService --> Email/SignalR
+   RabbitMQ Queue --> NotificationConsumer --> NotificationService --> Email/Socket.IO
 
 2. OUTBOUND (Client → Service)
-   HTTP Request (+ JWT) --> [Authorize] Controller --> NotificationService --> Response
-   WebSocket (+ JWT) --> [Authorize] SignalR Hub --> Client Push
+   HTTP Request (+ JWT) --> @UseGuards() Controller --> NotificationService --> Response
+   WebSocket (+ JWT) --> @UseGuards() Gateway --> Client Push
 ```
 
-### 2.4 Message Broker vs SignalR
+### 2.4 Message Broker vs Socket.IO
 
 | Component | Vai trò | Protocol | Ai connect được? |
 |-----------|---------|----------|------------------|
 | **RabbitMQ** | Backend-to-backend messaging | AMQP | Chỉ backend services |
-| **SignalR** | Real-time push đến browser | WebSocket | Frontend clients (authenticated) |
+| **Socket.IO** | Real-time push đến browser | WebSocket | Frontend clients (authenticated) |
 
 ### 2.5 Scaling Considerations
 
-#### SignalR Redis Backplane (Horizontal Scaling)
+#### Socket.IO Redis Adapter (Horizontal Scaling)
 
-Khi chạy nhiều instances của Notification Service, cần Redis backplane để sync SignalR connections:
+Khi chạy nhiều instances của Notification Service, cần Redis adapter để sync Socket.IO connections:
 
-```csharp
-// Program.cs - Production setup với Redis backplane
-builder.Services.AddSignalR()
-    .AddStackExchangeRedis(builder.Configuration["Redis:ConnectionString"]!,
-        options =>
-        {
-            options.Configuration.ChannelPrefix = "NotificationService";
-        });
+```typescript
+// app.module.ts - Production setup với Redis adapter
+import { IoAdapter } from '@nestjs/platform-socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { createClient } from 'redis';
 
-// NuGet Package cần thêm:
-// <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="8.0.0" />
+export class RedisIoAdapter extends IoAdapter {
+  private adapterConstructor: ReturnType<typeof createAdapter>;
+
+  async connectToRedis(): Promise<void> {
+    const pubClient = createClient({ url: process.env.REDIS_URL });
+    const subClient = pubClient.duplicate();
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    this.adapterConstructor = createAdapter(pubClient, subClient);
+  }
+
+  createIOServer(port: number, options?: any) {
+    const server = super.createIOServer(port, options);
+    server.adapter(this.adapterConstructor);
+    return server;
+  }
+}
+
+// main.ts
+const redisIoAdapter = new RedisIoAdapter(app);
+await redisIoAdapter.connectToRedis();
+app.useWebSocketAdapter(redisIoAdapter);
 ```
 
-**Khi nào cần Redis backplane:**
+**Khi nào cần Redis adapter:**
 - Chạy > 1 instance của Notification Service
 - Load balancer phân phối connections giữa các instances
 - User có thể connect tới instance A, nhưng message cần push từ instance B
@@ -203,30 +219,28 @@ builder.Services.AddSignalR()
 
 Khi scale nhiều instances, mỗi instance sẽ consume messages từ cùng queue:
 
-```csharp
-// RabbitMQ đã tự động load-balance giữa các consumers
-// Mỗi message chỉ được deliver tới 1 consumer
-
+```typescript
 // Đảm bảo idempotency:
 // 1. Sử dụng unique messageId để detect duplicates
 // 2. Check trước khi insert notification (upsert pattern)
 
-public async Task HandleApplicationCreatedAsync(ApplicationCreatedEvent evt)
-{
-    // Idempotency check - tránh duplicate notifications
-    var existing = await _repository.GetByExternalIdAsync(evt.ApplicationId);
-    if (existing != null)
-    {
-        _logger.LogInformation("Notification already processed for {AppId}", evt.ApplicationId);
-        return;
-    }
+async handleApplicationCreated(event: ApplicationCreatedEvent): Promise<void> {
+  // Idempotency check - tránh duplicate notifications
+  const existing = await this.prisma.notification.findFirst({
+    where: { externalId: event.applicationId },
+  });
 
-    // Process notification...
+  if (existing) {
+    this.logger.log(`Notification already processed for ${event.applicationId}`);
+    return;
+  }
+
+  // Process notification...
 }
 ```
 
 **Best Practices:**
-- **Prefetch count**: Set `channel.BasicQos(prefetchCount: 10)` để control workload
+- **Prefetch count**: Set `channel.prefetch(10)` để control workload
 - **Manual ACK**: Chỉ ACK sau khi xử lý thành công
 - **Idempotency key**: Sử dụng `applicationId` hoặc `messageId` để detect duplicates
 - **Dead Letter Queue**: NACK với `requeue: false` để chuyển failed messages vào DLQ
@@ -239,164 +253,181 @@ public async Task HandleApplicationCreatedAsync(ApplicationCreatedEvent evt)
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| **.NET** | 8.0 LTS | Runtime |
-| **ASP.NET Core** | 8.0 | Web framework |
-| **C#** | 12 | Language |
-| **Entity Framework Core** | 8.0 | ORM |
+| **Node.js** | 20.x LTS | Runtime |
+| **NestJS** | 10.x | Web framework |
+| **TypeScript** | 5.x | Language |
+| **Prisma** | 5.x | ORM |
 | **PostgreSQL** | 16.x | Database |
 
 ### 3.2 Key Libraries
 
-| Library | NuGet Package | Purpose |
-|---------|---------------|---------|
-| **SignalR** | Microsoft.AspNetCore.SignalR | Real-time WebSocket |
-| **RabbitMQ.Client** | RabbitMQ.Client | RabbitMQ consumer |
-| **MailKit** | MailKit | SMTP email sending |
-| **Npgsql** | Npgsql.EntityFrameworkCore.PostgreSQL | PostgreSQL driver |
-| **Serilog** | Serilog.AspNetCore | Structured logging |
-| **Polly** | Polly | Retry/Circuit breaker |
-| **JWT Bearer** | Microsoft.AspNetCore.Authentication.JwtBearer | Authentication |
+| Library | npm Package | Purpose |
+|---------|-------------|---------|
+| **Socket.IO** | `@nestjs/websockets` + `@nestjs/platform-socket.io` | Real-time WebSocket |
+| **amqplib** | `amqplib` | RabbitMQ consumer |
+| **Nodemailer** | `@nestjs-modules/mailer` + `nodemailer` | SMTP email sending |
+| **Prisma** | `@prisma/client` | PostgreSQL ORM |
+| **Winston** | `nest-winston` + `winston` | Structured logging |
+| **Passport** | `@nestjs/passport` + `@nestjs/jwt` | Authentication |
+| **Swagger** | `@nestjs/swagger` | API documentation |
+| **Terminus** | `@nestjs/terminus` | Health checks |
+| **Throttler** | `@nestjs/throttler` | Rate limiting |
+| **Handlebars** | `handlebars` (via `@nestjs-modules/mailer`) | Email templates |
+| **class-validator** | `class-validator` + `class-transformer` | DTO validation |
 
-### 3.3 NuGet Packages (.csproj)
+### 3.3 npm Packages (package.json)
 
-```xml
-<ItemGroup>
-    <!-- ASP.NET Core -->
-    <!-- Note: SignalR is included in ASP.NET Core 8 shared framework, no separate package needed -->
-    <!-- Only add if targeting .NET Standard or need specific SignalR features -->
-    <!-- <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.0" /> -->
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
-
-    <!-- Database -->
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0" />
-
-    <!-- Message Queue -->
-    <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
-
-    <!-- Email -->
-    <PackageReference Include="MailKit" Version="4.3.0" />
-    <PackageReference Include="Scriban" Version="5.9.1" />
-
-    <!-- Resilience -->
-    <PackageReference Include="Polly" Version="8.2.0" />
-    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="8.0.0" />
-
-    <!-- Logging -->
-    <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
-
-    <!-- Health Checks -->
-    <PackageReference Include="AspNetCore.HealthChecks.Rabbitmq" Version="8.0.0" />
-    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="8.0.0" />
-
-    <!-- Swagger -->
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
-</ItemGroup>
+```json
+{
+  "dependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/platform-express": "^10.0.0",
+    "@nestjs/websockets": "^10.0.0",
+    "@nestjs/platform-socket.io": "^10.0.0",
+    "@nestjs/jwt": "^10.0.0",
+    "@nestjs/passport": "^10.0.0",
+    "@nestjs/swagger": "^7.0.0",
+    "@nestjs/terminus": "^10.0.0",
+    "@nestjs/config": "^3.0.0",
+    "@nestjs/throttler": "^5.0.0",
+    "@nestjs-modules/mailer": "^1.9.0",
+    "@prisma/client": "^5.0.0",
+    "amqplib": "^0.10.0",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.0",
+    "class-validator": "^0.14.0",
+    "class-transformer": "^0.5.0",
+    "nest-winston": "^1.9.0",
+    "winston": "^3.11.0",
+    "handlebars": "^4.7.0",
+    "nodemailer": "^6.9.0",
+    "rxjs": "^7.8.0",
+    "reflect-metadata": "^0.2.0",
+    "@socket.io/redis-adapter": "^8.2.0",
+    "redis": "^4.6.0"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "^10.0.0",
+    "@nestjs/cli": "^10.0.0",
+    "@types/amqplib": "^0.10.0",
+    "@types/nodemailer": "^6.4.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "prisma": "^5.0.0",
+    "typescript": "^5.0.0"
+  }
+}
 ```
 
 ---
 
 ## 4. Project Structure
 
-### 4.1 Solution Layout
+### 4.1 Module Layout
 
 ```
 notification/
 ├── src/
-│   └── NotificationService/
-│       ├── NotificationService.csproj
-│       │
-│       ├── Program.cs                      # Entry point
-│       │
-│       ├── Controllers/                    # API Endpoints
-│       │   ├── NotificationsController.cs  # [Authorize]
-│       │   └── HealthController.cs
-│       │
-│       ├── Hubs/                           # SignalR Real-time
-│       │   └── NotificationHub.cs          # [Authorize]
-│       │
-│       ├── Models/                         # Domain Models
-│       │   ├── Notification.cs
-│       │   ├── NotificationType.cs
-│       │   ├── NotificationStatus.cs
-│       │   └── EmailMessage.cs
-│       │
-│       ├── DTOs/                           # Data Transfer Objects
-│       │   ├── SendNotificationRequest.cs
-│       │   ├── NotificationResponse.cs
-│       │   └── Events/
-│       │       ├── ApplicationCreatedEvent.cs
-│       │       ├── CvParsedEvent.cs
-│       │       ├── CvFailedEvent.cs
-│       │       └── NotificationSendEvent.cs
-│       │
-│       ├── Services/                       # Business Logic
-│       │   ├── Interfaces/
-│       │   │   ├── INotificationService.cs
-│       │   │   ├── IEmailService.cs
-│       │   │   └── IRealtimeService.cs
-│       │   ├── NotificationService.cs
-│       │   ├── EmailService.cs
-│       │   └── RealtimeService.cs
-│       │
-│       ├── Infrastructure/                 # External Integrations
-│       │   ├── Auth/
-│       │   │   └── JwtConfiguration.cs
-│       │   ├── Email/
-│       │   │   ├── SmtpEmailSender.cs
-│       │   │   └── EmailTemplates/
-│       │   │       ├── ApplicationConfirmation.html
-│       │   │       ├── InterviewInvitation.html
-│       │   │       └── ApplicationResult.html
-│       │   ├── Messaging/
-│       │   │   ├── RabbitMQConnection.cs
-│       │   │   └── RabbitMQConsumer.cs
-│       │   └── Persistence/
-│       │       ├── AppDbContext.cs
-│       │       └── NotificationRepository.cs
-│       │
-│       ├── Workers/                        # Background Services
-│       │   ├── RabbitMQConsumerWorker.cs
-│       │   └── EmailRetryWorker.cs
-│       │
-│       ├── Configuration/                  # Config Classes
-│       │   ├── SmtpSettings.cs
-│       │   ├── RabbitMQSettings.cs
-│       │   ├── JwtSettings.cs
-│       │   └── SignalRSettings.cs
-│       │
-│       └── appsettings.json
+│   ├── main.ts                           # Entry point
+│   ├── app.module.ts                     # Root module
+│   │
+│   ├── notification/                     # Notification Module
+│   │   ├── notification.module.ts
+│   │   ├── notification.controller.ts    # REST API endpoints
+│   │   ├── notification.service.ts       # Business logic
+│   │   ├── notification.gateway.ts       # Socket.IO WebSocket Gateway
+│   │   ├── dto/
+│   │   │   ├── send-notification.dto.ts
+│   │   │   ├── notification-response.dto.ts
+│   │   │   └── query-notification.dto.ts
+│   │   └── entities/
+│   │       └── notification.entity.ts
+│   │
+│   ├── email/                            # Email Module
+│   │   ├── email.module.ts
+│   │   ├── email.service.ts              # Nodemailer integration
+│   │   └── templates/                    # Handlebars email templates
+│   │       ├── application-confirmation.hbs
+│   │       ├── interview-invitation.hbs
+│   │       ├── new-application-hr.hbs
+│   │       └── application-result.hbs
+│   │
+│   ├── rabbitmq/                         # RabbitMQ Module
+│   │   ├── rabbitmq.module.ts
+│   │   ├── rabbitmq.service.ts           # Connection management
+│   │   ├── notification.consumer.ts      # Event consumer
+│   │   └── events/
+│   │       ├── application-created.event.ts
+│   │       ├── cv-parsed.event.ts
+│   │       ├── cv-failed.event.ts
+│   │       └── notification-send.event.ts
+│   │
+│   ├── auth/                             # Auth Module
+│   │   ├── auth.module.ts
+│   │   ├── jwt.strategy.ts               # Passport JWT strategy
+│   │   ├── jwt-auth.guard.ts
+│   │   └── ws-jwt.guard.ts               # WebSocket auth guard
+│   │
+│   ├── health/                           # Health Module
+│   │   ├── health.module.ts
+│   │   └── health.controller.ts
+│   │
+│   ├── prisma/                           # Prisma Module
+│   │   ├── prisma.module.ts
+│   │   └── prisma.service.ts
+│   │
+│   ├── config/                           # Configuration
+│   │   ├── app.config.ts
+│   │   ├── smtp.config.ts
+│   │   ├── rabbitmq.config.ts
+│   │   ├── jwt.config.ts
+│   │   └── validation.schema.ts          # Joi/Zod env validation
+│   │
+│   └── common/                           # Shared utilities
+│       ├── decorators/
+│       │   └── current-user.decorator.ts
+│       ├── filters/
+│       │   └── all-exceptions.filter.ts
+│       └── utils/
+│           └── pii-masker.ts             # PII masking for logs
 │
-├── tests/
-│   └── NotificationService.Tests/
-│       ├── NotificationService.Tests.csproj
-│       ├── Unit/
-│       │   ├── EmailServiceTests.cs
-│       │   ├── NotificationServiceTests.cs
-│       │   └── RealtimeServiceTests.cs
-│       └── Integration/
-│           ├── RabbitMQConsumerTests.cs
-│           └── SmtpEmailSenderTests.cs
+├── prisma/
+│   └── schema.prisma                     # Database schema
+│
+├── test/
+│   ├── unit/
+│   │   ├── email.service.spec.ts
+│   │   ├── notification.service.spec.ts
+│   │   └── notification.gateway.spec.ts
+│   └── integration/
+│       ├── rabbitmq.consumer.spec.ts
+│       └── email.integration.spec.ts
 │
 ├── Dockerfile
-├── IMPLEMENTATION-PHASES.md               # Task tracking
-└── NotificationService.sln
+├── IMPLEMENTATION-PHASES.md              # Task tracking
+├── package.json
+├── tsconfig.json
+├── tsconfig.build.json
+├── nest-cli.json
+├── .env.example
+└── README.md
 ```
 
 ### 4.2 File Descriptions
 
 | File/Folder | Purpose |
 |-------------|---------|
-| `Program.cs` | Entry point, DI configuration, middleware setup |
-| `Controllers/` | HTTP API endpoints (REST) với `[Authorize]` |
-| `Hubs/` | SignalR WebSocket endpoints với `[Authorize]` |
-| `Models/` | Domain entities (EF Core) |
-| `DTOs/` | Request/Response objects, Event contracts |
-| `Services/` | Business logic interfaces & implementations |
-| `Infrastructure/` | External service integrations (SMTP, RabbitMQ, DB) |
-| `Workers/` | Background hosted services |
-| `Configuration/` | Strongly-typed configuration classes |
+| `main.ts` | Entry point, global pipes/filters, Socket.IO adapter setup |
+| `app.module.ts` | Root module, imports all feature modules |
+| `notification/` | Notification CRUD, REST API controller, Socket.IO gateway |
+| `email/` | Email sending with Nodemailer + Handlebars templates |
+| `rabbitmq/` | RabbitMQ connection, consumers, event DTOs |
+| `auth/` | JWT Passport strategy, Guards cho REST và WebSocket |
+| `health/` | Health checks via `@nestjs/terminus` |
+| `prisma/` | Prisma ORM service + schema |
+| `config/` | Typed configuration with `@nestjs/config` |
+| `common/` | Shared decorators, filters, utilities |
 
 ---
 
@@ -406,87 +437,115 @@ notification/
 
 Service sử dụng JWT Bearer token từ API Gateway:
 
-```csharp
-// Program.cs
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
-            ValidAudience = builder.Configuration["JwtSettings:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]!))
-        };
+```typescript
+// auth/jwt.strategy.ts
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ConfigService } from '@nestjs/config';
 
-        // SignalR JWT from query string
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
-                {
-                    context.Token = accessToken;
-                }
-                return Task.CompletedTask;
-            }
-        };
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy) {
+  constructor(configService: ConfigService) {
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      secretOrKey: configService.get<string>('JWT_SECRET'),
+      issuer: configService.get<string>('JWT_ISSUER'),
+      audience: configService.get<string>('JWT_AUDIENCE'),
     });
+  }
+
+  async validate(payload: JwtPayload) {
+    return {
+      userId: payload.sub,
+      email: payload.email,
+      role: payload.role,
+    };
+  }
+}
 ```
 
 ### 5.2 Authorization
 
 **Controllers:**
-```csharp
-[ApiController]
-[Route("api/[controller]")]
-[Authorize]  // Yêu cầu JWT token
-public class NotificationsController : ControllerBase
-{
-    [HttpGet("{userId}")]
-    public async Task<IActionResult> GetByUserId(string userId)
-    {
-        // Chỉ cho phép user xem notification của chính mình
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (currentUserId != userId)
-            return Forbid();
+```typescript
+import { Controller, Get, Param, UseGuards, ForbiddenException } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-        // ...
+@Controller('api/notifications')
+@UseGuards(JwtAuthGuard)
+export class NotificationController {
+  @Get(':userId')
+  async getByUserId(
+    @Param('userId') userId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    // Chỉ cho phép user xem notification của chính mình
+    if (user.userId !== userId) {
+      throw new ForbiddenException();
     }
+    // ...
+  }
 }
 ```
 
-**SignalR Hub:**
-```csharp
-[Authorize]
-public class NotificationHub : Hub
-{
-    public async Task JoinUserRoom()
-    {
-        // Lấy userId từ JWT claims, KHÔNG từ client input
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userId))
-            throw new HubException("User not authenticated");
+**Socket.IO Gateway:**
+```typescript
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  SubscribeMessage,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+} from '@nestjs/websockets';
+import { UseGuards } from '@nestjs/common';
+import { Server, Socket } from 'socket.io';
+import { WsJwtGuard } from '../auth/ws-jwt.guard';
 
-        await Groups.AddToGroupAsync(Context.ConnectionId, $"user_{userId}");
+@WebSocketGateway({
+  namespace: '/notifications',
+  cors: { origin: process.env.CORS_ORIGINS?.split(','), credentials: true },
+})
+export class NotificationGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  @WebSocketServer()
+  server: Server;
+
+  async handleConnection(client: Socket) {
+    try {
+      const token = client.handshake.auth?.token || client.handshake.headers?.authorization;
+      const user = await this.authService.verifyToken(token);
+      client.data.user = user;
+      await client.join(`user_${user.userId}`);
+      this.logger.log(`Client connected: ${client.id}, User: ${this.maskUserId(user.userId)}`);
+    } catch {
+      client.disconnect();
     }
+  }
+
+  handleDisconnect(client: Socket) {
+    this.logger.log(`Client disconnected: ${client.id}`);
+  }
+
+  @SubscribeMessage('joinUserRoom')
+  @UseGuards(WsJwtGuard)
+  async handleJoinRoom(client: Socket) {
+    const userId = client.data.user?.userId;
+    if (!userId) throw new Error('User not authenticated');
+    await client.join(`user_${userId}`);
+  }
 }
 ```
 
 ### 5.3 Security Checklist
 
 - [ ] JWT validation với issuer, audience, expiry
-- [ ] SignalR Hub yêu cầu authentication
+- [ ] Socket.IO Gateway yêu cầu authentication
 - [ ] User chỉ access notification của chính mình
 - [ ] CORS chỉ allow specific origins
 - [ ] Rate limiting trên endpoints
-- [ ] Input validation cho tất cả DTOs
+- [ ] Input validation cho tất cả DTOs (class-validator)
 - [ ] PII masking trong logs
 - [ ] Secrets từ environment variables (không hardcode)
 
@@ -494,21 +553,32 @@ public class NotificationHub : Hub
 
 **KHÔNG BAO GIỜ** commit secrets vào git:
 
-```csharp
-// Program.cs - Startup validation
-var smtpSettings = builder.Configuration.GetSection("SmtpSettings").Get<SmtpSettings>();
-if (string.IsNullOrEmpty(smtpSettings?.Password))
-{
-    throw new InvalidOperationException(
-        "SMTP credentials not configured. Set SmtpSettings__Password environment variable.");
-}
+```typescript
+// config/validation.schema.ts
+import * as Joi from 'joi';
 
-var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
-if (string.IsNullOrEmpty(jwtSettings?.SecretKey))
-{
-    throw new InvalidOperationException(
-        "JWT secret not configured. Set JwtSettings__SecretKey environment variable.");
-}
+export const validationSchema = Joi.object({
+  // Required secrets
+  JWT_SECRET: Joi.string().min(32).required(),
+  SMTP_PASSWORD: Joi.string().required(),
+  RABBITMQ_URL: Joi.string().uri().required(),
+  DATABASE_URL: Joi.string().required(),
+
+  // Optional with defaults
+  PORT: Joi.number().default(5000),
+  NODE_ENV: Joi.string().valid('development', 'production', 'test').default('development'),
+});
+
+// app.module.ts
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validationSchema,
+    }),
+  ],
+})
+export class AppModule {}
 ```
 
 ---
@@ -578,31 +648,34 @@ if (string.IsNullOrEmpty(jwtSettings?.SecretKey))
 }
 ```
 
-### 6.3 SignalR Hub Methods
+### 6.3 Socket.IO Gateway Events
 
-| Direction | Method | Description |
-|-----------|--------|-------------|
-| Client → Server | `JoinUserRoom()` | Subscribe to authenticated user's notifications |
-| Client → Server | `LeaveUserRoom()` | Unsubscribe |
-| Server → Client | `ReceiveNotification(notification)` | Push notification to client |
+| Direction | Event | Description |
+|-----------|-------|-------------|
+| Client → Server | `joinUserRoom` | Subscribe to authenticated user's notifications |
+| Client → Server | `leaveUserRoom` | Unsubscribe |
+| Server → Client | `receiveNotification` | Push notification to client |
 
 **Client Connection (Next.js):**
 ```typescript
-import * as signalR from "@microsoft/signalr";
+import { io } from 'socket.io-client';
 
-const connection = new signalR.HubConnectionBuilder()
-    .withUrl("https://notification-service.example.com/hubs/notifications", {
-        accessTokenFactory: () => getJwtToken(), // JWT từ auth context
-    })
-    .withAutomaticReconnect()
-    .build();
-
-connection.on("ReceiveNotification", (notification) => {
-    toast.info(notification.message);
+const socket = io('https://notification-service.example.com/notifications', {
+  auth: {
+    token: getJwtToken(), // JWT từ auth context
+  },
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
 });
 
-await connection.start();
-await connection.invoke("JoinUserRoom"); // userId lấy từ JWT
+socket.on('receiveNotification', (notification) => {
+  toast.info(notification.message);
+});
+
+socket.on('connect', () => {
+  socket.emit('joinUserRoom'); // userId lấy từ JWT server-side
+});
 ```
 
 ---
@@ -720,681 +793,506 @@ await connection.invoke("JoinUserRoom"); // userId lấy từ JWT
 
 ## 8. Code Examples
 
-### 8.1 Program.cs (Entry Point)
+### 8.1 main.ts (Entry Point)
 
-```csharp
-using System.Text;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using NotificationService.Configuration;
-using NotificationService.Hubs;
-using NotificationService.Infrastructure.Email;
-using NotificationService.Infrastructure.Persistence;
-using NotificationService.Services;
-using NotificationService.Services.Interfaces;
-using NotificationService.Workers;
-using Serilog;
+```typescript
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { WinstonModule } from 'nest-winston';
+import * as winston from 'winston';
+import { AppModule } from './app.module';
+import { RedisIoAdapter } from './common/adapters/redis-io.adapter';
 
-var builder = WebApplication.CreateBuilder(args);
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule, {
+    logger: WinstonModule.createLogger({
+      transports: [
+        new winston.transports.Console({
+          format: winston.format.combine(
+            winston.format.timestamp(),
+            winston.format.colorize(),
+            winston.format.printf(({ timestamp, level, message, ...meta }) => {
+              return `[${timestamp}] ${level}: ${message} ${Object.keys(meta).length ? JSON.stringify(meta) : ''}`;
+            }),
+          ),
+        }),
+      ],
+    }),
+  });
 
-// ==================== CONFIGURATION ====================
+  const configService = app.get(ConfigService);
 
-// Serilog
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
-    .CreateLogger();
-builder.Host.UseSerilog();
+  // ==================== VALIDATION ====================
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
 
-// Strongly-typed configuration
-builder.Services.Configure<SmtpSettings>(
-    builder.Configuration.GetSection("SmtpSettings"));
-builder.Services.Configure<RabbitMQSettings>(
-    builder.Configuration.GetSection("RabbitMQSettings"));
-builder.Services.Configure<JwtSettings>(
-    builder.Configuration.GetSection("JwtSettings"));
+  // ==================== CORS ====================
+  const allowedOrigins = configService.get<string>('CORS_ORIGINS')?.split(',') || ['http://localhost:3000'];
+  app.enableCors({
+    origin: allowedOrigins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  });
 
-// ==================== STARTUP VALIDATION ====================
+  // ==================== SOCKET.IO ADAPTER ====================
+  if (configService.get('NODE_ENV') === 'production') {
+    const redisIoAdapter = new RedisIoAdapter(app);
+    await redisIoAdapter.connectToRedis();
+    app.useWebSocketAdapter(redisIoAdapter);
+  }
 
-var smtpSettings = builder.Configuration.GetSection("SmtpSettings").Get<SmtpSettings>();
-if (string.IsNullOrEmpty(smtpSettings?.Password))
-{
-    throw new InvalidOperationException("SMTP credentials not configured");
+  // ==================== SWAGGER ====================
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Notification Service')
+    .setDescription('TalentFlow AI Notification Service API')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('swagger', app, document);
+
+  // ==================== START ====================
+  const port = configService.get<number>('PORT', 5000);
+  await app.listen(port);
+  Logger.log(`🚀 Notification Service running on port ${port}`, 'Bootstrap');
 }
-
-var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
-if (string.IsNullOrEmpty(jwtSettings?.SecretKey))
-{
-    throw new InvalidOperationException("JWT secret not configured");
-}
-
-// ==================== AUTHENTICATION ====================
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSettings.Issuer,
-            ValidAudience = jwtSettings.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSettings.SecretKey))
-        };
-
-        // SignalR JWT from query string
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
-                {
-                    context.Token = accessToken;
-                }
-                return Task.CompletedTask;
-            }
-        };
-    });
-
-builder.Services.AddAuthorization();
-
-// ==================== DATABASE ====================
-
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-// ==================== SERVICES (DI) ====================
-
-builder.Services.AddScoped<IEmailService, SmtpEmailSender>();
-builder.Services.AddScoped<INotificationService, NotificationService.Services.NotificationService>();
-builder.Services.AddScoped<IRealtimeService, RealtimeService>();
-
-// ==================== BACKGROUND WORKERS ====================
-
-builder.Services.AddHostedService<RabbitMQConsumerWorker>();
-builder.Services.AddHostedService<EmailRetryWorker>();
-
-// ==================== SIGNALR ====================
-
-// Basic SignalR (single instance)
-builder.Services.AddSignalR();
-
-// For horizontal scaling, use Redis backplane:
-// builder.Services.AddSignalR()
-//     .AddStackExchangeRedis(builder.Configuration["Redis:ConnectionString"]!,
-//         options =>
-//         {
-//             options.Configuration.ChannelPrefix = "NotificationService";
-//         });
-
-// ==================== CONTROLLERS + SWAGGER ====================
-
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-// ==================== HEALTH CHECKS ====================
-
-builder.Services.AddHealthChecks()
-    .AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection")!)
-    .AddRabbitMQ(builder.Configuration["RabbitMQSettings:ConnectionString"]!);
-
-// ==================== CORS ====================
-
-var allowedOrigins = builder.Configuration
-    .GetSection("SignalRSettings:AllowedOrigins")
-    .Get<string[]>() ?? ["http://localhost:3000"];
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend", policy =>
-    {
-        policy.WithOrigins(allowedOrigins)
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
-    });
-});
-
-// ==================== RATE LIMITING ====================
-
-builder.Services.AddRateLimiter(options =>
-{
-    options.AddFixedWindowLimiter("notification", opt =>
-    {
-        opt.PermitLimit = 100;
-        opt.Window = TimeSpan.FromMinutes(1);
-    });
-});
-
-var app = builder.Build();
-
-// ==================== MIDDLEWARE PIPELINE ====================
-
-app.UseSerilogRequestLogging();
-app.UseSwagger();
-app.UseSwaggerUI();
-app.UseCors("AllowFrontend");
-app.UseRateLimiter();
-app.UseRouting();
-app.UseAuthentication();
-app.UseAuthorization();
-
-// ==================== ENDPOINTS ====================
-
-app.MapControllers();
-app.MapHub<NotificationHub>("/hubs/notifications");
-app.MapHealthChecks("/health");
-
-app.Run();
+bootstrap();
 ```
 
-### 8.2 NotificationHub (Authenticated)
+### 8.2 app.module.ts (Root Module)
 
-```csharp
-using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.SignalR;
+```typescript
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { NotificationModule } from './notification/notification.module';
+import { EmailModule } from './email/email.module';
+import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
+import { AuthModule } from './auth/auth.module';
+import { HealthModule } from './health/health.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { validationSchema } from './config/validation.schema';
 
-namespace NotificationService.Hubs;
+@Module({
+  imports: [
+    // Configuration
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validationSchema,
+    }),
 
-[Authorize]
-public class NotificationHub : Hub
-{
-    private readonly ILogger<NotificationHub> _logger;
+    // Rate Limiting
+    ThrottlerModule.forRoot([{
+      ttl: 60000, // 1 minute
+      limit: 100,
+    }]),
 
-    public NotificationHub(ILogger<NotificationHub> logger)
-    {
-        _logger = logger;
+    // Feature Modules
+    PrismaModule,
+    AuthModule,
+    NotificationModule,
+    EmailModule,
+    RabbitmqModule,
+    HealthModule,
+  ],
+})
+export class AppModule {}
+```
+
+### 8.3 NotificationGateway (Socket.IO - Authenticated)
+
+```typescript
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  SubscribeMessage,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  ConnectedSocket,
+} from '@nestjs/websockets';
+import { Logger, Injectable } from '@nestjs/common';
+import { Server, Socket } from 'socket.io';
+import { AuthService } from '../auth/auth.service';
+import { maskUserId } from '../common/utils/pii-masker';
+
+@WebSocketGateway({
+  namespace: '/notifications',
+  cors: {
+    origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
+    credentials: true,
+  },
+})
+@Injectable()
+export class NotificationGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  @WebSocketServer()
+  server: Server;
+
+  private readonly logger = new Logger(NotificationGateway.name);
+
+  constructor(private readonly authService: AuthService) {}
+
+  async handleConnection(client: Socket) {
+    try {
+      const token = client.handshake.auth?.token
+        || client.handshake.headers?.authorization?.replace('Bearer ', '');
+
+      if (!token) {
+        client.disconnect();
+        return;
+      }
+
+      const user = await this.authService.verifyToken(token);
+      client.data.user = user;
+      await client.join(`user_${user.userId}`);
+
+      this.logger.log(
+        `Client connected: ${client.id}, User: ${maskUserId(user.userId)}`,
+      );
+    } catch {
+      this.logger.warn(`Unauthorized connection attempt: ${client.id}`);
+      client.disconnect();
     }
+  }
 
-    /// <summary>
-    /// Client joins their own room (userId from JWT, not client input)
-    /// </summary>
-    public async Task JoinUserRoom()
-    {
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userId))
-        {
-            throw new HubException("User not authenticated");
-        }
+  handleDisconnect(client: Socket) {
+    this.logger.log(`Client disconnected: ${client.id}`);
+  }
 
-        await Groups.AddToGroupAsync(Context.ConnectionId, $"user_{userId}");
-        _logger.LogInformation(
-            "Client {ConnectionId} joined room for user {UserId}",
-            Context.ConnectionId, MaskUserId(userId));
+  @SubscribeMessage('joinUserRoom')
+  async handleJoinRoom(@ConnectedSocket() client: Socket) {
+    const userId = client.data.user?.userId;
+    if (!userId) {
+      client.disconnect();
+      return;
     }
+    await client.join(`user_${userId}`);
+  }
 
-    /// <summary>
-    /// Client leaves their room
-    /// </summary>
-    public async Task LeaveUserRoom()
-    {
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userId)) return;
+  @SubscribeMessage('leaveUserRoom')
+  async handleLeaveRoom(@ConnectedSocket() client: Socket) {
+    const userId = client.data.user?.userId;
+    if (!userId) return;
+    await client.leave(`user_${userId}`);
+    this.logger.log(`Client ${client.id} left room for user ${maskUserId(userId)}`);
+  }
 
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user_{userId}");
-        _logger.LogInformation(
-            "Client {ConnectionId} left room for user {UserId}",
-            Context.ConnectionId, MaskUserId(userId));
-    }
+  // Push notification to specific user
+  async sendToUser(userId: string, notification: any) {
+    this.server.to(`user_${userId}`).emit('receiveNotification', notification);
+  }
 
-    public override async Task OnConnectedAsync()
-    {
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        _logger.LogInformation(
-            "Client connected: {ConnectionId}, User: {UserId}",
-            Context.ConnectionId, MaskUserId(userId));
-        await base.OnConnectedAsync();
-    }
-
-    public override async Task OnDisconnectedAsync(Exception? exception)
-    {
-        _logger.LogInformation(
-            "Client disconnected: {ConnectionId}, Exception: {Exception}",
-            Context.ConnectionId, exception?.Message);
-        await base.OnDisconnectedAsync(exception);
-    }
-
-    // Mask PII in logs
-    private static string MaskUserId(string? userId)
-    {
-        if (string.IsNullOrEmpty(userId) || userId.Length < 8)
-            return "***";
-        return $"{userId[..4]}...{userId[^4..]}";
-    }
+  // Push notification to role group
+  async sendToRole(role: string, notification: any) {
+    this.server.to(`role_${role}`).emit('receiveNotification', notification);
+  }
 }
 ```
 
-### 8.3 RabbitMQConsumerWorker
+### 8.4 NotificationConsumer (RabbitMQ)
 
-```csharp
-using System.Text;
-using System.Text.Json;
-using Microsoft.Extensions.Options;
-using NotificationService.Configuration;
-using NotificationService.DTOs.Events;
-using NotificationService.Services.Interfaces;
-using RabbitMQ.Client;
-using RabbitMQ.Client.Events;
+```typescript
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as amqplib from 'amqplib';
+import { NotificationService } from '../notification/notification.service';
+import {
+  ApplicationCreatedEvent,
+  CvParsedEvent,
+  CvFailedEvent,
+  NotificationSendEvent,
+} from './events';
 
-namespace NotificationService.Workers;
+@Injectable()
+export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(NotificationConsumer.name);
+  private connection: amqplib.Connection;
+  private channel: amqplib.Channel;
 
-public class RabbitMQConsumerWorker : BackgroundService
-{
-    private readonly IServiceProvider _serviceProvider;
-    private readonly RabbitMQSettings _settings;
-    private readonly ILogger<RabbitMQConsumerWorker> _logger;
-    private IConnection? _connection;
-    private IModel? _channel;
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
-    public RabbitMQConsumerWorker(
-        IServiceProvider serviceProvider,
-        IOptions<RabbitMQSettings> settings,
-        ILogger<RabbitMQConsumerWorker> logger)
-    {
-        _serviceProvider = serviceProvider;
-        _settings = settings.Value;
-        _logger = logger;
-    }
+  async onModuleInit() {
+    await this.connect();
+  }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        _logger.LogInformation("RabbitMQ Consumer Worker starting...");
+  async onModuleDestroy() {
+    await this.channel?.close();
+    await this.connection?.close();
+  }
 
-        try
-        {
-            var factory = new ConnectionFactory
-            {
-                Uri = new Uri(_settings.ConnectionString),
-                DispatchConsumersAsync = true
-            };
+  private async connect() {
+    try {
+      const url = this.configService.get<string>('RABBITMQ_URL');
+      this.connection = await amqplib.connect(url);
+      this.channel = await this.connection.createChannel();
 
-            _connection = factory.CreateConnection();
-            _channel = _connection.CreateModel();
+      // Declare exchange and queue
+      await this.channel.assertExchange('talentflow.events', 'topic', { durable: true });
+      await this.channel.assertQueue('notification.events', { durable: true });
 
-            // Declare exchange and queue
-            _channel.ExchangeDeclare(
-                exchange: "talentflow.events",
-                type: ExchangeType.Topic,
-                durable: true);
+      // Bind routing keys
+      const routingKeys = [
+        'notification.send',
+        'application.created',
+        'cv.parsed',
+        'cv.failed',
+      ];
 
-            _channel.QueueDeclare(
-                queue: "notification.events",
-                durable: true,
-                exclusive: false,
-                autoDelete: false);
+      for (const key of routingKeys) {
+        await this.channel.bindQueue('notification.events', 'talentflow.events', key);
+      }
 
-            // Bind routing keys
-            var routingKeys = new[]
-            {
-                "notification.send",
-                "application.created",
-                "cv.parsed",
-                "cv.failed"
-            };
+      // Set prefetch
+      await this.channel.prefetch(10);
 
-            foreach (var key in routingKeys)
-            {
-                _channel.QueueBind(
-                    queue: "notification.events",
-                    exchange: "talentflow.events",
-                    routingKey: key);
-            }
+      // Start consuming
+      await this.channel.consume('notification.events', async (msg) => {
+        if (!msg) return;
 
-            // Consumer
-            var consumer = new AsyncEventingBasicConsumer(_channel);
-            consumer.Received += async (_, ea) =>
-            {
-                var body = Encoding.UTF8.GetString(ea.Body.ToArray());
-                var routingKey = ea.RoutingKey;
+        const routingKey = msg.fields.routingKey;
+        const content = msg.content.toString();
 
-                try
-                {
-                    await ProcessMessageAsync(routingKey, body);
-                    _channel.BasicAck(ea.DeliveryTag, multiple: false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error processing message: {RoutingKey}", routingKey);
-                    // Nack with requeue=false to send to DLQ
-                    _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
-                }
-            };
-
-            _channel.BasicConsume(
-                queue: "notification.events",
-                autoAck: false,
-                consumer: consumer);
-
-            _logger.LogInformation("Subscribed to RabbitMQ queue: notification.events");
-
-            // Keep running
-            await Task.Delay(Timeout.Infinite, stoppingToken);
+        try {
+          await this.processMessage(routingKey, content);
+          this.channel.ack(msg);
+        } catch (error) {
+          this.logger.error(`Error processing message: ${routingKey}`, error.stack);
+          // Nack with requeue=false to send to DLQ
+          this.channel.nack(msg, false, false);
         }
-        catch (OperationCanceledException)
-        {
-            _logger.LogInformation("RabbitMQ Consumer Worker stopping...");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error in RabbitMQ Consumer Worker");
-        }
+      });
+
+      this.logger.log('✅ Subscribed to RabbitMQ queue: notification.events');
+    } catch (error) {
+      this.logger.error('Failed to connect to RabbitMQ', error.stack);
+      // Retry connection after delay
+      setTimeout(() => this.connect(), 5000);
     }
+  }
 
-    private async Task ProcessMessageAsync(string routingKey, string message)
-    {
-        using var scope = _serviceProvider.CreateScope();
-        var notificationService = scope.ServiceProvider
-            .GetRequiredService<INotificationService>();
-
-        switch (routingKey)
-        {
-            case "notification.send":
-                var sendEvent = JsonSerializer.Deserialize<NotificationSendEvent>(message);
-                if (sendEvent != null)
-                    await notificationService.SendAsync(sendEvent);
-                break;
-
-            case "application.created":
-                var appEvent = JsonSerializer.Deserialize<ApplicationCreatedEvent>(message);
-                if (appEvent != null)
-                    await notificationService.HandleApplicationCreatedAsync(appEvent);
-                break;
-
-            case "cv.parsed":
-                var parsedEvent = JsonSerializer.Deserialize<CvParsedEvent>(message);
-                if (parsedEvent != null)
-                    await notificationService.HandleCvParsedAsync(parsedEvent);
-                break;
-
-            case "cv.failed":
-                var failedEvent = JsonSerializer.Deserialize<CvFailedEvent>(message);
-                if (failedEvent != null)
-                    await notificationService.HandleCvFailedAsync(failedEvent);
-                break;
-
-            default:
-                _logger.LogWarning("Unknown routing key: {RoutingKey}", routingKey);
-                break;
-        }
+  private async processMessage(routingKey: string, message: string) {
+    switch (routingKey) {
+      case 'notification.send': {
+        const event: NotificationSendEvent = JSON.parse(message);
+        await this.notificationService.send(event);
+        break;
+      }
+      case 'application.created': {
+        const event: ApplicationCreatedEvent = JSON.parse(message);
+        await this.notificationService.handleApplicationCreated(event);
+        break;
+      }
+      case 'cv.parsed': {
+        const event: CvParsedEvent = JSON.parse(message);
+        await this.notificationService.handleCvParsed(event);
+        break;
+      }
+      case 'cv.failed': {
+        const event: CvFailedEvent = JSON.parse(message);
+        await this.notificationService.handleCvFailed(event);
+        break;
+      }
+      default:
+        this.logger.warn(`Unknown routing key: ${routingKey}`);
     }
-
-    public override Task StopAsync(CancellationToken cancellationToken)
-    {
-        _channel?.Close();
-        _connection?.Close();
-        return base.StopAsync(cancellationToken);
-    }
+  }
 }
 ```
 
-### 8.4 SmtpEmailSender (với Retry)
+### 8.5 EmailService (với Retry)
 
-```csharp
-using MailKit.Net.Smtp;
-using MailKit.Security;
-using Microsoft.Extensions.Options;
-using MimeKit;
-using NotificationService.Configuration;
-using NotificationService.Services.Interfaces;
-using Polly;
-using Polly.Retry;
+```typescript
+import { Injectable, Logger } from '@nestjs/common';
+import { MailerService } from '@nestjs-modules/mailer';
+import { ConfigService } from '@nestjs/config';
+import { maskEmail } from '../common/utils/pii-masker';
 
-namespace NotificationService.Infrastructure.Email;
+interface EmailMessage {
+  to: string;
+  subject: string;
+  body: string;
+}
 
-public class SmtpEmailSender : IEmailService
-{
-    private readonly SmtpSettings _settings;
-    private readonly IWebHostEnvironment _env;
-    private readonly ILogger<SmtpEmailSender> _logger;
-    private readonly AsyncRetryPolicy _retryPolicy;
+@Injectable()
+export class EmailService {
+  private readonly logger = new Logger(EmailService.name);
+  private readonly maxRetries = 3;
 
-    public SmtpEmailSender(
-        IOptions<SmtpSettings> settings,
-        IWebHostEnvironment env,
-        ILogger<SmtpEmailSender> logger)
-    {
-        _settings = settings.Value;
-        _env = env;
-        _logger = logger;
+  constructor(
+    private readonly mailerService: MailerService,
+    private readonly configService: ConfigService,
+  ) {}
 
-        // Retry policy: 3 attempts with exponential backoff
-        _retryPolicy = Policy
-            .Handle<Exception>()
-            .WaitAndRetryAsync(
-                retryCount: 3,
-                sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)),
-                onRetry: (exception, timeSpan, retryCount, context) =>
-                {
-                    _logger.LogWarning(
-                        "Retry {RetryCount} for email after {Delay}s due to: {Message}",
-                        retryCount, timeSpan.TotalSeconds, exception.Message);
-                });
+  async send(message: EmailMessage): Promise<boolean> {
+    return this.retry(async () => {
+      await this.mailerService.sendMail({
+        to: message.to,
+        subject: message.subject,
+        html: message.body,
+      });
+
+      this.logger.log(
+        `Email sent successfully to ${maskEmail(message.to)}, Subject: ${message.subject}`,
+      );
+
+      return true;
+    });
+  }
+
+  async sendTemplate(
+    templateId: string,
+    to: string,
+    context: Record<string, string>,
+  ): Promise<boolean> {
+    return this.retry(async () => {
+      await this.mailerService.sendMail({
+        to,
+        subject: this.getSubjectForTemplate(templateId),
+        template: templateId,
+        context,
+      });
+
+      this.logger.log(
+        `Template email sent to ${maskEmail(to)}, Template: ${templateId}`,
+      );
+
+      return true;
+    });
+  }
+
+  private async retry<T>(fn: () => Promise<T>): Promise<T> {
+    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        const delay = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+        this.logger.warn(
+          `Retry ${attempt}/${this.maxRetries} after ${delay / 1000}s due to: ${error.message}`,
+        );
+
+        if (attempt === this.maxRetries) throw error;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
     }
+  }
 
-    public async Task<bool> SendAsync(
-        EmailMessage message,
-        CancellationToken cancellationToken = default)
-    {
-        return await _retryPolicy.ExecuteAsync(async () =>
-        {
-            var email = new MimeMessage();
-            email.From.Add(new MailboxAddress(_settings.FromName, _settings.FromEmail));
-            email.To.Add(MailboxAddress.Parse(message.To));
-            email.Subject = message.Subject;
-
-            var bodyBuilder = new BodyBuilder { HtmlBody = message.Body };
-            email.Body = bodyBuilder.ToMessageBody();
-
-            using var smtp = new SmtpClient();
-
-            await smtp.ConnectAsync(
-                _settings.Host,
-                _settings.Port,
-                SecureSocketOptions.StartTls,
-                cancellationToken);
-
-            await smtp.AuthenticateAsync(
-                _settings.Username,
-                _settings.Password,
-                cancellationToken);
-
-            await smtp.SendAsync(email, cancellationToken);
-            await smtp.DisconnectAsync(true, cancellationToken);
-
-            _logger.LogInformation(
-                "Email sent successfully to {To}, Subject: {Subject}",
-                MaskEmail(message.To),
-                message.Subject);
-
-            return true;
-        });
-    }
-
-    public async Task<bool> SendTemplateAsync(
-        string templateId,
-        string to,
-        Dictionary<string, string> templateData,
-        CancellationToken cancellationToken = default)
-    {
-        // Use IWebHostEnvironment for correct path
-        var templatePath = Path.Combine(
-            _env.ContentRootPath,
-            "Infrastructure", "Email", "EmailTemplates",
-            $"{templateId}.html");
-
-        if (!File.Exists(templatePath))
-        {
-            _logger.LogError("Email template not found: {TemplateId}", templateId);
-            return false;
-        }
-
-        var template = await File.ReadAllTextAsync(templatePath, cancellationToken);
-
-        // Replace placeholders (consider using Scriban for production)
-        foreach (var kvp in templateData)
-        {
-            template = template.Replace($"{{{{{kvp.Key}}}}}",
-                System.Web.HttpUtility.HtmlEncode(kvp.Value)); // XSS protection
-        }
-
-        var message = new EmailMessage
-        {
-            To = to,
-            Subject = GetSubjectForTemplate(templateId),
-            Body = template
-        };
-
-        return await SendAsync(message, cancellationToken);
-    }
-
-    private static string GetSubjectForTemplate(string templateId) => templateId switch
-    {
-        "application_confirmation" => "Application Received - TalentFlow",
-        "interview_invitation" => "Interview Invitation - TalentFlow",
-        "application_result" => "Application Update - TalentFlow",
-        "new_application_hr" => "New Application Received - TalentFlow",
-        "cv_parsed_hr" => "CV Analysis Complete - TalentFlow",
-        "cv_failed_hr" => "CV Processing Failed - TalentFlow",
-        _ => "Notification from TalentFlow"
+  private getSubjectForTemplate(templateId: string): string {
+    const subjects: Record<string, string> = {
+      'application-confirmation': 'Application Received - TalentFlow',
+      'interview-invitation': 'Interview Invitation - TalentFlow',
+      'application-result': 'Application Update - TalentFlow',
+      'new-application-hr': 'New Application Received - TalentFlow',
+      'cv-parsed-hr': 'CV Analysis Complete - TalentFlow',
+      'cv-failed-hr': 'CV Processing Failed - TalentFlow',
     };
-
-    // Mask PII in logs
-    private static string MaskEmail(string email)
-    {
-        var parts = email.Split('@');
-        if (parts.Length != 2) return "***@***";
-        var name = parts[0];
-        var masked = name.Length > 2
-            ? $"{name[0]}***{name[^1]}"
-            : "***";
-        return $"{masked}@{parts[1]}";
-    }
+    return subjects[templateId] || 'Notification from TalentFlow';
+  }
 }
 ```
 
-### 8.5 NotificationsController (Authorized)
+### 8.6 NotificationController (Authorized)
 
-```csharp
-using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
-using NotificationService.DTOs;
-using NotificationService.Services.Interfaces;
+```typescript
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { NotificationService } from './notification.service';
+import { SendNotificationDto } from './dto/send-notification.dto';
+import { QueryNotificationDto } from './dto/query-notification.dto';
 
-namespace NotificationService.Controllers;
+@ApiTags('Notifications')
+@ApiBearerAuth()
+@Controller('api/notifications')
+@UseGuards(JwtAuthGuard)
+@Throttle({ default: { limit: 100, ttl: 60000 } })
+export class NotificationController {
+  constructor(private readonly notificationService: NotificationService) {}
 
-[ApiController]
-[Route("api/[controller]")]
-[Authorize]
-[EnableRateLimiting("notification")]
-public class NotificationsController : ControllerBase
-{
-    private readonly INotificationService _notificationService;
-    private readonly ILogger<NotificationsController> _logger;
-
-    public NotificationsController(
-        INotificationService notificationService,
-        ILogger<NotificationsController> logger)
-    {
-        _notificationService = notificationService;
-        _logger = logger;
+  @Post('send')
+  @ApiOperation({ summary: 'Send a notification (email or push)' })
+  async send(
+    @Body() dto: SendNotificationDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const result = await this.notificationService.send(dto);
+    if (result.success) {
+      return { success: true, data: result };
     }
+    return { success: false, error: result.errorMessage };
+  }
 
-    /// <summary>
-    /// Send a notification (email or push)
-    /// </summary>
-    [HttpPost("send")]
-    public async Task<IActionResult> Send([FromBody] SendNotificationRequest request)
-    {
-        var result = await _notificationService.SendAsync(request);
+  @Get(':userId')
+  @ApiOperation({ summary: 'Get notifications for a user (own only)' })
+  async getByUserId(
+    @Param('userId') userId: string,
+    @Query() query: QueryNotificationDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    if (user.userId !== userId) throw new ForbiddenException();
+    const notifications = await this.notificationService.getByUserId(userId, query.page, query.limit);
+    return { success: true, data: notifications };
+  }
 
-        if (result.Success)
-        {
-            return Ok(new { success = true, data = result });
-        }
+  @Get(':userId/unread-count')
+  @ApiOperation({ summary: 'Get unread notification count' })
+  async getUnreadCount(
+    @Param('userId') userId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    if (user.userId !== userId) throw new ForbiddenException();
+    const count = await this.notificationService.getUnreadCount(userId);
+    return { success: true, data: { count } };
+  }
 
-        return BadRequest(new { success = false, error = result.ErrorMessage });
-    }
+  @Put(':id/read')
+  @ApiOperation({ summary: 'Mark notification as read' })
+  async markAsRead(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const notification = await this.notificationService.getById(id);
+    if (!notification) throw new NotFoundException();
+    if (notification.userId !== user.userId) throw new ForbiddenException();
+    await this.notificationService.markAsRead(id);
+    return { success: true };
+  }
 
-    /// <summary>
-    /// Get notifications for a user (own only)
-    /// </summary>
-    [HttpGet("{userId}")]
-    public async Task<IActionResult> GetByUserId(
-        string userId,
-        [FromQuery] int page = 1,
-        [FromQuery] int limit = 20)
-    {
-        // Authorization: user can only access own notifications
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (currentUserId != userId)
-        {
-            return Forbid();
-        }
-
-        var notifications = await _notificationService.GetByUserIdAsync(userId, page, limit);
-        return Ok(new { success = true, data = notifications });
-    }
-
-    /// <summary>
-    /// Get unread notification count
-    /// </summary>
-    [HttpGet("{userId}/unread-count")]
-    public async Task<IActionResult> GetUnreadCount(string userId)
-    {
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (currentUserId != userId)
-        {
-            return Forbid();
-        }
-
-        var count = await _notificationService.GetUnreadCountAsync(userId);
-        return Ok(new { success = true, data = new { count } });
-    }
-
-    /// <summary>
-    /// Mark notification as read
-    /// </summary>
-    [HttpPut("{id}/read")]
-    public async Task<IActionResult> MarkAsRead(string id)
-    {
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        // Verify ownership before marking as read
-        var notification = await _notificationService.GetByIdAsync(id);
-        if (notification == null)
-            return NotFound();
-        if (notification.UserId != currentUserId)
-            return Forbid();
-
-        await _notificationService.MarkAsReadAsync(id);
-        return Ok(new { success = true });
-    }
-
-    /// <summary>
-    /// Delete a notification
-    /// </summary>
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(string id)
-    {
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        var notification = await _notificationService.GetByIdAsync(id);
-        if (notification == null)
-            return NotFound();
-        if (notification.UserId != currentUserId)
-            return Forbid();
-
-        await _notificationService.DeleteAsync(id);
-        return Ok(new { success = true });
-    }
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a notification' })
+  async delete(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const notification = await this.notificationService.getById(id);
+    if (!notification) throw new NotFoundException();
+    if (notification.userId !== user.userId) throw new ForbiddenException();
+    await this.notificationService.delete(id);
+    return { success: true };
+  }
 }
 ```
 
@@ -1402,82 +1300,65 @@ public class NotificationsController : ControllerBase
 
 ## 9. Configuration
 
-### 9.1 appsettings.json
+### 9.1 .env (Development)
 
-```json
-{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  },
-  "Serilog": {
-    "Using": ["Serilog.Sinks.Console"],
-    "MinimumLevel": {
-      "Default": "Information",
-      "Override": {
-        "Microsoft": "Warning",
-        "System": "Warning"
-      }
-    },
-    "WriteTo": [
-      {
-        "Name": "Console",
-        "Args": {
-          "outputTemplate": "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"
-        }
-      }
-    ]
-  },
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=talentflow_dev;Username=YOUR_DB_USER;Password=YOUR_DB_PASSWORD"
-  },
-  "RabbitMQSettings": {
-    "ConnectionString": "amqp://YOUR_RABBITMQ_USER:YOUR_RABBITMQ_PASSWORD@localhost:5672"
-  },
-  "SmtpSettings": {
-    "Host": "smtp.gmail.com",
-    "Port": 587,
-    "UseSsl": true,
-    "Username": "YOUR_SMTP_USERNAME",
-    "Password": "YOUR_SMTP_APP_PASSWORD",
-    "FromEmail": "noreply@talentflow.ai",
-    "FromName": "TalentFlow AI"
-  },
-  "JwtSettings": {
-    "Issuer": "talentflow-api-gateway",
-    "Audience": "talentflow-services",
-    "SecretKey": "YOUR_JWT_SECRET_KEY_MIN_256_BITS"
-  },
-  "SignalRSettings": {
-    "AllowedOrigins": ["http://localhost:3000"]
-  }
-}
+```bash
+# Application
+NODE_ENV=development
+PORT=5000
+
+# Database
+DATABASE_URL="postgresql://YOUR_DB_USER:YOUR_DB_PASSWORD@localhost:5432/talentflow_dev"
+
+# RabbitMQ
+RABBITMQ_URL="amqp://YOUR_RABBITMQ_USER:YOUR_RABBITMQ_PASSWORD@localhost:5672"
+
+# SMTP (Gmail)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=YOUR_SMTP_USERNAME
+SMTP_PASSWORD=YOUR_SMTP_APP_PASSWORD
+SMTP_FROM_EMAIL=noreply@talentflow.ai
+SMTP_FROM_NAME=TalentFlow AI
+
+# JWT (same key as API Gateway)
+JWT_SECRET=YOUR_JWT_SECRET_KEY_MIN_256_BITS
+JWT_ISSUER=talentflow-api-gateway
+JWT_AUDIENCE=talentflow-services
+
+# CORS
+CORS_ORIGINS=http://localhost:3000
+
+# Redis (for Socket.IO adapter in production)
+REDIS_URL=redis://localhost:6379
 ```
 
 ### 9.2 Environment Variables (Production)
 
 ```bash
 # Database
-ConnectionStrings__DefaultConnection=Host=db.supabase.co;Port=5432;Database=talentflow;Username=postgres;Password=secret
+DATABASE_URL=postgresql://postgres:secret@db.supabase.co:5432/talentflow
 
 # RabbitMQ (CloudAMQP)
-RabbitMQSettings__ConnectionString=amqps://user:pass@rabbit.cloudamqp.com/vhost
+RABBITMQ_URL=amqps://user:pass@rabbit.cloudamqp.com/vhost
 
 # SMTP
-SmtpSettings__Username=prod-email@company.com
-SmtpSettings__Password=prod-app-password
+SMTP_USER=prod-email@company.com
+SMTP_PASSWORD=prod-app-password
 
 # JWT (same key as API Gateway)
-JwtSettings__SecretKey=your-256-bit-secret-key-here
+JWT_SECRET=your-256-bit-secret-key-here
 
-# ASP.NET
-ASPNETCORE_ENVIRONMENT=Production
-ASPNETCORE_URLS=http://+:5000
+# Node.js
+NODE_ENV=production
+PORT=5000
 
 # CORS
-SignalRSettings__AllowedOrigins__0=https://talentflow.example.com
+CORS_ORIGINS=https://talentflow.example.com
+
+# Redis
+REDIS_URL=redis://user:pass@redis.upstash.io:6379
 ```
 
 ---
@@ -1488,32 +1369,35 @@ SignalRSettings__AllowedOrigins__0=https://talentflow.example.com
 
 | Test Class | Coverage Target | Focus |
 |------------|-----------------|-------|
-| `EmailServiceTests` | >= 80% | Template rendering, retry logic |
-| `NotificationServiceTests` | >= 80% | Business logic, event handling |
-| `RealtimeServiceTests` | >= 80% | SignalR integration |
+| `email.service.spec.ts` | >= 80% | Template rendering, retry logic |
+| `notification.service.spec.ts` | >= 80% | Business logic, event handling |
+| `notification.gateway.spec.ts` | >= 80% | Socket.IO integration |
 
 ### 10.2 Integration Tests
 
 | Test Class | Focus |
 |------------|-------|
-| `RabbitMQConsumerTests` | Message consumption with TestContainers |
-| `SmtpEmailSenderTests` | Email sending with MailHog |
-| `NotificationRepositoryTests` | Database operations |
+| `rabbitmq.consumer.spec.ts` | Message consumption with testcontainers |
+| `email.integration.spec.ts` | Email sending with MailHog |
+| `notification.repository.spec.ts` | Database operations with Prisma |
 
 ### 10.3 Test Commands
 
 ```bash
 # Run all tests
-dotnet test
+npm test
 
 # Run with coverage
-dotnet test --collect:"XPlat Code Coverage"
+npm run test:cov
 
-# Run specific test class
-dotnet test --filter "FullyQualifiedName~EmailServiceTests"
+# Run specific test file
+npm test -- --testPathPattern=email.service
 
-# Generate coverage report
-reportgenerator -reports:**/coverage.cobertura.xml -targetdir:coveragereport
+# Run e2e tests
+npm run test:e2e
+
+# Watch mode
+npm run test:watch
 ```
 
 ---
@@ -1527,15 +1411,15 @@ reportgenerator -reports:**/coverage.cobertura.xml -targetdir:coveragereport
 - [ ] Integration tests passing
 - [ ] No critical warnings in build
 - [ ] Code reviewed by team lead
-- [ ] XML documentation for public APIs
+- [ ] Swagger documentation for public APIs
 
 ### 11.2 Security Checklist
 
 - [ ] JWT authentication implemented
-- [ ] SignalR Hub protected with `[Authorize]`
-- [ ] Controllers protected with `[Authorize]`
+- [ ] Socket.IO Gateway protected with auth guard
+- [ ] Controllers protected with `@UseGuards(JwtAuthGuard)`
 - [ ] User can only access own notifications
-- [ ] Rate limiting enabled
+- [ ] Rate limiting enabled (`@nestjs/throttler`)
 - [ ] PII masked in logs
 - [ ] Secrets from environment variables
 
@@ -1549,4 +1433,3 @@ reportgenerator -reports:**/coverage.cobertura.xml -targetdir:coveragereport
 - [ ] JWT secret matches API Gateway
 
 ---
-

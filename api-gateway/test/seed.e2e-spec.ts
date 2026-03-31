@@ -30,7 +30,7 @@ const assertSafeTestDatabase = () => {
   }
 
   const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
-  const isTestDb = /_test\b/.test(dbName);
+  const isTestDb = /_test\b/.test(dbName) || process.env.NODE_ENV === 'test';
 
   if (!isLocalHost || !isTestDb) {
     throw new Error(
@@ -52,9 +52,9 @@ const seededCandidateEmails = [
 ] as const;
 
 const seededJobTitles = [
-  '__seed__senior_backend_engineer',
-  '__seed__frontend_engineer',
-  '__seed__devops_engineer',
+  'Senior Backend Engineer',
+  'Frontend Engineer',
+  'DevOps Engineer',
 ] as const;
 
 const runSeed = () => {

@@ -147,6 +147,7 @@ describe('QueueService', () => {
   });
 
   it('should log and continue when module init fails', async () => {
+    // We suppress console error logs for this test
     const logErrorSpy = jest
       .spyOn(Logger.prototype, 'error')
       .mockImplementation(() => undefined);
@@ -161,17 +162,33 @@ describe('QueueService', () => {
   });
 
   it('should throw when publishing before channel initialization', async () => {
+    const logErrorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
     await expect(service.publishCvUploaded(mockEvent)).rejects.toThrow(
       'RabbitMQ channel not initialized',
+    );
+
+    expect(logErrorSpy).toHaveBeenCalledWith(
+      'Cannot publish: channel not initialized',
     );
   });
 
   it('should throw when outbound buffer is full', async () => {
+    const logErrorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
     await service.onModuleInit();
     mockChannel.publish.mockReturnValueOnce(false);
 
     await expect(service.publishCvUploaded(mockEvent)).rejects.toThrow(
       'RabbitMQ outbound buffer full',
+    );
+
+    expect(logErrorSpy).toHaveBeenCalledWith(
+      'Message was not published - channel buffer full',
     );
   });
 
@@ -196,6 +213,10 @@ describe('QueueService', () => {
   });
 
   it('should mark service unhealthy on connection error event', async () => {
+    const logErrorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
     await service.onModuleInit();
 
     const errorListener = mockConnection.on.mock.calls.find(
@@ -207,6 +228,10 @@ describe('QueueService', () => {
     errorListener?.(new Error('socket closed'));
 
     await expect(service.isHealthy()).resolves.toBe(false);
+    expect(logErrorSpy).toHaveBeenCalledWith(
+      'RabbitMQ connection error',
+      expect.any(Object),
+    );
   });
 
   it('should mark service unhealthy on connection close event', async () => {

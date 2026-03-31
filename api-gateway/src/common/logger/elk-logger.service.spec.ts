@@ -1,10 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { ElkLoggerService } from './elk-logger.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('ElkLoggerService', () => {
   let service: ElkLoggerService;
   let configService: jest.Mocked<ConfigService>;
+
+  const mockClsService = {
+    getId: jest.fn().mockReturnValue('test-correlation-id'),
+  };
 
   beforeEach(async () => {
     const mockConfigService = {
@@ -23,6 +28,7 @@ describe('ElkLoggerService', () => {
       providers: [
         ElkLoggerService,
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: ClsService, useValue: mockClsService },
       ],
     }).compile();
 
@@ -117,6 +123,7 @@ describe('ElkLoggerService', () => {
         providers: [
           ElkLoggerService,
           { provide: ConfigService, useValue: mockConfigWithElk },
+          { provide: ClsService, useValue: mockClsService },
         ],
       }).compile();
 
@@ -146,6 +153,7 @@ describe('ElkLoggerService', () => {
         providers: [
           ElkLoggerService,
           { provide: ConfigService, useValue: mockConfigWithAuth },
+          { provide: ClsService, useValue: mockClsService },
         ],
       }).compile();
 

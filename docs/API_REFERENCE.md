@@ -18,6 +18,8 @@
 - [Jobs](#jobs)
 - [Candidates](#candidates)
 - [Applications](#applications)
+- [Interviews](#interviews)
+- [Analytics](#analytics)
 - [Sequence Diagrams](#sequence-diagrams)
 - [Error Handling](#error-handling)
 - [Rate Limiting](#rate-limiting)
@@ -36,11 +38,11 @@ sequenceDiagram
     participant P as CV Parser<br/>(Spring Boot)
     participant D as Database<br/>(PostgreSQL)
     participant R as Storage<br/>(Cloudflare R2)
-    participant N as Notification<br/>(ASP.NET Core)
+    participant N as Notification<br/>(NestJS)
     participant AI as Claude AI
 
     %% Upload Phase
-    F->>A: POST /api/v1/candidates/upload<br/>(PDF file, jobId)
+    F->>A: POST /api/v1/applications/upload<br/>(PDF file, jobId)
     A->>A: Validate file<br/>(size < 10MB, type = PDF)
     A->>R: Upload to R2<br/>(generate signed URL)
     R-->>A: File URL
@@ -204,6 +206,26 @@ Cookie: refresh_token=...
 {
   "status": 200,
   "message": "Token refreshed successfully",
+  "data": null
+}
+```
+
+---
+
+### POST /auth/logout
+Logout the current user, clearing the `access_token` and `refresh_token` cookies.
+
+**Request:**
+```http
+POST /api/v1/auth/logout
+Cookie: access_token=...
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "message": "Logout successful",
   "data": null
 }
 ```
@@ -375,12 +397,12 @@ Content-Type: application/json
 
 ---
 
-### PATCH /jobs/:id
+### PUT /jobs/:id
 Update job
 
 **Request:**
 ```http
-PATCH /api/v1/jobs/550e8400-e29b-41d4-a716-446655440001
+PUT /api/v1/jobs/550e8400-e29b-41d4-a716-446655440001
 Authorization: Bearer <access_token>
 Content-Type: application/json
 
@@ -425,53 +447,6 @@ Authorization: Bearer <access_token>
 
 ## Candidates
 
-### POST /candidates/upload
-Upload CV and create candidate
-
-**Request:**
-```http
-POST /api/v1/candidates/upload
-Authorization: Bearer <access_token>
-Content-Type: multipart/form-data
-
-------WebKitFormBoundary
-Content-Disposition: form-data; name="file"; filename="john-doe-resume.pdf"
-Content-Type: application/pdf
-
-<binary data>
-------WebKitFormBoundary
-Content-Disposition: form-data; name="email"
-
-john.doe@email.com
-------WebKitFormBoundary
-Content-Disposition: form-data; name="fullName"
-
-John Doe
-------WebKitFormBoundary--
-```
-
-**Response** (201):
-```json
-{
-  "status": 201,
-  "message": "CV uploaded successfully. Processing started.",
-  "data": {
-    "candidate": {
-      "id": "cand-id-1",
-      "email": "john.doe@email.com",
-      "fullName": "John Doe",
-      "resumeUrl": "https://talentflow-cvs.r2.cloudflarestorage.com/resumes/john-doe-resume.pdf"
-    },
-    "processing": {
-      "status": "QUEUED",
-      "message": "CV is being parsed. You will be notified when complete."
-    }
-  }
-}
-```
-
----
-
 ### GET /candidates
 List all candidates
 
@@ -506,9 +481,183 @@ Authorization: Bearer <access_token>
 }
 ```
 
+### GET /candidates/:id
+Get candidate by ID
+
+**Request:**
+```http
+GET /api/v1/candidates/cand-id-1
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": {
+    "id": "cand-id-1",
+    "fullName": "John Doe",
+    "email": "john.doe@email.com",
+    "phone": "+1234567890",
+    "resumeUrl": "https://...",
+    "createdAt": "2026-02-01T09:00:00Z"
+  }
+}
+```
+
+---
+
+### PATCH /candidates/:id
+Update a candidate's information
+
+**Request:**
+```http
+PATCH /api/v1/candidates/cand-id-1
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "fullName": "John Smith"
+}
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": {
+    "id": "cand-id-1",
+    "fullName": "John Smith"
+  }
+}
+```
+
+---
+
+### DELETE /candidates/:id
+Delete a candidate
+
+**Request:**
+```http
+DELETE /api/v1/candidates/cand-id-1
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "message": "Candidate deleted successfully"
+}
+```
+
 ---
 
 ## Applications
+
+### POST /applications/upload
+Upload CV and create candidate application
+
+**Request:**
+```http
+POST /api/v1/applications/upload
+Authorization: Bearer <access_token>
+Content-Type: multipart/form-data
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="john-doe-resume.pdf"
+Content-Type: application/pdf
+
+<binary data>
+------WebKitFormBoundary
+Content-Disposition: form-data; name="jobId"
+
+job-id-1
+------WebKitFormBoundary--
+```
+
+**Response** (201):
+```json
+{
+  "status": 201,
+  "message": "CV uploaded successfully. Processing started.",
+  "data": {
+    "candidate": {
+      "id": "cand-id-1",
+      "email": "john.doe@email.com",
+      "fullName": "John Doe",
+      "resumeUrl": "https://talentflow-cvs.r2.cloudflarestorage.com/resumes/john-doe-resume.pdf"
+    },
+    "processing": {
+      "status": "QUEUED",
+      "message": "CV is being parsed. You will be notified when complete."
+    }
+  }
+}
+```
+
+---
+
+### GET /applications
+List applications
+
+**Request:**
+```http
+GET /api/v1/applications?page=1&limit=20
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": {
+    "applications": [
+      {
+        "id": "app-id-1",
+        "jobId": "job-id-1",
+        "candidateId": "cand-id-1",
+        "stage": "APPLIED",
+        "status": "PENDING"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 150,
+      "totalPages": 8
+    }
+  }
+}
+```
+
+---
+
+### GET /applications/:id
+Get an application by ID
+
+**Request:**
+```http
+GET /api/v1/applications/app-id-1
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": {
+    "id": "app-id-1",
+    "jobId": "job-id-1",
+    "candidateId": "cand-id-1",
+    "stage": "APPLIED",
+    "status": "PENDING",
+    "appliedAt": "2026-02-01T12:00:00Z"
+  }
+}
+```
+
+---
 
 ### POST /applications
 Submit application
@@ -543,12 +692,12 @@ Content-Type: application/json
 
 ---
 
-### PATCH /applications/:id/stage
-Update application stage
+### PUT /applications/:id
+Update application stage or details
 
 **Request:**
 ```http
-PATCH /api/v1/applications/app-id-1/stage
+PUT /api/v1/applications/app-id-1
 Authorization: Bearer <access_token>
 Content-Type: application/json
 
@@ -567,6 +716,354 @@ Content-Type: application/json
     "stage": "INTERVIEW",
     "updatedAt": "2026-02-01T13:00:00Z"
   }
+}
+```
+
+---
+
+### DELETE /applications/:id
+Withdraw or delete an application
+
+**Request:**
+```http
+DELETE /api/v1/applications/app-id-1
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "message": "Application deleted successfully"
+}
+```
+
+---
+
+## Interviews
+
+### GET /interviews
+List interviews
+
+**Request:**
+```http
+GET /api/v1/interviews
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": {
+    "interviews": [],
+    "pagination": { "page": 1, "limit": 20, "total": 0, "totalPages": 0 }
+  }
+}
+```
+
+---
+
+### GET /interviews/:id
+Get interview details
+
+**Request:**
+```http
+GET /api/v1/interviews/int-id-1
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": {
+    "id": "int-id-1",
+    "scheduledAt": "2026-02-05T14:00:00Z",
+    "status": "SCHEDULED"
+  }
+}
+```
+
+---
+
+### POST /interviews
+Schedule an interview
+
+**Request:**
+```http
+POST /api/v1/interviews
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "applicationId": "app-id-1",
+  "scheduledAt": "2026-02-05T14:00:00Z",
+  "duration": 60,
+  "type": "VIDEO"
+}
+```
+
+**Response** (201):
+```json
+{
+  "status": 201,
+  "data": {
+    "id": "int-id-1"
+  }
+}
+```
+
+---
+
+### PATCH /interviews/:id
+Update an interview
+
+**Request:**
+```http
+PATCH /api/v1/interviews/int-id-1
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "status": "COMPLETED"
+}
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": {
+    "id": "int-id-1",
+    "status": "COMPLETED"
+  }
+}
+```
+
+---
+
+### DELETE /interviews/:id
+Cancel an interview
+
+**Request:**
+```http
+DELETE /api/v1/interviews/int-id-1
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "message": "Interview cancelled successfully"
+}
+```
+
+---
+
+## Analytics
+
+### GET /analytics/overview
+Get analytics overview numbers
+
+**Request:**
+```http
+GET /api/v1/analytics/overview
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": {
+    "totalApplications": 150,
+    "activeJobs": 5,
+    "hiredCandidates": 10
+  }
+}
+```
+
+---
+
+### GET /analytics/pipeline
+Get pipeline stage counts
+
+**Request:**
+```http
+GET /api/v1/analytics/pipeline
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": [
+    { "stage": "APPLIED", "count": 50 }
+  ]
+}
+```
+
+---
+
+### GET /analytics/trends
+Get application trends over time
+
+**Request:**
+```http
+GET /api/v1/analytics/trends
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": [
+    { "date": "2026-02-01", "count": 5 }
+  ]
+}
+```
+
+---
+
+### GET /analytics/top-jobs
+Get top performing jobs
+
+**Request:**
+```http
+GET /api/v1/analytics/top-jobs
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": [
+    { "id": "job-1", "title": "Software Engineer", "applicationCount": 20 }
+  ]
+}
+```
+
+---
+
+## Users
+
+### GET /users
+List users
+
+**Request:**
+```http
+GET /api/v1/users
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": {
+    "users": [],
+    "pagination": { "page": 1, "limit": 20, "total": 0, "totalPages": 0 }
+  }
+}
+```
+
+---
+
+### GET /users/:id
+Get user details
+
+**Request:**
+```http
+GET /api/v1/users/user-1
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": {
+    "id": "user-1",
+    "email": "user@example.com"
+  }
+}
+```
+
+---
+
+### PATCH /users/:id
+Update user
+
+**Request:**
+```http
+PATCH /api/v1/users/user-1
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "fullName": "Jane Doe Updated"
+}
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": {
+    "id": "user-1",
+    "fullName": "Jane Doe Updated"
+  }
+}
+```
+
+---
+
+### PATCH /users/:id/role
+Update user role (Admin only)
+
+**Request:**
+```http
+PATCH /api/v1/users/user-1/role
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "role": "ADMIN"
+}
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "data": {
+    "id": "user-1",
+    "role": "ADMIN"
+  }
+}
+```
+
+---
+
+### DELETE /users/:id
+Delete user
+
+**Request:**
+```http
+DELETE /api/v1/users/user-1
+Authorization: Bearer <access_token>
+```
+
+**Response** (200):
+```json
+{
+  "status": 200,
+  "message": "User deleted successfully"
 }
 ```
 

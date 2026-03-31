@@ -61,14 +61,14 @@ graph TB
     %% Backend Services
     subgraph "Railway (US Region)"
         API[⚙️ API Gateway<br/>NestJS:3000<br/>api.talentflow.ai]
-        Parser[🔧 CV Parser<br/>Spring Boot:8080 OR<br/>ASP.NET Core:5000]
-        Notif[📬 Notification<br/>NestJS:3001 OR<br/>ASP.NET Core:5001]
+        Parser[🔧 CV Parser<br/>Spring Boot:8080]
+        Notif[📬 Notification<br/>NestJS:5000]
         Redis[⚡ Redis<br/>:6379<br/>Cache only]
     end
 
     %% Database
     subgraph "Neon (Serverless)"
-        DB[(🗄️ PostgreSQL<br/>Prisma/EF Core)]
+        DB[(🗄️ PostgreSQL<br/>Prisma)]
     end
 
     %% External Services
@@ -137,12 +137,17 @@ graph TB
 └─────────────────────┘
       ↓
 ┌─────────────────────┐
-│  Railway            │ → CV Parser (Spring Boot/ASP.NET)
+│  Railway            │ → CV Parser (Spring Boot)
 │  (Background)       │    - CV Processing
 └─────────────────────┘
       ↓
 ┌─────────────────────┐
-│  Neon PostgreSQL    │ → Database (Prisma/EF Core)
+│  Railway            │ → Notification (NestJS)
+│  (Background)       │    - WebSocket (Socket.IO)
+└─────────────────────┘
+      ↓
+┌─────────────────────┐
+│  Neon PostgreSQL    │ → Database (Prisma)
 │  Serverless         │
 └─────────────────────┘
 
@@ -317,8 +322,8 @@ NODE_ENV=production
 
 **Start Command:**
 ```bash
-# ví dụ Notification (nếu dùng .NET):
-dotnet run
+# Notification (NestJS):
+node dist/main.js
 ```
 
 ### Step 4: Configure Custom Domain
@@ -449,7 +454,7 @@ RabbitMQ exchanges and queues are created by the application on startup:
 
 **Queues:**
 - `cv-processing` (routing key: `cv.uploaded`) → CV Parser (Spring Boot)
-- `cv-notifications` (routing key: `cv.*`) → Notification Service (ASP.NET Core)
+- `cv-notifications` (routing key: `cv.*`) → Notification Service (NestJS)
 - `cv-parsing-dlq` (Dead Letter Queue)
 
 ### Step 5: Monitor Queues
