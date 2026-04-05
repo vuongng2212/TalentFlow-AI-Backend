@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
@@ -25,7 +25,7 @@ describe('UsersController', () => {
     id: '1',
     email: 'test@example.com',
     fullName: 'Test User',
-    role: Role.CANDIDATE,
+    role: Role.INTERVIEWER,
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -34,7 +34,7 @@ describe('UsersController', () => {
   const mockUserPayload = {
     id: '1',
     email: 'test@example.com',
-    role: Role.CANDIDATE,
+    role: Role.INTERVIEWER,
     fullName: 'Test User',
   };
 
@@ -116,8 +116,8 @@ describe('UsersController', () => {
 
   describe('updateRole', () => {
     it('should update user role and return user', async () => {
-      const updateRoleDto: UpdateRoleDto = { role: Role.EMPLOYER };
-      const expectedResult = { ...mockUser, role: Role.EMPLOYER };
+      const updateRoleDto: UpdateRoleDto = { role: Role.RECRUITER };
+      const expectedResult = { ...mockUser, role: Role.RECRUITER };
 
       mockUsersService.updateRole.mockResolvedValue(
         expectedResult as UserResponseDto,
@@ -126,7 +126,7 @@ describe('UsersController', () => {
       const result = await controller.updateRole('1', updateRoleDto);
 
       expect(result).toEqual(expectedResult);
-      expect(service.updateRole).toHaveBeenCalledWith('1', Role.EMPLOYER);
+      expect(service.updateRole).toHaveBeenCalledWith('1', Role.RECRUITER);
     });
   });
 

@@ -21,13 +21,15 @@ export class FileValidationPipe implements PipeTransform {
       throw new BadRequestException('File is required');
     }
 
-    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    const mimetype = file.mimetype;
+    if (!ALLOWED_MIME_TYPES.includes(mimetype)) {
       throw new BadRequestException(
         'Invalid file type. Only PDF and DOCX files are allowed',
       );
     }
 
-    const extension = file.originalname.split('.').pop()?.toLowerCase();
+    const originalname = file.originalname;
+    const extension = originalname.split('.').pop()?.toLowerCase();
     if (!extension || !ALLOWED_EXTENSIONS.includes(extension)) {
       throw new BadRequestException(
         'Invalid file extension. Only .pdf and .docx files are allowed',
@@ -36,7 +38,8 @@ export class FileValidationPipe implements PipeTransform {
 
     this.validateFileSignature(file, extension);
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
+    const fileSize = file.size;
+    if (fileSize > MAX_FILE_SIZE_BYTES) {
       throw new BadRequestException('File size exceeds 10MB limit');
     }
 
@@ -47,19 +50,18 @@ export class FileValidationPipe implements PipeTransform {
     file: Express.Multer.File,
     extension: string,
   ): void {
-    if (!file.buffer || file.buffer.length === 0) {
+    const buffer = file.buffer;
+    if (!buffer || buffer.length === 0) {
       throw new BadRequestException('Unable to validate file content');
     }
 
-    if (extension === 'pdf' && !this.hasSignature(file.buffer, PDF_SIGNATURE)) {
+    if (extension === 'pdf' && !this.hasSignature(buffer, PDF_SIGNATURE)) {
       throw new BadRequestException('Invalid PDF file signature');
     }
 
     if (
       extension === 'docx' &&
-      !ZIP_SIGNATURES.some((signature) =>
-        this.hasSignature(file.buffer, signature),
-      )
+      !ZIP_SIGNATURES.some((signature) => this.hasSignature(buffer, signature))
     ) {
       throw new BadRequestException('Invalid DOCX file signature');
     }

@@ -255,7 +255,8 @@ export class ApplicationsService {
   private async uploadCvOrThrow(
     file: Express.Multer.File,
   ): Promise<{ fileKey: string; uploadUrl: string }> {
-    const fileKey = generateCvFileKey(file.originalname);
+    const originalname = file.originalname;
+    const fileKey = generateCvFileKey(originalname);
 
     try {
       const uploadResult = await this.storageService.upload(
