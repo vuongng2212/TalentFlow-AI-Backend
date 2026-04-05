@@ -41,12 +41,18 @@ public class S3StorageService implements StorageService {
             throw new InvalidStorageKeyException("Invalid object key: " + objectKey);
         }
 
-        HeadObjectResponse head = s3Client.headObject(
-            HeadObjectRequest.builder()
-                .bucket(properties.getBucket())
-                .key(objectKey) 
-                .build()
-        );
+        HeadObjectResponse head;
+        try {
+            head = s3Client.headObject(
+                    HeadObjectRequest.builder()
+                            .bucket(properties.getBucket())
+                            .key(objectKey)
+                            .build()
+            );
+        } catch (NoSuchKeyException e) {
+            throw new StorageObjectNotFoundException("File not found: " + objectKey);
+        }
+
         if (head.contentLength() != null
                 && head.contentLength() > properties.getMaxFileSizeBytes()) {
             log.warn("File too large. key={}, size={}, max={}",
@@ -63,12 +69,9 @@ public class S3StorageService implements StorageService {
                     .key(objectKey)
                     .build())) {
             Files.copy(s3Stream, tempFile, StandardCopyOption.REPLACE_EXISTING);
-        } catch (NoSuchKeyException e) {
-            Files.deleteIfExists(tempFile);
-            throw new StorageObjectNotFoundException("File not found: " + objectKey);
         } catch (IOException e) {
             Files.deleteIfExists(tempFile);
-            throw new StorageReadException("Failed to read file: " + objectKey + "  " + e.getMessage(), e);
+            throw new StorageReadException("Failed to read file: " + objectKey + " " + e.getMessage(), e);
         }
         log.info("Downloaded {} → {}", objectKey, tempFile);
         return tempFile;
