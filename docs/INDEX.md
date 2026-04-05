@@ -67,6 +67,8 @@ Bạn đang **implement feature** và cần reference?
 **API Development:**
 - ➡️ [**API_REFERENCE.md**](./API_REFERENCE.md) - Endpoints, request/response format
 - ➡️ [**DATABASE_SCHEMA.md**](./DATABASE_SCHEMA.md) - Entities, relationships
+- ➡️ [**SMART_ATS_EXPANSION.md**](./SMART_ATS_EXPANSION.md) - Post-MVP Smart ATS expansion guide
+- ➡️ [**SMART_ATS_TASK_BREAKDOWN.md**](./SMART_ATS_TASK_BREAKDOWN.md) - Checklist for Smart ATS expansion execution
 - ➡️ [**SECURITY.md**](./SECURITY.md) - Auth, RBAC, file upload security
 
 **Best Practices:**
@@ -95,9 +97,9 @@ Bạn cần **audit security** của dự án?
 Bạn cần theo dõi **progress** và **timeline**?
 
 ➡️ Đọc: [**TEAM_DECISIONS.md**](./TEAM_DECISIONS.md) (15 phút)
-- 6 quyết định chính thức
+- Các quyết định chính thức
+- Định hướng mở rộng sau MVP cho Smart ATS
 - Roadmap 8 tuần (4 sprints)
-- Sprint planning template
 - Demo schedule (Week 2, 4, 6, 8)
 
 ---

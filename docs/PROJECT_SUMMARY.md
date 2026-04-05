@@ -164,6 +164,25 @@ talentflow-backend/  (Single Git Repo)
 - Tuần 5-6: CV Upload feature
 - Tuần 7-8: Testing & deployment
 
+### 11. 🆕 Post-MVP Expansion Direction: Smart ATS Automation + Subscription
+**Trạng thái:** Định hướng mở rộng sau MVP để chia module cho team mới.
+
+**Phạm vi mở rộng đã thảo luận:**
+- Subscription/package registration cho Smart ATS
+- Payment integration
+- Gmail + n8n automation để thu thập email ứng viên theo subject pattern gắn với JD
+- Tự động tải CV PDF/DOCX vào pipeline phân tích hiện có
+
+**Hướng triển khai:**
+1. Gmail/n8n ingestion vào API Gateway
+2. Subscription + payment domain
+3. Feature gating / quota theo gói
+
+**Lưu ý kiến trúc quan trọng:**
+- Hệ thống enterprise sẽ cần nhiều HR/Recruiter cùng tham gia một board/workspace.
+- Chưa chốt subscription sẽ gắn vào `User` hay thực thể `Organization/Workspace` trong tương lai.
+- Vì vậy billing ownership hiện là quyết định mở, cần được chốt trước khi productionize payment.
+
 📋 **Chi tiết:** Xem [TEAM_DECISIONS.md](./TEAM_DECISIONS.md)
 
 ---

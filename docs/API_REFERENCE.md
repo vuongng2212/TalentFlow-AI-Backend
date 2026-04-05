@@ -20,6 +20,7 @@
 - [Applications](#applications)
 - [Interviews](#interviews)
 - [Analytics](#analytics)
+- [Planned Smart ATS Expansion APIs](#planned-smart-ats-expansion-apis)
 - [Sequence Diagrams](#sequence-diagrams)
 - [Error Handling](#error-handling)
 - [Rate Limiting](#rate-limiting)
@@ -1066,6 +1067,84 @@ Authorization: Bearer <access_token>
   "message": "User deleted successfully"
 }
 ```
+
+---
+
+## Planned Smart ATS Expansion APIs
+
+> Các API dưới đây là **planned endpoints** cho giai đoạn mở rộng sau MVP. Chúng được thêm vào để team mới có thể nắm phạm vi module và chuẩn bị thiết kế/implementation. Đây chưa phải là contract final.
+
+### 1. Ingestion / Automation APIs
+
+#### POST /ingestion/email-cv
+**Mục đích:** Protected endpoint cho n8n đẩy CV từ Gmail vào pipeline ATS hiện tại.
+
+**Expected responsibilities:**
+- xác thực request nguồn automation
+- nhận metadata email + subject tag + attachment
+- resolve subject tag sang `jobId`
+- validate file PDF/DOCX
+- upload file lên storage
+- tạo candidate/application
+- publish `cv.uploaded`
+
+**Auth direction:** API key hoặc signature-based authentication cho system-to-system request.
+
+#### GET /ingestion/rules
+**Mục đích:** Liệt kê các subject-tag mapping rules đang dùng.
+
+#### POST /ingestion/rules
+**Mục đích:** Tạo rule map subject tag như `[Java-Backend]` -> `jobId` hoặc workspace-specific job mapping.
+
+#### PATCH /ingestion/rules/:id
+**Mục đích:** Cập nhật subject mapping rule.
+
+#### DELETE /ingestion/rules/:id
+**Mục đích:** Vô hiệu hóa rule ingest không còn dùng.
+
+#### GET /ingestion/events
+**Mục đích:** Tra cứu lịch sử ingestion, retry, duplicate detection, và lỗi đồng bộ.
+
+### 2. Subscription / Billing APIs
+
+#### GET /subscription/plans
+**Mục đích:** Liệt kê các gói Smart ATS khả dụng.
+
+#### POST /subscription/checkout
+**Mục đích:** Khởi tạo phiên thanh toán cho gói đã chọn.
+
+**Payment gateway direction:** Momo là cổng thanh toán ưu tiên hiện tại trong tài liệu.
+
+#### GET /subscription/current
+**Mục đích:** Lấy subscription hiện tại của workspace / organization.
+
+#### POST /subscription/cancel
+**Mục đích:** Hủy gia hạn hoặc chuyển trạng thái subscription theo policy.
+
+#### GET /billing/transactions
+**Mục đích:** Liệt kê lịch sử giao dịch thanh toán.
+
+#### POST /billing/webhooks/momo
+**Mục đích:** Endpoint nhận callback/webhook từ Momo để cập nhật trạng thái thanh toán.
+
+### 3. Workspace / Entitlement APIs
+
+#### POST /workspaces
+**Mục đích:** Tạo workspace/organization cho bài toán enterprise.
+
+#### GET /workspaces/current
+**Mục đích:** Lấy workspace hiện tại và thông tin gói đang dùng.
+
+#### POST /workspaces/:id/members
+**Mục đích:** Mời HR/Recruiter khác tham gia chung board/workspace.
+
+#### GET /entitlements
+**Mục đích:** Trả về danh sách quyền/hạn mức hiện tại theo gói.
+
+#### GET /usage
+**Mục đích:** Theo dõi usage như số CV parsed, số job đang active, số automation rules, số members.
+
+**Documentation note:** Vì team đã định hướng enterprise, billing ownership trong docs sẽ nghiêng về `Workspace/Organization-first`, nhưng contract cuối cùng vẫn là open decision cho đến khi schema production được chốt.
 
 ---
 

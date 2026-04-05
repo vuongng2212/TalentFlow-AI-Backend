@@ -6,6 +6,70 @@
 
 ---
 
+## 🆕 Cập nhật định hướng mở rộng sau MVP (2026-04-05)
+
+### Smart ATS Expansion: Subscription + Payment + Gmail/n8n Ingestion
+**Trạng thái:** Định hướng mở rộng sau MVP để chia task cho thành viên mới trong team.
+
+**Mục tiêu:**
+- Mở rộng Smart ATS thành một gói dịch vụ có thể đăng ký và thanh toán.
+- Tự động hóa luồng tiếp nhận CV từ Gmail thông qua n8n.
+- Tận dụng pipeline ATS hiện có thay vì xây mới luồng phân tích CV.
+
+**Những gì đã thống nhất:**
+- Giữ nguyên pipeline CV hiện tại của API Gateway → Storage → RabbitMQ → CV Parser.
+- n8n sẽ là nguồn input automation, không phải nơi chứa business logic cốt lõi.
+- Triển khai theo đủ 3 phase:
+  1. **Inbound ingestion qua Gmail + n8n**
+  2. **Subscription/package + payment**
+  3. **Entitlement / feature gating theo gói**
+- Đây là hướng mở rộng để team mới có thể nhận module độc lập song song.
+
+**Phân rã module dự kiến để giao việc:**
+- **Automation/Ingestion module**
+  - Endpoint bảo vệ cho n8n gọi vào
+  - Validate metadata + file
+  - Resolve subject tag như `[Java-Backend]`, `[Frontend-ReactJs]` sang job/JD
+  - Upload CV và tạo `Application`, sau đó publish `cv.uploaded`
+- **Billing/Subscription module**
+  - Quản lý gói dịch vụ
+  - Quản lý subscription lifecycle
+  - Payment transaction tracking
+- **Entitlement module**
+  - Kiểm tra quyền theo gói
+  - Hạn mức số JD, số CV parse, automation, và các tính năng Smart ATS nâng cao
+
+**Ràng buộc kiến trúc hiện tại:**
+- Hệ thống **chưa có** tenant/workspace/organization model.
+- Vì đây là hệ thống enterprise, cần hỗ trợ trường hợp một người mua gói Business rồi mời thêm HR/Recruiter cùng làm việc trên chung một board/workspace.
+- Vì vậy **chưa chốt** việc gắn subscription vào `User` hay vào một thực thể tổ chức/workspace.
+- Trong tài liệu và implementation tiếp theo, xem đây là **open architecture decision** cần chốt trước khi làm billing production-ready.
+
+**Khuyến nghị kỹ thuật đã thống nhất:**
+- Không cho n8n ghi DB trực tiếp.
+- Không cho n8n publish RabbitMQ trực tiếp ở phase đầu.
+- API Gateway vẫn là cổng vào chính để giữ validation, security và business rules tập trung.
+- Cần có idempotency / duplicate protection cho retry từ Gmail/n8n.
+- Cần cơ chế xác thực inbound request từ n8n bằng API key hoặc chữ ký.
+
+**Các file/hướng kỹ thuật cần tái sử dụng:**
+- `api-gateway/src/applications/applications.service.ts`
+- `api-gateway/src/storage/storage.service.ts`
+- `api-gateway/src/queue/queue.service.ts`
+- `api-gateway/src/queue/constants/queue.constants.ts`
+- `api-gateway/src/jobs/jobs.service.ts`
+- `api-gateway/prisma/schema.prisma`
+
+**Action items mới cho team:**
+- [ ] Thiết kế module ingestion cho Gmail/n8n trên API Gateway
+- [ ] Định nghĩa subject-tag/job mapping strategy
+- [ ] Thiết kế schema cho billing/subscription/payment
+- [ ] Đánh giá mô hình enterprise board/workspace trước khi chốt billing owner
+- [ ] Thiết kế entitlement rules theo từng gói dịch vụ
+- [ ] Tạo test plan cho ingestion retry, duplicate prevention và subscription gating
+
+---
+
 ## ✅ Các Quyết định Chính Thức
 
 ### 1. Message Queue: RabbitMQ (AMQP) ✅

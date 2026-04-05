@@ -14,6 +14,7 @@
 - [Entity Relationship Diagram](#entity-relationship-diagram)
 - [Prisma Schema](#prisma-schema)
 - [Entities](#entities)
+- [Planned Smart ATS Expansion Models](#planned-smart-ats-expansion-models)
 - [Indexes & Performance](#indexes--performance)
 - [Migration Strategy](#migration-strategy)
 
@@ -542,6 +543,63 @@ await prisma.candidateNote.create({
   },
 });
 ```
+
+---
+
+## Planned Smart ATS Expansion Models
+
+> Phần này mô tả các model dự kiến cho giai đoạn mở rộng sau MVP. Đây là design direction để team mới onboarding và tách module, chưa phải schema final.
+
+### 1. Workspace / Organization Direction
+
+Do hệ thống được định hướng cho enterprise use case, tài liệu hiện tại nghiêng về mô hình:
+- một `Workspace` hoặc `Organization` sở hữu board dùng chung
+- nhiều `User` có thể tham gia cùng workspace
+- subscription và entitlement được gắn với workspace thay vì user đơn lẻ
+
+**Planned models:**
+- `Workspace`
+- `WorkspaceMember`
+- `WorkspaceInvite` (optional)
+
+**Use cases:**
+- một người mua gói Business
+- thêm nhiều HR/Recruiter vào cùng workspace
+- dùng chung jobs, candidate board, automation, quota
+
+### 2. Billing / Subscription Direction
+
+**Planned models:**
+- `SubscriptionPlan`
+- `Subscription`
+- `PaymentTransaction`
+
+**Suggested responsibilities:**
+- `SubscriptionPlan`: định nghĩa gói Pro / Business / Enterprise, feature flags, usage limits
+- `Subscription`: gói hiện tại của workspace, thời gian hiệu lực, trạng thái active/past_due/cancelled
+- `PaymentTransaction`: lưu payment attempts, callback status, reconciliation data
+
+**Payment gateway direction:** Momo là payment gateway ưu tiên hiện tại trong tài liệu.
+
+### 3. Ingestion / Automation Direction
+
+**Planned models:**
+- `JobIngestionRule`
+- `IngestionEvent`
+
+**Suggested responsibilities:**
+- `JobIngestionRule`: map subject tag hoặc mailbox pattern tới `jobId` trong workspace
+- `IngestionEvent`: lưu audit trail của mỗi lần n8n/Gmail đẩy CV vào hệ thống, phục vụ duplicate detection, retry debugging và operational monitoring
+
+### 4. Open Design Decision
+
+Hiện tại chưa chốt production schema cuối cùng cho billing ownership.
+
+Tuy nhiên docs này ghi nhận hướng ưu tiên là:
+- `Workspace/Organization-first`
+- không thiết kế billing lâu dài dựa hoàn toàn trên `User`
+
+Điều này giúp schema tương thích hơn với bài toán enterprise nhiều recruiter cùng dùng chung board.
 
 ---
 
