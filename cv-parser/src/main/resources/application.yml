@@ -161,3 +161,14 @@ app:
       min-inflate-ratio: ${DOCX_MIN_INFLATE_RATIO:0.01}
       max-entry-size: ${DOCX_MAX_ENTRY_SIZE:20971520}
       max-text-size: ${DOCX_MAX_TEXT_SIZE:2000000}
+    pdf:
+      max-pages: ${PDF_MAX_PAGES:10}
+      max-text-size: ${PDF_MAX_TEXT_SIZE:2000000}
+
+  ocr:
+    tessdata-path: ${TESSDATA_PATH:/usr/share/tesseract-ocr/4.00/tessdata}
+    language: ${OCR_LANGUAGE:vie+eng}
+    dpi: ${OCR_DPI:300}
+    max-pages: ${OCR_MAX_PAGES:20}
+    min-text-length-threshold: ${OCR_MIN_TEXT_THRESHOLD:100}
+
