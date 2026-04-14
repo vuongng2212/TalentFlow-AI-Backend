@@ -21,13 +21,17 @@ Tài liệu này tổng hợp định hướng mở rộng Smart ATS sau MVP đ�
 ## What is being added
 
 ### 1. Subscription / Package Registration
-Hệ thống sẽ được mở rộng theo hướng bán gói Smart ATS cho khách hàng doanh nghiệp.
+Hệ thống sẽ được mở rộng theo hướng subscription owner polymorphic cho Smart ATS.
 
 Mục tiêu:
 - cho phép đăng ký gói dịch vụ
 - tích hợp thanh toán
 - kiểm soát entitlement theo từng gói
-- hỗ trợ nhiều HR/Recruiter cùng dùng chung một board/workspace ở các gói cao hơn
+- dùng một bảng `Subscription` chung với owner:
+  - `ownerType = USER | WORKSPACE`
+  - `ownerUserId` nullable
+  - `ownerWorkspaceId` nullable
+- hỗ trợ cả personal billing (USER) và workspace billing (WORKSPACE)
 
 ### 2. Gmail + n8n CV Ingestion
 Hệ thống sẽ hỗ trợ tự động lấy CV từ Gmail theo subject pattern gắn với JD, ví dụ:
@@ -46,19 +50,20 @@ Luồng mong muốn:
 
 ## Domain & Schema Snapshot
 
-Tài liệu hiện tại dùng hướng nhìn `Workspace/Organization-first` để giúp team thiết kế module enterprise nhất quán, dù schema production cuối cùng vẫn chưa chốt hoàn toàn.
+Tài liệu hiện tại dùng hướng nhìn `Workspace-first cho billing/membership` và `Job-owner-first cho ATS core` để giúp team thiết kế module enterprise nhất quán, dù schema production cuối cùng vẫn chưa chốt hoàn toàn.
 
 ```mermaid
 erDiagram
     Workspace ||--o{ WorkspaceMember : has
-    Workspace ||--o{ Job : owns
-    Workspace ||--o{ JobIngestionRule : configures
-    Workspace ||--o{ IngestionEvent : records
-    Workspace ||--|| Subscription : has
+    User ||--o{ WorkspaceMember : joins
+    User ||--o{ Subscription : owns
+    Workspace ||--o{ Subscription : owns
     Subscription }o--|| SubscriptionPlan : uses
     Subscription ||--o{ PaymentTransaction : tracks
+    User ||--o{ Job : owns
     Job ||--o{ Application : receives
     Candidate ||--o{ Application : submits
+    User ||--o{ JobIngestionRule : configures
     JobIngestionRule ||--o{ IngestionEvent : matches
     IngestionEvent }o--|| Job : targets
     IngestionEvent }o--|| Candidate : creates_or_links
@@ -89,7 +94,9 @@ erDiagram
 
     Subscription {
         uuid id PK
-        uuid workspaceId FK
+        enum ownerType "USER|WORKSPACE"
+        uuid ownerUserId FK
+        uuid ownerWorkspaceId FK
         uuid planId FK
         string status
         datetime currentPeriodStart
@@ -107,7 +114,7 @@ erDiagram
 
     JobIngestionRule {
         uuid id PK
-        uuid workspaceId FK
+        uuid ownerUserId FK
         uuid jobId FK
         string subjectPattern
         string status
@@ -115,7 +122,6 @@ erDiagram
 
     IngestionEvent {
         uuid id PK
-        uuid workspaceId FK
         uuid jobId FK
         uuid ruleId FK
         string source
@@ -125,9 +131,14 @@ erDiagram
 
     Job {
         uuid id PK
-        uuid workspaceId FK
+        uuid ownerUserId FK
         string title
         string status
+    }
+
+    User {
+        uuid id PK
+        string email
     }
 
     Candidate {
@@ -146,10 +157,12 @@ erDiagram
 ```
 
 ### Domain notes
-- `Workspace` là chủ thể enterprise chính để gom board, jobs, members, automation rules và subscription.
-- `SubscriptionPlan` định nghĩa feature flags và quota, còn `Subscription` là gói đang active của workspace.
+- `Workspace` là chủ thể enterprise chính cho membership/collaboration.
+- `Job` không có relationship trực tiếp/gián tiếp với `Workspace`; ownership của `Job` thuộc user domain.
+- `Subscription` dùng owner polymorphic: `ownerType=USER|WORKSPACE`, `ownerUserId` nullable, `ownerWorkspaceId` nullable.
+- `SubscriptionPlan` định nghĩa feature flags và quota, còn `Subscription` là gói đang active theo owner (`USER` hoặc `WORKSPACE`).
 - `PaymentTransaction` theo dõi vòng đời thanh toán qua Momo và các trạng thái callback/reconciliation.
-- `JobIngestionRule` map subject tag hoặc email pattern sang `Job`.
+- `JobIngestionRule` map subject tag hoặc email pattern sang `Job` theo owner domain (không suy diễn theo workspace).
 - `IngestionEvent` phục vụ audit trail, duplicate detection và retry tracking cho n8n/Gmail ingestion.
 - `Job`, `Application`, `Candidate` vẫn là ATS core entities và được nối vào domain mới thay vì bị thay thế.
 
@@ -157,22 +170,22 @@ erDiagram
 
 ## Momo Payment Flow Snapshot
 
-Mục tiêu của flow này là mô tả một vòng đời thanh toán tối thiểu cho gói Smart ATS theo hướng `Workspace-first`.
+Mục tiêu của flow này là mô tả một vòng đời thanh toán tối thiểu cho gói Smart ATS theo hướng owner polymorphic (`USER`/`WORKSPACE`).
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Admin as Workspace Admin
+    actor Owner as User / Workspace Admin
     participant UI as Frontend / Portal
     participant API as API Gateway
     participant Billing as Billing Module
     participant DB as PostgreSQL
     participant Momo as Momo Gateway
 
-    Admin->>UI: Chọn gói Smart ATS
-    UI->>API: POST /subscriptions/checkout
-    API->>Billing: Validate workspace + selected plan
-    Billing->>DB: Create pending Subscription
+    Owner->>UI: Chọn gói Smart ATS + owner context
+    UI->>API: POST /subscriptions/checkout { planId, ownerType, ownerId }
+    API->>Billing: Validate owner (USER/WORKSPACE) + selected plan
+    Billing->>DB: Create pending Subscription (ownerType, ownerUserId/ownerWorkspaceId)
     Billing->>DB: Create pending PaymentTransaction
     Billing->>Momo: Create payment request
     Momo-->>Billing: paymentUrl / deeplink / providerRef
@@ -187,7 +200,7 @@ sequenceDiagram
         Billing->>DB: Activate or upgrade Subscription
         Billing->>DB: Refresh entitlement period / quotas
         API-->>Momo: Ack callback
-        UI->>API: GET /subscriptions/current
+        UI->>API: GET /subscriptions/current?ownerType=...&ownerId=...
         API-->>UI: Active subscription state
     else Payment failed or expired
         Momo-->>API: Callback / IPN failed or expired
@@ -195,13 +208,13 @@ sequenceDiagram
         Billing->>DB: Update PaymentTransaction = FAILED/EXPIRED
         Billing->>DB: Keep Subscription pending or inactive
         API-->>Momo: Ack callback
-        UI->>API: GET /subscriptions/current
+        UI->>API: GET /subscriptions/current?ownerType=...&ownerId=...
         API-->>UI: Pending or inactive subscription state
     end
 ```
 
 ### Payment flow notes
-- `Subscription` nên được tạo ở trạng thái `PENDING` trước khi redirect sang Momo để giữ lifecycle rõ ràng.
+- `Subscription` nên được tạo ở trạng thái `PENDING` trước khi redirect sang Momo và phải lưu owner context (`ownerType`, `ownerUserId`/`ownerWorkspaceId`).
 - `PaymentTransaction` là nguồn sự thật cho trạng thái giao dịch với provider.
 - callback/IPN từ Momo phải được verify chữ ký trước khi update dữ liệu.
 - activation entitlement chỉ nên xảy ra sau khi giao dịch được xác nhận thành công.
@@ -245,7 +258,7 @@ stateDiagram-v2
 
 ### State machine notes
 - `Subscription` và `PaymentTransaction` không nên dùng chung một status enum vì semantics khác nhau.
-- `Subscription` phản ánh quyền sử dụng dịch vụ của workspace.
+- `Subscription` phản ánh quyền sử dụng dịch vụ theo owner (`USER` hoặc `WORKSPACE`).
 - `PaymentTransaction` phản ánh trạng thái giao dịch với Momo hoặc payment provider.
 - `Subscription = ACTIVE` chỉ nên xảy ra khi có một giao dịch hợp lệ được xác nhận thành công.
 - các transition từ callback phải idempotent để tránh double-processing khi provider retry.
@@ -309,18 +322,19 @@ Ví dụ:
 ## Architecture direction
 
 ### Confirmed
-- Đây là bài toán enterprise, không chỉ là single-user billing.
+- Đây là bài toán enterprise nhưng vẫn hỗ trợ personal billing.
+- Billing owner dùng mô hình polymorphic: `ownerType = USER | WORKSPACE`.
 - Các gói cao sẽ cần nhiều HR/Recruiter cùng tham gia vào một board/workspace.
 - Momo là payment gateway ưu tiên hiện tại trong tài liệu.
 
 ### Still open
-- Billing owner cuối cùng chưa chốt ở mức schema production.
-- Tuy nhiên hướng tài liệu hiện tại sẽ nghiêng về `Workspace/Organization-first` thay vì `User-first`.
+- Chính sách migration giữa subscription owner `USER` -> `WORKSPACE` khi khách hàng nâng cấp mô hình tổ chức.
+- Quy tắc giới hạn plan nào được phép dùng owner `USER` hoặc `WORKSPACE` ở từng môi trường.
 
 Điều này có nghĩa là:
-- subscription về lâu dài nên gắn với workspace/organization
-- user chỉ là member trong workspace
-- entitlement được kiểm tra theo workspace plan
+- subscription được resolve theo `(ownerType, ownerId)`
+- entitlement được kiểm tra theo owner context thay vì mặc định workspace-only
+- user có thể là personal owner hoặc workspace member tùy use case
 
 ---
 
@@ -378,7 +392,7 @@ Ví dụ:
 **Suggested ownership:** 1 backend member tập trung vào access model và enterprise collaboration structure.
 
 ### D. Entitlement Module
-**Boundary:** đọc plan/subscription state để quyết định workspace có được dùng tính năng nào và quota còn lại bao nhiêu.
+**Boundary:** đọc plan/subscription state theo owner context (`USER`/`WORKSPACE`) để quyết định owner có được dùng tính năng nào và quota còn lại bao nhiêu.
 
 **Phụ trách:**
 - kiểm tra quyền theo plan
@@ -397,7 +411,7 @@ Ví dụ:
 - **Automation/Ingestion** chịu trách nhiệm đưa dữ liệu từ Gmail/n8n vào hệ thống một cách an toàn.
 - **Billing/Payment** chịu trách nhiệm xử lý tiền và trạng thái subscription.
 - **Workspace/Membership** chịu trách nhiệm mô hình cộng tác enterprise nhiều recruiter trên cùng board.
-- **Entitlement** chịu trách nhiệm quyết định workspace hiện tại được làm gì dựa trên plan đang active.
+- **Entitlement** chịu trách nhiệm quyết định owner hiện tại (`USER`/`WORKSPACE`) được làm gì dựa trên plan đang active.
 
 Nguyên tắc chia ranh giới:
 - không nhét payment logic vào auth guard chung

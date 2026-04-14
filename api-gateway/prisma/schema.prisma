@@ -10,16 +10,18 @@ datasource db {
 }
 
 model User {
-  id          String      @id @default(uuid())
-  email       String      @unique
-  password    String
-  role        Role        @default(RECRUITER)
-  fullName    String      @map("full_name")
-  createdJobs Job[]       @relation("JobCreator")
-  interviews  Interview[] @relation("InterviewInterviewer")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-  deletedAt   DateTime?   @map("deleted_at")
+  id               String            @id @default(uuid())
+  email            String            @unique
+  password         String
+  role             Role              @default(RECRUITER)
+  fullName         String            @map("full_name")
+  createdJobs      Job[]             @relation("JobCreator")
+  interviews       Interview[]       @relation("InterviewInterviewer")
+  workspaceMembers       WorkspaceMember[]
+  invitedWorkspaceMembers WorkspaceMember[] @relation("WorkspaceInvitation")
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  deletedAt        DateTime?         @map("deleted_at")
 
   @@map("users")
 }
@@ -45,6 +47,36 @@ model Job {
   @@index([createdById])
   @@index([status])
   @@map("jobs")
+}
+
+model Workspace {
+  id          String            @id @default(uuid())
+  name        String
+  isBusiness  Boolean           @default(false) @map("is_business")
+  members     WorkspaceMember[]
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String                @id @default(uuid())
+  workspaceId String                @map("workspace_id")
+  userId      String                @map("user_id")
+  role        WorkspaceMemberRole   @default(RECRUITER)
+  status      WorkspaceMemberStatus @default(ACTIVE)
+  invitedById String?               @map("invited_by_id")
+  invitedBy   User?                 @relation("WorkspaceInvitation", fields: [invitedById], references: [id], onDelete: SetNull)
+  workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId, status])
+  @@index([userId, status])
+  @@map("workspace_members")
 }
 
 model Candidate {
@@ -171,4 +203,17 @@ enum InterviewStatus {
   COMPLETED
   CANCELLED
   NO_SHOW
+}
+
+enum WorkspaceMemberRole {
+  OWNER
+  ADMIN
+  RECRUITER
+  VIEWER
+}
+
+enum WorkspaceMemberStatus {
+  ACTIVE
+  INVITED
+  REMOVED
 }

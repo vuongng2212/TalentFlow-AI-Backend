@@ -12,7 +12,6 @@ import { Job, Prisma } from '@prisma/client';
 @Injectable()
 export class JobsService {
   constructor(private readonly prisma: PrismaService) {}
-
   async create(createdById: string, createJobDto: CreateJobDto): Promise<Job> {
     return this.prisma.job.create({
       data: {

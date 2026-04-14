@@ -5,6 +5,7 @@ import {
   InterviewStatus,
   InterviewType,
   JobStatus,
+  Prisma,
   PrismaClient,
   Role,
 } from '@prisma/client';
@@ -152,6 +153,12 @@ const seedApplications = [
   },
 ] as const;
 
+const seededJobSelect = {
+  id: true,
+  title: true,
+  createdById: true,
+} satisfies Prisma.JobSelect;
+
 const upsertJobByTitleAndCreator = async (input: {
   title: string;
   description: string;
@@ -165,6 +172,7 @@ const upsertJobByTitleAndCreator = async (input: {
   createdById: string;
 }) => {
   const existing = await prisma.job.findFirst({
+    select: { id: true },
     where: {
       title: input.title,
       createdById: input.createdById,
@@ -186,6 +194,7 @@ const upsertJobByTitleAndCreator = async (input: {
         status: input.status,
         deletedAt: null,
       },
+      select: seededJobSelect,
     });
   }
 
@@ -202,6 +211,7 @@ const upsertJobByTitleAndCreator = async (input: {
       status: input.status,
       createdById: input.createdById,
     },
+    select: seededJobSelect,
   });
 };
 
