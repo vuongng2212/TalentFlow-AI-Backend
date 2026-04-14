@@ -8,14 +8,36 @@ import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { QueryJobsDto } from './dto/query-jobs.dto';
 import { Job, Prisma } from '@prisma/client';
+import { JobRequirementsDto } from './dto/job-requirements.dto';
 
 @Injectable()
 export class JobsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private toRequirementsJson(
+    requirements?: JobRequirementsDto,
+  ): Prisma.InputJsonValue | undefined {
+    if (!requirements) {
+      return undefined;
+    }
+
+    return {
+      ...(requirements.skills ? { skills: requirements.skills } : {}),
+      ...(requirements.experience
+        ? { experience: requirements.experience }
+        : {}),
+    } satisfies Prisma.InputJsonObject;
+  }
+
   async create(createdById: string, createJobDto: CreateJobDto): Promise<Job> {
+    const { requirements, ...jobData } = createJobDto;
+
     return this.prisma.job.create({
       data: {
-        ...createJobDto,
+        ...jobData,
+        ...(requirements
+          ? { requirements: this.toRequirementsJson(requirements) }
+          : {}),
         createdById,
       },
       include: {
@@ -155,6 +177,7 @@ export class JobsService {
     updateJobDto: UpdateJobDto,
   ): Promise<Job> {
     const job = await this.findOne(id);
+    const { requirements, ...jobData } = updateJobDto;
 
     // Check ownership (only user who created or admin can update)
     if (job.createdById !== userId && userRole !== 'ADMIN') {
@@ -165,7 +188,12 @@ export class JobsService {
 
     return this.prisma.job.update({
       where: { id },
-      data: updateJobDto,
+      data: {
+        ...jobData,
+        ...(requirements
+          ? { requirements: this.toRequirementsJson(requirements) }
+          : {}),
+      },
       include: {
         createdBy: {
           select: {

@@ -2,11 +2,6 @@
  * Utility functions for sanitizing sensitive data in logs and responses
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-
 /**
  * List of keys that potentially contain sensitive information
  */
@@ -42,6 +37,55 @@ const SENSITIVE_KEYS = [
  */
 const MAX_DEPTH = 5;
 
+interface SanitizedError {
+  [key: string]: unknown;
+  message?: string;
+  name?: string;
+  stack?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function sanitizeValue(value: unknown, depth: number): unknown {
+  // Prevent infinite recursion
+  if (depth > MAX_DEPTH) {
+    return '[MAX_DEPTH_EXCEEDED]';
+  }
+
+  // Handle null and undefined
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  // Handle primitives
+  if (typeof value !== 'object') {
+    return value;
+  }
+
+  // Handle arrays
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeValue(item, depth + 1));
+  }
+
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const lowerKey = key.toLowerCase();
+    const isSensitive = SENSITIVE_KEYS.some((term) => lowerKey.includes(term));
+
+    if (isSensitive) {
+      sanitized[key] = '[REDACTED]';
+      continue;
+    }
+
+    sanitized[key] = sanitizeValue(nestedValue, depth + 1);
+  }
+
+  return sanitized;
+}
+
 /**
  * Sanitize an object by replacing sensitive values with [REDACTED]
  *
@@ -54,46 +98,8 @@ const MAX_DEPTH = 5;
  * const sanitized = sanitize(data);
  * // Result: { username: 'admin', password: '[REDACTED]' }
  */
-export function sanitize(obj: any, depth = 0): any {
-  // Prevent infinite recursion
-  if (depth > MAX_DEPTH) {
-    return '[MAX_DEPTH_EXCEEDED]';
-  }
-
-  // Handle null and undefined
-  if (obj === null || obj === undefined) {
-    return obj;
-  }
-
-  // Handle primitives
-  if (typeof obj !== 'object') {
-    return obj;
-  }
-
-  // Handle arrays
-  if (Array.isArray(obj)) {
-    return obj.map((item) => sanitize(item, depth + 1));
-  }
-
-  // Handle objects
-  const sanitized: any = {};
-
-  for (const [key, value] of Object.entries(obj)) {
-    const lowerKey = key.toLowerCase();
-
-    // Check if key contains any sensitive term
-    const isSensitive = SENSITIVE_KEYS.some((term) => lowerKey.includes(term));
-
-    if (isSensitive) {
-      sanitized[key] = '[REDACTED]';
-    } else if (typeof value === 'object' && value !== null) {
-      sanitized[key] = sanitize(value, depth + 1);
-    } else {
-      sanitized[key] = value;
-    }
-  }
-
-  return sanitized;
+export function sanitize<T>(obj: T): T {
+  return sanitizeValue(obj, 0) as T;
 }
 
 /**
@@ -147,7 +153,7 @@ export function sanitizeUrl(url: string): string {
  *   logger.error(sanitized);
  * }
  */
-export function sanitizeError(error: unknown): any {
+export function sanitizeError(error: unknown): SanitizedError {
   if (error instanceof Error) {
     return {
       name: error.name,
@@ -160,8 +166,12 @@ export function sanitizeError(error: unknown): any {
     return { message: sanitizeString(error) };
   }
 
-  if (error && typeof error === 'object') {
+  if (isRecord(error)) {
     return sanitize(error);
+  }
+
+  if (Array.isArray(error)) {
+    return { details: sanitize(error) };
   }
 
   return { message: String(error) };

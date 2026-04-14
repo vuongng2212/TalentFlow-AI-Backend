@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   ConflictException,
@@ -8,6 +7,28 @@ import {
 import { WorkspaceMemberRole, WorkspaceMemberStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspacesService } from './workspaces.service';
+
+type TransactionCallback<TTransaction, TResult = unknown> = (
+  tx: TTransaction,
+) => Promise<TResult> | TResult;
+
+type CreateWorkspaceTransaction = {
+  workspace: {
+    create: jest.Mock;
+  };
+  workspaceMember: {
+    create: jest.Mock;
+  };
+};
+
+type WorkspaceMemberTransaction = {
+  workspaceMember: {
+    findUnique: jest.Mock;
+    count: jest.Mock;
+    create: jest.Mock;
+    update: jest.Mock;
+  };
+};
 
 describe('WorkspacesService', () => {
   let service: WorkspacesService;
@@ -53,8 +74,8 @@ describe('WorkspacesService', () => {
       };
 
       mockPrismaService.$transaction.mockImplementation(
-        async (callback: any) => {
-          const tx = {
+        async (callback: TransactionCallback<CreateWorkspaceTransaction>) => {
+          const tx: CreateWorkspaceTransaction = {
             workspace: {
               create: jest.fn().mockResolvedValue(workspace),
             },
@@ -182,8 +203,8 @@ describe('WorkspacesService', () => {
       mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-2' });
 
       mockPrismaService.$transaction.mockImplementation(
-        async (callback: any) => {
-          const tx = {
+        (callback: TransactionCallback<WorkspaceMemberTransaction>) => {
+          const tx: WorkspaceMemberTransaction = {
             workspaceMember: {
               findUnique: jest.fn().mockResolvedValue({
                 id: 'wm-1',
@@ -217,8 +238,8 @@ describe('WorkspacesService', () => {
       mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-2' });
 
       mockPrismaService.$transaction.mockImplementation(
-        async (callback: any) => {
-          const tx = {
+        (callback: TransactionCallback<WorkspaceMemberTransaction>) => {
+          const tx: WorkspaceMemberTransaction = {
             workspaceMember: {
               findUnique: jest.fn().mockResolvedValue({
                 id: 'wm-1',
@@ -264,8 +285,8 @@ describe('WorkspacesService', () => {
 
       const update = jest.fn().mockResolvedValue(updatedMember);
       mockPrismaService.$transaction.mockImplementation(
-        async (callback: any) => {
-          const tx = {
+        (callback: TransactionCallback<WorkspaceMemberTransaction>) => {
+          const tx: WorkspaceMemberTransaction = {
             workspaceMember: {
               findUnique: jest.fn().mockResolvedValue({
                 id: 'wm-1',
@@ -307,8 +328,8 @@ describe('WorkspacesService', () => {
       };
 
       mockPrismaService.$transaction.mockImplementation(
-        async (callback: any) => {
-          const tx = {
+        (callback: TransactionCallback<WorkspaceMemberTransaction>) => {
+          const tx: WorkspaceMemberTransaction = {
             workspaceMember: {
               findUnique: jest.fn().mockResolvedValue(null),
               count: jest.fn().mockResolvedValue(2),

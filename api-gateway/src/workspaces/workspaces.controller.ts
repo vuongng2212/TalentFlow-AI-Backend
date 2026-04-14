@@ -47,7 +47,10 @@ export class WorkspacesController {
   @Get(':id/members')
   @ApiOperation({ summary: 'List active workspace members' })
   @ApiResponse({ status: 200, description: 'Workspace members returned' })
-  listMembers(@Param('id') workspaceId: string, @CurrentUser() user: UserPayload) {
+  listMembers(
+    @Param('id') workspaceId: string,
+    @CurrentUser() user: UserPayload,
+  ) {
     return this.workspacesService.listMembers(workspaceId, user.id);
   }
 }
