@@ -1,8 +1,8 @@
-package com.talent.cvparser.parser;
+package com.talentflow.cvparser.parser;
 
-import com.talent.cvparser.shared.exception.DocumentTooLongException;
-import com.talent.cvparser.shared.exception.ParsingException;
-import com.talent.cvparser.shared.exception.UnsupportedDocumentFormatException;
+import com.talentflow.cvparser.shared.exception.DocumentTooLongException;
+import com.talentflow.cvparser.shared.exception.ParsingException;
+import com.talentflow.cvparser.shared.exception.UnsupportedDocumentFormatException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.openxml4j.exceptions.NotOfficeXmlFileException;
@@ -19,7 +19,7 @@ import java.nio.file.Path;
 
 @Slf4j
 @Component
-public class DocxTextParser implements DocumentParser{
+public class DocxTextParser implements DocumentParser {
 
     @Value("${app.parser.docx.min-inflate-ratio:0.01}")
     private double minInflateRatio;
@@ -35,7 +35,7 @@ public class DocxTextParser implements DocumentParser{
         ZipSecureFile.setMinInflateRatio(minInflateRatio);
         ZipSecureFile.setMaxEntrySize(maxEntrySize);
         ZipSecureFile.setMaxTextSize(maxTextSize);
-        log.info("Initialized DocxTextParser with security limits: ratio={}, entrySize={}, textSize={}", 
+        log.info("Initialized DocxTextParser with security limits: ratio={}, entrySize={}, textSize={}",
                 minInflateRatio, maxEntrySize, maxTextSize);
     }
 
@@ -62,13 +62,16 @@ public class DocxTextParser implements DocumentParser{
 
         } catch (NotOfficeXmlFileException e) {
             log.warn("Rejected old OLE2 format disguised as DOCX: {}", filePath.getFileName());
-            throw new UnsupportedDocumentFormatException("Vui lòng lưu CV dưới định dạng .docx (Word 2007+) thay vì định dạng .doc cũ.");
+            throw new UnsupportedDocumentFormatException(
+                    "Vui lòng lưu CV dưới định dạng .docx (Word 2007+) thay vì định dạng .doc cũ.");
         } catch (InvalidFormatException e) {
             log.error("Invalid DOCX format or Zip Bomb detected: {}", filePath.getFileName(), e);
             throw new ParsingException("File CV bị hỏng hoặc chứa cấu trúc nguy hiểm.", e);
         } catch (IOException e) {
             log.error("I/O Error while parsing DOCX: {}", filePath.getFileName(), e);
             throw new ParsingException("Lỗi đọc file DOCX trên hệ thống.", e);
+        } catch (ParsingException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Unexpected error during DOCX extraction: {}", filePath.getFileName(), e);
             throw new ParsingException("Lỗi không xác định khi xử lý file CV.", e);

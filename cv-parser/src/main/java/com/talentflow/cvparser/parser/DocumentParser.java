@@ -1,6 +1,6 @@
-package com.talent.cvparser.parser;
+package com.talentflow.cvparser.parser;
 
-import com.talent.cvparser.shared.exception.ParsingException;
+import com.talentflow.cvparser.shared.exception.ParsingException;
 
 import java.nio.file.Path;
 

@@ -1,6 +1,6 @@
-package com.talent.cvparser.parser;
+package com.talentflow.cvparser.parser;
 
-import com.talent.cvparser.shared.exception.ParsingException;
+import com.talentflow.cvparser.shared.exception.ParsingException;
 import lombok.extern.slf4j.Slf4j;
 import net.sourceforge.tess4j.ITesseract;
 import net.sourceforge.tess4j.Tesseract;
@@ -32,10 +32,10 @@ public class TesseractOcrImpl {
     private static final String MIME_TIFF = "image/tiff";
     private static final String MIME_BMP  = "image/bmp";
 
-    @Value("${app.ocr.tessdata-path:/usr/share/tesseract-ocr/4.00/tessdata}")
+    @Value("${tesseract.data-path:/usr/share/tesseract-ocr/5/tessdata}")
     private String tessdataPath;
 
-    @Value("${app.ocr.language:vie+eng}")
+    @Value("${tesseract.language:eng+vie}")
     private String language;
 
     @Value("${app.ocr.dpi:300}")
@@ -44,25 +44,22 @@ public class TesseractOcrImpl {
     @Value("${app.ocr.max-pages:20}")
     private int maxPages;
 
-    @Value("${app.ocr.min-text-length-threshold:100}")
-    int minTextLengthThreshold;
-
     @PostConstruct
     public void init() {
-        log.info("Initialized OcrImageParser. maxPages={}, dpi={}, language={}, tessdataPath={}",
+        log.info("Initialized TesseractOcrImpl. maxPages={}, dpi={}, language={}, tessdataPath={}",
                 maxPages, dpi, language, tessdataPath);
     }
 
-    @Async("ocrTaskExecutor")
+    @Async("ocrExecutor")
     public CompletableFuture<String> extractText(Path filePath) {
         log.info("OCR started. file=[{}], thread=[{}]",
                 filePath.getFileName(), Thread.currentThread().getName());
         try {
             String mimeType = new Tika().detect(filePath.toFile());
-            String result   = switch (mimeType) {
-                case MIME_PDF                           -> ocrScannedPdf(filePath);
+            String result = switch (mimeType) {
+                case MIME_PDF                          -> ocrScannedPdf(filePath);
                 case MIME_PNG, MIME_JPEG, MIME_TIFF,
-                     MIME_BMP                           -> ocrImage(filePath);
+                     MIME_BMP                          -> ocrImage(filePath);
                 default -> {
                     log.warn("OCR does not support MIME [{}]. file=[{}]",
                             mimeType, filePath.getFileName());
@@ -90,7 +87,7 @@ public class TesseractOcrImpl {
                         pageCount, maxPages, filePath.getFileName());
                 throw new ParsingException(String.format(
                         "Scanned PDF exceeds OCR page limit. pages=%d, limit=%d", pageCount, maxPages
-                ));
+                ), "PDF_TOO_LONG");
             }
 
             PDFRenderer renderer = new PDFRenderer(document);

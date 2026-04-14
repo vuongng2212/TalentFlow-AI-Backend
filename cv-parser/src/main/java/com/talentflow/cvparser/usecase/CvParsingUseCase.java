@@ -1,6 +1,6 @@
-package com.talent.cvparser.usecase;
+package com.talentflow.cvparser.usecase;
 
-import com.talent.cvparser.listener.CvUploadEvent;
+import com.talentflow.cvparser.shared.dto.CvUploadedEvent;
 
 public interface CvParsingUseCase {
 
@@ -11,9 +11,9 @@ public interface CvParsingUseCase {
      * TempFile cleanup là trách nhiệm của UseCase — Listener không biết
      * và không cần biết file nằm ở đâu.
      *
-     * @param event Message từ cv.upload.queue
+     * @param event Message từ cv_parser.jobs queue
      * @throws Exception nếu bất kỳ bước nào thất bại không thể recover —
      *                   Listener sẽ bắt và NACK sang DLQ.
      */
-    void execute(CvUploadEvent event) throws Exception;
+    void execute(CvUploadedEvent event) throws Exception;
 }

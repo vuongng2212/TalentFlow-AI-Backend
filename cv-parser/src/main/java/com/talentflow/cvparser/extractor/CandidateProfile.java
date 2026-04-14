@@ -1,4 +1,4 @@
-package com.talent.cvparser.extractor;
+package com.talentflow.cvparser.extractor;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,5 +19,8 @@ public class CandidateProfile {
     private List<String> skills;
     private Integer yearsOfExperience;
 
+    /**
+     * Trạng thái extraction: SUCCESS / PARTIAL / REGEX_FALLBACK
+     */
     private String extractionStatus;
 }
