@@ -36,12 +36,12 @@ public class PdfTextParser implements DocumentParser {
             }
 
             PDFTextStripper stripper = new PDFTextStripper();
-            String text = stripper.getText(document);
+            String text = stripper.getText(document).trim();
 
             log.info("PDF parsed successfully. pages={}, textLength={}, file=[{}]",
                     pageCount, text.length(), filePath);
 
-            return text != null ? text.trim() : "";
+            return text;
 
         } catch (ParsingException e) {
             throw e;
