@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -23,31 +23,23 @@ export interface AuthenticatedUser {
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(configService: ConfigService) {
     const secret = configService.get<string>('jwt.secret');
-    const issuer = configService.get<string>('jwt.issuer');
-    const audience = configService.get<string>('jwt.audience');
 
     if (!secret) {
       throw new Error('JWT secret is not configured');
-    }
-
-    if (!issuer) {
-      throw new Error('JWT issuer is not configured');
-    }
-
-    if (!audience) {
-      throw new Error('JWT audience is not configured');
     }
 
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: secret,
-      issuer,
-      audience,
     });
   }
 
   validate(payload: JwtPayload): AuthenticatedUser {
+    if (!payload.sub || !payload.email || !payload.role) {
+      throw new UnauthorizedException('Invalid JWT payload');
+    }
+
     return {
       userId: payload.sub,
       email: payload.email,

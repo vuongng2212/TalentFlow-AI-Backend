@@ -12,6 +12,7 @@ import { jwtConfig } from './config/jwt.config';
 import { rabbitmqConfig } from './config/rabbitmq.config';
 import { smtpConfig } from './config/smtp.config';
 import { validationSchema } from './config/validation.schema';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { validationSchema } from './config/validation.schema';
         ],
       }),
     }),
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

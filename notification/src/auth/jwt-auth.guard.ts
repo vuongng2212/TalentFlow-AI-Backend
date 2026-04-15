@@ -4,14 +4,19 @@ import { AuthenticatedUser } from './jwt.strategy';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
-  handleRequest<TUser = AuthenticatedUser>(
+  handleRequest<TUser extends AuthenticatedUser = AuthenticatedUser>(
     err: unknown,
     user: TUser | false | null,
+    info?: { message?: string },
   ): TUser {
     if (err || !user) {
-      throw err instanceof Error
-        ? err
-        : new UnauthorizedException('Invalid or missing bearer token');
+      if (err instanceof Error) {
+        throw err;
+      }
+
+      throw new UnauthorizedException(
+        info?.message ?? 'Invalid or missing bearer token',
+      );
     }
 
     return user;
