@@ -64,3 +64,5 @@ Primary development happens here.
 5.  **Error Handling**: Use standard NestJS HTTP exceptions (`NotFoundException`, `BadRequestException`). Global filters handle responses.
 6.  **Response Format**: Responses are automatically transformed to `{ data: ... }` format via `TransformInterceptor`.
 7.  **Environment**: Ensure `.env` is configured (copy from `.env.example`).
+8.  **Static Config Values**: Any static property value must be moved to `.env`, validated in `src/common/config/config.schema.ts`, and consumed via `ConfigService`.
+9.  **Swagger Enum Documentation**: When documenting enum fields with `@ApiProperty`/`@ApiPropertyOptional`, always provide `enumName` and a clear `description` to make API docs explicit and reusable.

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { WorkspaceMemberRole, WorkspaceMemberStatus } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspacesService } from './workspaces.service';
 
@@ -47,6 +48,18 @@ describe('WorkspacesService', () => {
     },
   };
 
+  let workspaceMaxActiveMembers = 50;
+
+  const mockConfigService = {
+    get: jest.fn((key: string, defaultValue: number) => {
+      if (key === 'WORKSPACE_MAX_ACTIVE_MEMBERS') {
+        return workspaceMaxActiveMembers;
+      }
+
+      return defaultValue;
+    }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -55,6 +68,10 @@ describe('WorkspacesService', () => {
           provide: PrismaService,
           useValue: mockPrismaService,
         },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
       ],
     }).compile();
 
@@ -62,7 +79,8 @@ describe('WorkspacesService', () => {
   });
 
   afterEach(() => {
-    jest.resetAllMocks();
+    workspaceMaxActiveMembers = 50;
+    jest.clearAllMocks();
   });
 
   describe('create', () => {
@@ -227,7 +245,9 @@ describe('WorkspacesService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should throw ConflictException when cap 50 reached', async () => {
+    it('should throw ConflictException when configured member cap reached', async () => {
+      workspaceMaxActiveMembers = 10;
+
       mockPrismaService.workspace.findUnique.mockResolvedValue({
         id: 'workspace-1',
         isBusiness: true,
@@ -245,7 +265,7 @@ describe('WorkspacesService', () => {
                 id: 'wm-1',
                 status: WorkspaceMemberStatus.INVITED,
               }),
-              count: jest.fn().mockResolvedValue(50),
+              count: jest.fn().mockResolvedValue(10),
               create: jest.fn(),
               update: jest.fn(),
             },
@@ -259,7 +279,7 @@ describe('WorkspacesService', () => {
         service.addMember('workspace-1', 'owner-1', {
           email: 'member@test.com',
         }),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toThrow('Workspace member cap (10) reached');
     });
 
     it('should reactivate existing non-active member', async () => {

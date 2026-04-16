@@ -5,15 +5,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { WorkspaceMemberRole, WorkspaceMemberStatus } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { AddWorkspaceMemberDto } from './dto/add-workspace-member.dto';
 
 @Injectable()
 export class WorkspacesService {
-  private static readonly MAX_ACTIVE_MEMBERS = 50;
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
-  constructor(private readonly prisma: PrismaService) {}
+  private get maxActiveMembers(): number {
+    return this.configService.get<number>('WORKSPACE_MAX_ACTIVE_MEMBERS', 50);
+  }
 
   async create(ownerId: string, dto: CreateWorkspaceDto) {
     return this.prisma.$transaction(async (tx) => {
@@ -84,8 +90,10 @@ export class WorkspacesService {
         },
       });
 
-      if (activeMembers >= WorkspacesService.MAX_ACTIVE_MEMBERS) {
-        throw new ConflictException('Workspace member cap (50) reached');
+      if (activeMembers >= this.maxActiveMembers) {
+        throw new ConflictException(
+          `Workspace member cap (${this.maxActiveMembers}) reached`,
+        );
       }
 
       if (existing) {

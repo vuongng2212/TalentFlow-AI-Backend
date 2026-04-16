@@ -65,6 +65,7 @@ export const appConfigSchema = Joi.object({
 
   RATE_LIMIT_TTL_SEC: Joi.number().integer().min(1).default(60),
   RATE_LIMIT_MAX: Joi.number().integer().min(1).default(100),
+  WORKSPACE_MAX_ACTIVE_MEMBERS: Joi.number().integer().min(1).default(50),
 
   BODY_LIMIT_MB: Joi.number().integer().min(1).default(10),
   TIMEOUT_MS: Joi.number().integer().min(1000).default(15000),

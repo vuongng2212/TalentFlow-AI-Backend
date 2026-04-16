@@ -22,6 +22,9 @@ export class AddWorkspaceMemberDto {
 
   @ApiPropertyOptional({
     enum: WorkspaceMemberRole,
+    enumName: 'WorkspaceMemberRole',
+    description:
+      'Role assigned to the invited member. Defaults to RECRUITER when omitted.',
     default: WorkspaceMemberRole.RECRUITER,
   })
   @IsOptional()
