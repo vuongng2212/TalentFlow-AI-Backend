@@ -92,6 +92,15 @@ describe('Applications (e2e)', () => {
     applicantCookie =
       applicantCookies.find((c) => c.startsWith('access_token')) ?? '';
 
+    const recruiter = await prisma.user.findUnique({
+      where: { email: 'apps-recruiter@test.com' },
+      select: { id: true },
+    });
+
+    if (!recruiter) {
+      throw new Error('Recruiter not found');
+    }
+
     // Create a test job
     const jobResponse = await request(app.getHttpServer())
       .post('/api/v1/jobs')

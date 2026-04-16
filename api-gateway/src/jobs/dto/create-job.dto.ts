@@ -4,12 +4,14 @@ import {
   IsOptional,
   IsInt,
   IsEnum,
+  ValidateNested,
   Min,
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { EmploymentType, JobStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
+import { JobRequirementsDto } from './job-requirements.dto';
 
 export class CreateJobDto {
   @ApiProperty({ example: 'Senior Full Stack Developer', maxLength: 200 })
@@ -70,9 +72,12 @@ export class CreateJobDto {
   status?: JobStatus;
 
   @ApiPropertyOptional({
+    type: () => JobRequirementsDto,
     example: { skills: ['React', 'Node.js'], experience: '3+ years' },
-    description: 'Additional job requirements as JSON',
+    description: 'Structured job requirements',
   })
   @IsOptional()
-  requirements?: any;
+  @ValidateNested()
+  @Type(() => JobRequirementsDto)
+  requirements?: JobRequirementsDto;
 }

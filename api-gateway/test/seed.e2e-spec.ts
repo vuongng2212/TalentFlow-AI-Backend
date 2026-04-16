@@ -1,12 +1,5 @@
 import { execSync } from 'child_process';
-import {
-  Application,
-  Candidate,
-  Job,
-  PrismaClient,
-  Role,
-  User,
-} from '@prisma/client';
+import { PrismaClient, Role, User } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -204,7 +197,14 @@ describe('Prisma seed (e2e)', () => {
           },
         },
       },
-      include: { createdBy: true },
+      select: {
+        title: true,
+        createdBy: {
+          select: {
+            email: true,
+          },
+        },
+      },
       orderBy: { title: 'asc' },
     });
 
@@ -221,9 +221,17 @@ describe('Prisma seed (e2e)', () => {
           },
         },
       },
-      include: {
-        candidate: true,
-        job: true,
+      select: {
+        candidate: {
+          select: {
+            email: true,
+          },
+        },
+        job: {
+          select: {
+            title: true,
+          },
+        },
       },
     });
 
@@ -246,7 +254,7 @@ describe('Prisma seed (e2e)', () => {
       Role.INTERVIEWER,
     );
 
-    jobs.forEach((job: Job & { createdBy: User }) => {
+    jobs.forEach((job) => {
       expect(
         seededUserEmails.includes(
           job.createdBy.email as (typeof seededUserEmails)[number],
@@ -254,21 +262,18 @@ describe('Prisma seed (e2e)', () => {
       ).toBe(true);
     });
 
-    applications.forEach(
-      (application: Application & { candidate: Candidate; job: Job }) => {
-        expect(
-          seededCandidateEmails.includes(
-            application.candidate
-              .email as (typeof seededCandidateEmails)[number],
-          ),
-        ).toBe(true);
-        expect(
-          seededJobTitles.includes(
-            application.job.title as (typeof seededJobTitles)[number],
-          ),
-        ).toBe(true);
-      },
-    );
+    applications.forEach((application) => {
+      expect(
+        seededCandidateEmails.includes(
+          application.candidate.email as (typeof seededCandidateEmails)[number],
+        ),
+      ).toBe(true);
+      expect(
+        seededJobTitles.includes(
+          application.job.title as (typeof seededJobTitles)[number],
+        ),
+      ).toBe(true);
+    });
   });
 
   it('should be idempotent when running seed multiple times', async () => {

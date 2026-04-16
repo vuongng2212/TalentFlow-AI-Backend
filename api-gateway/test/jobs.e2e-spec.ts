@@ -35,6 +35,7 @@ describe('Jobs (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let recruiterCookie: string;
+  let outsiderCookie: string;
   let jobId: string;
   let recruiterId: string;
 
@@ -138,6 +139,25 @@ describe('Jobs (e2e)', () => {
     const cookies = extractCookies(rawCookies);
     recruiterCookie = cookies.find((c) => c.startsWith('access_token')) ?? '';
 
+    await request(app.getHttpServer()).post('/api/v1/auth/signup').send({
+      email: 'jobs-outsider@test.com',
+      password: 'Password123!',
+      fullName: 'Jobs Outsider',
+      role: 'RECRUITER',
+    });
+
+    const outsiderLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({
+        email: 'jobs-outsider@test.com',
+        password: 'Password123!',
+      });
+
+    const outsiderRawCookies = outsiderLogin.headers['set-cookie'];
+    const outsiderCookies = extractCookies(outsiderRawCookies);
+    outsiderCookie =
+      outsiderCookies.find((c) => c.startsWith('access_token')) ?? '';
+
     // Create test jobs for filter tests
     for (const job of testJobs) {
       await prisma.job.create({
@@ -185,10 +205,23 @@ describe('Jobs (e2e)', () => {
       jobId = response.body.id;
     });
 
+    it('should allow another recruiter to create their own job', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/jobs')
+        .set('Cookie', [outsiderCookie])
+        .send({
+          title: 'Outsider Job',
+          status: JobStatus.OPEN,
+        })
+        .expect(201);
+    });
+
     it('should return 401 without auth token', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/jobs')
-        .send({ title: 'Test Job' })
+        .send({
+          title: 'Test Job',
+        })
         .expect(401);
     });
   });
