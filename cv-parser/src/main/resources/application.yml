@@ -136,3 +136,42 @@ logging:
     software.amazon.awssdk: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASS:guest}
+    listener:
+      simple:
+        acknowledge-mode: manual
+
+app:
+  storage:
+    endpoint: ${R2_ENDPOINT:http://localhost:9000}
+    access-key: ${R2_ACCESS_KEY_ID:minioadmin}
+    secret-key: ${R2_SECRET_ACCESS_KEY:minioadmin}
+    bucket: ${R2_BUCKET_NAME:talentflow-cvs}
+    region: ${R2_REGION:auto}
+    max-file-size-bytes: ${MAX_FILE_SIZE_BYTES:5242880}
+    path-style-access: ${PATH_STYLE_ACCESS:true}
+    temp-dir: ${CV_PARSER_TEMP_DIR:}
+
+  parser:
+    docx:
+      min-inflate-ratio: ${DOCX_MIN_INFLATE_RATIO:0.01}
+      max-entry-size: ${DOCX_MAX_ENTRY_SIZE:20971520}
+      max-text-size: ${DOCX_MAX_TEXT_SIZE:2000000}
+    pdf:
+      max-pages: ${PDF_MAX_PAGES:10}
+      max-text-size: ${PDF_MAX_TEXT_SIZE:2000000}
+
+  ocr:
+    tessdata-path: ${TESSDATA_PATH:/usr/share/tesseract-ocr/4.00/tessdata}
+    language: ${OCR_LANGUAGE:vie+eng}
+    dpi: ${OCR_DPI:300}
+    max-pages: ${OCR_MAX_PAGES:20}
+    max-parallel-pages: ${OCR_MAX_PARALLEL_PAGES:2}
+    max-rendered-pixels-per-page: ${OCR_MAX_RENDERED_PIXELS_PER_PAGE:20000000}
+    min-text-length-threshold: ${OCR_MIN_TEXT_THRESHOLD:100}
+
