@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.openxml4j.exceptions.NotOfficeXmlFileException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
+import org.apache.poi.openxml4j.opc.PackageAccess;
 import org.apache.poi.openxml4j.util.ZipSecureFile;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
@@ -48,7 +49,7 @@ public class DocxTextParser implements DocumentParser {
     public String parse(Path filePath) throws ParsingException {
         log.info("Starting DOCX parsing for file: {}", filePath.getFileName());
 
-        try (OPCPackage pkg = OPCPackage.open(filePath.toFile());
+        try (OPCPackage pkg = OPCPackage.open(filePath.toFile(), PackageAccess.READ);
              XWPFDocument document = new XWPFDocument(pkg);
              XWPFWordExtractor extractor = new XWPFWordExtractor(document)) {
 

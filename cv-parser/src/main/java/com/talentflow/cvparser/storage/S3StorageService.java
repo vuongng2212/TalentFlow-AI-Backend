@@ -16,9 +16,9 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 
 @Slf4j
 @Service
@@ -32,6 +32,9 @@ public class S3StorageService implements StorageService {
 
     @Value("${file.max-size-mb:10}")
     private int maxSizeMb;
+
+    @Value("${app.storage.temp-dir:}")
+    private String tempDir;
 
     public S3StorageService(S3Client s3Client, FileValidator fileValidator) {
         this.s3Client = s3Client;
@@ -63,13 +66,16 @@ public class S3StorageService implements StorageService {
                     "File size " + head.contentLength() + " exceeds limit " + maxSizeBytes + " bytes");
         }
 
-        Path tempFile = Files.createTempFile("cv-", ".tmp");
+        Path tempFile = createTempFile();
         try (ResponseInputStream<GetObjectResponse> s3Stream = s3Client.getObject(
                 GetObjectRequest.builder()
                         .bucket(bucket)
                         .key(fileKey)
                         .build())) {
-            Files.copy(s3Stream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+            copyWithLimit(s3Stream, tempFile, maxSizeBytes, fileKey);
+        } catch (PayloadTooLargeException e) {
+            Files.deleteIfExists(tempFile);
+            throw e;
         } catch (IOException e) {
             Files.deleteIfExists(tempFile);
             throw new StorageReadException("Failed to read file: " + fileKey, e);
@@ -77,5 +83,39 @@ public class S3StorageService implements StorageService {
 
         log.info("Downloaded s3://{}/{} → {}", bucket, fileKey, tempFile);
         return tempFile;
+    }
+
+    private Path createTempFile() throws IOException {
+        Path createdTempFile;
+        if (tempDir != null && !tempDir.isBlank()) {
+            Path secureTempDir = Path.of(tempDir).toAbsolutePath().normalize();
+            Files.createDirectories(secureTempDir);
+            createdTempFile = Files.createTempFile(secureTempDir, "cv-", ".tmp");
+        } else {
+            createdTempFile = Files.createTempFile("cv-", ".tmp");
+        }
+        return createdTempFile;
+    }
+
+    private void copyWithLimit(ResponseInputStream<GetObjectResponse> s3Stream,
+                               Path destination,
+                               long maxSizeBytes,
+                               String fileKey) throws IOException {
+        long totalBytes = 0;
+        byte[] buffer = new byte[8192];
+
+        try (OutputStream outputStream = Files.newOutputStream(destination)) {
+            int bytesRead;
+            while ((bytesRead = s3Stream.read(buffer)) != -1) {
+                totalBytes += bytesRead;
+                if (totalBytes > maxSizeBytes) {
+                    log.warn("Stream exceeded size limit while downloading. key={}, streamedBytes={}, maxBytes={}",
+                            fileKey, totalBytes, maxSizeBytes);
+                    throw new PayloadTooLargeException(
+                            "File size exceeds limit " + maxSizeBytes + " bytes during download");
+                }
+                outputStream.write(buffer, 0, bytesRead);
+            }
+        }
     }
 }

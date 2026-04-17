@@ -81,14 +81,14 @@ public class ParserFactory {
     }
 
     private String runOcrWithTimeout(Path filePath) {
+        CompletableFuture<String> future = ocrImageParser.extractText(filePath);
         try {
-            CompletableFuture<String> future = ocrImageParser.extractText(filePath);
-
             String ocrText = future.get(ocrTimeoutSeconds, TimeUnit.SECONDS);
             log.info("OCR fallback extracted {} chars. file=[{}]", ocrText.length(), filePath.getFileName());
             return ocrText;
 
         } catch (java.util.concurrent.TimeoutException e) {
+            future.cancel(true);
             log.warn("OCR timeout after {}s. file=[{}] — continuing with empty text",
                     ocrTimeoutSeconds, filePath.getFileName());
             return "";

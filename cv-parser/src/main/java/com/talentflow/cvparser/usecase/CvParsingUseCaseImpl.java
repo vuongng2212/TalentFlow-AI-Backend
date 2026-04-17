@@ -38,56 +38,48 @@ public class CvParsingUseCaseImpl implements CvParsingUseCase {
     public void execute(CvUploadedEvent event) throws Exception {
         log.info("[CVP-USECASE] Pipeline started. candidateId={}", event.getCandidateId());
 
-        Path tempFile = null;
+        String rawText = parseRawText(event);
+        log.debug("[CVP-USECASE] Parsed. candidateId={}, textLength={}", event.getCandidateId(), rawText.length());
+
+        CandidateProfile profile = cvExtractorService
+                .extract(rawText)
+                .get(EXTRACTOR_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        log.info("[CVP-USECASE] Extracted. candidateId={}, status={}",
+                event.getCandidateId(), profile.getExtractionStatus());
+
+        cvParseResultRepository.save(event, profile);
+        log.debug("[CVP-USECASE] Persisted. candidateId={}", event.getCandidateId());
+
+        CvParsedEvent parsedEvent = CvParsedEvent.builder()
+                .candidateId(event.getCandidateId())
+                .applicationId(event.getApplicationId())
+                .jobId(event.getJobId())
+                .aiScore(0)
+                .parsedData(toParsedCvData(profile))
+                .scoringReasoning(null)
+                .parsedAt(Instant.now())
+                .build();
+        rabbitTemplate.convertAndSend(RabbitMqConfig.ROUTING_KEY_CV_PARSED, parsedEvent);
+        log.info("[CVP-USECASE] Pipeline completed. candidateId={}", event.getCandidateId());
+    }
+
+    private String parseRawText(CvUploadedEvent event) throws Exception {
+        Path tempFile = storageService.downloadSafely(event.getFileKey());
+        log.debug("[CVP-USECASE] Downloaded. candidateId={}, tempFile={}", event.getCandidateId(), tempFile);
+
         try {
-            // ── STEP 1: Download safely từ S3/R2/MinIO ───────────────────────
-            tempFile = storageService.downloadSafely(event.getFileKey());
-            log.debug("[CVP-USECASE] Downloaded. candidateId={}, tempFile={}", event.getCandidateId(), tempFile);
-
-            // ── STEP 2: Parse text (PDF / DOCX / OCR fallback) ───────────────
-            // [Decision Log] ParserFactory tự xử lý: detect MIME → route parser →
-            // trigger OCR nếu text < threshold. UseCase không cần biết định dạng file.
-            String rawText = parserFactory.parse(tempFile);
-            log.debug("[CVP-USECASE] Parsed. candidateId={}, textLength={}", event.getCandidateId(), rawText.length());
-
-            // ── STEP 3: LLM Extraction với CircuitBreaker + Regex fallback ────
-            CandidateProfile profile = cvExtractorService
-                    .extract(rawText)
-                    .get(EXTRACTOR_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            log.info("[CVP-USECASE] Extracted. candidateId={}, status={}",
-                    event.getCandidateId(), profile.getExtractionStatus());
-
-            // ── STEP 4: Persist kết quả vào DB ───────────────────────────────
-            cvParseResultRepository.save(event, profile);
-            log.debug("[CVP-USECASE] Persisted. candidateId={}", event.getCandidateId());
-
-            // ── STEP 5: Publish completion event ─────────────────────────────
-            // [Decision Log] Publish SAU KHI persist thành công — đảm bảo
-            // downstream service không query DB trước khi data sẵn sàng.
-            CvParsedEvent parsedEvent = CvParsedEvent.builder()
-                    .candidateId(event.getCandidateId())
-                    .applicationId(event.getApplicationId())
-                    .jobId(event.getJobId())
-                    .aiScore(0) // Placeholder — AI scoring implemented in next phase
-                    .parsedData(toParsedCvData(profile))
-                    .scoringReasoning(null)
-                    .parsedAt(Instant.now())
-                    .build();
-            rabbitTemplate.convertAndSend(RabbitMqConfig.ROUTING_KEY_CV_PARSED, parsedEvent);
-            log.info("[CVP-USECASE] Pipeline completed. candidateId={}", event.getCandidateId());
-
+            return parserFactory.parse(tempFile);
         } finally {
-            // ── CLEANUP: Xóa TempFile dù thành công hay thất bại ─────────────
-            // [Decision Log] finally block đảm bảo TempFile luôn được xóa.
-            // Không cleanup → /tmp đầy sau nhiều ngày chạy production.
-            if (tempFile != null) {
-                try {
-                    Files.deleteIfExists(tempFile);
-                    log.debug("[CVP-USECASE] TempFile deleted. path={}", tempFile);
-                } catch (Exception deleteEx) {
-                    log.warn("[CVP-USECASE] Failed to delete TempFile. path={}", tempFile, deleteEx);
-                }
-            }
+            deleteTempFile(tempFile);
+        }
+    }
+
+    private void deleteTempFile(Path tempFile) {
+        try {
+            Files.deleteIfExists(tempFile);
+            log.debug("[CVP-USECASE] TempFile deleted. path={}", tempFile);
+        } catch (Exception deleteEx) {
+            log.warn("[CVP-USECASE] Failed to delete TempFile. path={}", tempFile, deleteEx);
         }
     }
 

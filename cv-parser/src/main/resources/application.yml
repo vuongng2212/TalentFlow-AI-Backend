@@ -155,6 +155,7 @@ app:
     region: ${R2_REGION:auto}
     max-file-size-bytes: ${MAX_FILE_SIZE_BYTES:5242880}
     path-style-access: ${PATH_STYLE_ACCESS:true}
+    temp-dir: ${CV_PARSER_TEMP_DIR:}
 
   parser:
     docx:
@@ -170,5 +171,7 @@ app:
     language: ${OCR_LANGUAGE:vie+eng}
     dpi: ${OCR_DPI:300}
     max-pages: ${OCR_MAX_PAGES:20}
+    max-parallel-pages: ${OCR_MAX_PARALLEL_PAGES:2}
+    max-rendered-pixels-per-page: ${OCR_MAX_RENDERED_PIXELS_PER_PAGE:20000000}
     min-text-length-threshold: ${OCR_MIN_TEXT_THRESHOLD:100}
 
