@@ -88,6 +88,15 @@ describe('CV Upload (e2e)', () => {
     applicantCookie =
       applicantCookies.find((c) => c.startsWith('access_token')) ?? '';
 
+    const recruiter = await prisma.user.findUnique({
+      where: { email: 'cv-recruiter@test.com' },
+      select: { id: true },
+    });
+
+    if (!recruiter) {
+      throw new Error('Recruiter not found');
+    }
+
     const jobResponse = await request(app.getHttpServer())
       .post('/api/v1/jobs')
       .set('Cookie', [recruiterCookie])

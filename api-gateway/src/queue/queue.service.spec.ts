@@ -41,6 +41,19 @@ jest.mock('amqplib', () => ({
   connect: jest.fn(),
 }));
 
+function getPrivateAsyncMethod<TResult>(
+  instance: Record<string, unknown>,
+  methodName: string,
+): () => Promise<TResult> {
+  const method = instance[methodName];
+
+  if (typeof method !== 'function') {
+    throw new Error(`Expected ${methodName} to be a function`);
+  }
+
+  return method.bind(instance) as () => Promise<TResult>;
+}
+
 describe('QueueService', () => {
   let service: QueueService;
 
@@ -199,15 +212,23 @@ describe('QueueService', () => {
       return defaultValue;
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    await expect((service as any).connect()).rejects.toThrow(
+    const connectMethod = getPrivateAsyncMethod<void>(
+      service as unknown as Record<string, unknown>,
+      'connect',
+    );
+
+    await expect(connectMethod()).rejects.toThrow(
       'RABBITMQ_URL environment variable is not defined',
     );
   });
 
   it('should throw when setupTopology is called without channel', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    await expect((service as any).setupTopology()).rejects.toThrow(
+    const setupTopologyMethod = getPrivateAsyncMethod<void>(
+      service as unknown as Record<string, unknown>,
+      'setupTopology',
+    );
+
+    await expect(setupTopologyMethod()).rejects.toThrow(
       'Channel not initialized',
     );
   });

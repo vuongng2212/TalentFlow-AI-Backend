@@ -1,7 +1,14 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-
 import { sanitize, sanitizeUrl, sanitizeError } from './sanitize.util';
+
+interface CircularNode {
+  level: number;
+  parent?: CircularNode;
+  level2?: CircularNode;
+  level3?: CircularNode;
+  level4?: CircularNode;
+  level5?: CircularNode;
+  level6?: CircularNode;
+}
 
 describe('sanitize', () => {
   it('should redact password fields', () => {
@@ -100,7 +107,7 @@ describe('sanitize', () => {
   });
 
   it('should prevent infinite recursion with max depth', () => {
-    const circular: any = { level: 1 };
+    const circular: CircularNode = { level: 1 };
     circular.level2 = { level: 2, parent: circular };
     circular.level2.level3 = { level: 3, parent: circular };
     circular.level2.level3.level4 = { level: 4, parent: circular };

@@ -13,7 +13,8 @@ import java.util.concurrent.ThreadPoolExecutor;
  *
  * Separate pools prevent one type of work from starving others:
  *   - parsingExecutor: PDF/DOCX parsing (I/O bound)
- *   - ocrExecutor: Tesseract OCR (CPU intensive)
+ *   - ocrExecutor: outer OCR orchestration
+ *   - ocrPageExecutor: per-page OCR tasks (CPU intensive)
  *   - llmExecutor: Gemini API calls (I/O bound, high latency)
  */
 @Configuration
@@ -52,6 +53,24 @@ public class ThreadPoolConfig {
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60); // OCR can be slow
+        executor.initialize();
+        return executor;
+    }
+
+    /**
+     * Thread pool for per-page OCR tasks.
+     * Used inside OCR pipeline to avoid nested blocking on outer OCR executor.
+     */
+    @Bean("ocrPageExecutor")
+    public Executor ocrPageExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(20);
+        executor.setThreadNamePrefix("ocr-page-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
         executor.initialize();
         return executor;
     }

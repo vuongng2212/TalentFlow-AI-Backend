@@ -79,8 +79,8 @@ describe('CandidatesController', () => {
 
   describe('update', () => {
     it('should update and return a candidate', async () => {
-      const updateDto: UpdateCandidateDto = { firstName: 'Jane' };
-      const expectedResult = { ...mockCandidate, firstName: 'Jane' };
+      const updateDto: UpdateCandidateDto = { fullName: 'Jane Doe' };
+      const expectedResult = { ...mockCandidate, fullName: 'Jane Doe' };
 
       mockCandidatesService.update.mockResolvedValue(expectedResult);
 

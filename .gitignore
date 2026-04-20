@@ -11,6 +11,11 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
+bun-error.log*
+
+# Bun
+**/bun.lock
+**/bun.lockb
 
 # OS
 .DS_Store
@@ -34,6 +39,7 @@ lerna-debug.log*
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+.vscode
 
 # dotenv environment variable files
 .env

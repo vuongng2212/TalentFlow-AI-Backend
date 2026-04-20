@@ -15,7 +15,7 @@ services:
       - NODE_ENV=development
       - PORT=3000
       # Provide default URLs based on container names
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/talentflow_dev?schema=public
+      - DATABASE_URL=postgresql://postgres:123@postgres:5433/talentflow_dev?schema=public
       - REDIS_URL=redis://redis:6379
       - RABBITMQ_URL=amqp://rabbitmq:rabbitmq@rabbitmq:5672
       - S3_ENDPOINT=minio
@@ -47,10 +47,10 @@ services:
     container_name: talentflow-postgres
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: 123
       POSTGRES_DB: talentflow_dev
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
