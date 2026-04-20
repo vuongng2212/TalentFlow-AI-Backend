@@ -1,0 +1,54 @@
+{
+  "project_name": "TalentFlow AI Backend",
+  "repository_type": "multi-part monorepo",
+  "parts_count": 3,
+  "architecture_type": "polyglot microservice backend",
+  "primary_languages": ["TypeScript", "Java", "Markdown"],
+  "project_root": "d:/Project/TalentFlow-AI/TalentFlow-AI-Backend",
+  "project_knowledge": "d:/Project/TalentFlow-AI/TalentFlow-AI-Backend/docs",
+  "parts": [
+    {
+      "part_id": "api-gateway",
+      "name": "API Gateway",
+      "root_path": "./api-gateway",
+      "language": "TypeScript",
+      "framework": "NestJS 11",
+      "entry_point": "api-gateway/src/main.ts",
+      "status": "implemented",
+      "has_api": true,
+      "has_data": true,
+      "summary": "Primary backend entry point for auth, jobs, applications, candidates, interviews, workspaces, analytics, health, metrics, storage, and queue publishing."
+    },
+    {
+      "part_id": "cv-parser",
+      "name": "CV Parser",
+      "root_path": "./cv-parser",
+      "language": "Java",
+      "framework": "Spring Boot 3.3",
+      "entry_point": "cv-parser/src/main/java/com/talentflow/cvparser/CvParserApplication.java",
+      "status": "partial",
+      "has_api": false,
+      "has_data": true,
+      "summary": "Queue-driven worker that consumes CV upload events, parses documents, applies OCR fallback, and publishes parsed or failed outcomes; persistence is still a no-op placeholder."
+    },
+    {
+      "part_id": "notification",
+      "name": "Notification",
+      "root_path": "./notification",
+      "language": "TypeScript",
+      "framework": "Planned NestJS service",
+      "entry_point": null,
+      "status": "planned",
+      "has_api": false,
+      "has_data": false,
+      "summary": "Planning-only service for email, WebSocket push, and notification history; no runtime implementation exists in the current snapshot."
+    }
+  ],
+  "integration": {
+    "message_broker": "RabbitMQ topic exchange talentflow.events",
+    "storage": "S3-compatible object storage (MinIO locally, Cloudflare R2 in production)",
+    "database": "PostgreSQL via Prisma in API Gateway",
+    "cache": "Redis",
+    "notes": "API Gateway publishes cv.uploaded; CV Parser consumes it and publishes cv.parsed/cv.failed; Notification is documented as a future consumer in legacy/planning docs."
+  }
+}
