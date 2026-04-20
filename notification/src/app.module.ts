@@ -13,6 +13,7 @@ import { rabbitmqConfig } from './config/rabbitmq.config';
 import { smtpConfig } from './config/smtp.config';
 import { validationSchema } from './config/validation.schema';
 import { HealthModule } from './health/health.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { HealthModule } from './health/health.module';
       }),
     }),
     HealthModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

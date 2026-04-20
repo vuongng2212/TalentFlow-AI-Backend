@@ -4,19 +4,24 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Socket } from 'socket.io';
+import { DefaultEventsMap, Socket } from 'socket.io';
 import { AuthenticatedUser } from './jwt.strategy';
 
-type SocketWithUser = Socket & {
-  data: Socket['data'] & {
-    user?: AuthenticatedUser;
-  };
+type SocketDataWithUser = {
+  user?: AuthenticatedUser;
 };
+
+type AuthenticatedSocket = Socket<
+  DefaultEventsMap,
+  DefaultEventsMap,
+  DefaultEventsMap,
+  SocketDataWithUser
+>;
 
 @Injectable()
 export class WsJwtGuard extends AuthGuard('jwt') {
   getRequest(context: ExecutionContext) {
-    const client = context.switchToWs().getClient<Socket>();
+    const client = this.getClient(context);
     const token = this.extractToken(client);
 
     if (!token) {
@@ -48,14 +53,18 @@ export class WsJwtGuard extends AuthGuard('jwt') {
       );
     }
 
-    const client = context.switchToWs().getClient<SocketWithUser>();
+    const client = this.getClient(context);
     client.data.user = user;
 
     return user;
   }
 
-  private extractToken(client: Socket): string | null {
-    const authToken = client.handshake.auth?.token;
+  private getClient(context: ExecutionContext): AuthenticatedSocket {
+    return context.switchToWs().getClient<AuthenticatedSocket>();
+  }
+
+  private extractToken(client: AuthenticatedSocket): string | null {
+    const authToken = this.extractAuthToken(client.handshake.auth);
     const headerToken = client.handshake.headers?.authorization;
     const queryToken = client.handshake.query?.token;
 
@@ -66,14 +75,30 @@ export class WsJwtGuard extends AuthGuard('jwt') {
     );
   }
 
-  private normalizeToken(token: string | string[] | undefined): string | null {
-    const value = Array.isArray(token) ? token[0] : token;
+  private extractAuthToken(auth: unknown): unknown {
+    if (!auth || typeof auth !== 'object') {
+      return undefined;
+    }
 
-    if (!value) {
+    return (auth as { token?: unknown }).token;
+  }
+
+  private normalizeToken(token: unknown): string | null {
+    const value = Array.isArray(token)
+      ? token.find((item): item is string => typeof item === 'string')
+      : token;
+
+    if (typeof value !== 'string') {
       return null;
     }
 
-    return value.replace(/^Bearer\s+/i, '').trim() || null;
+    const normalized = value.replace(/^Bearer\s+/i, '').trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    return normalized;
   }
 
   private toBearerToken(token: string): string {
