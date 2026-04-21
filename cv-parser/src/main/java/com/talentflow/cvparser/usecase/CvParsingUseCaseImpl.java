@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -83,15 +84,42 @@ public class CvParsingUseCaseImpl implements CvParsingUseCase {
         }
     }
 
-    /**
-     * Map CandidateProfile (internal extraction model) → ParsedCvData (event DTO).
-     */
     private ParsedCvData toParsedCvData(CandidateProfile profile) {
         return ParsedCvData.builder()
                 .fullName(profile.getFullName())
                 .email(profile.getEmail())
                 .phone(profile.getPhone())
+                .linkedIn(profile.getLinkedIn())
+                .summary(profile.getSummary())
                 .skills(profile.getSkills())
+                .experience(mapExperience(profile.getExperience()))
+                .education(mapEducation(profile.getEducation()))
                 .build();
+    }
+
+    private List<ParsedCvData.Experience> mapExperience(
+            List<CandidateProfile.WorkExperience> src) {
+        if (src == null) return List.of();
+        return src.stream()
+                .map(e -> ParsedCvData.Experience.builder()
+                        .title(e.getTitle())
+                        .company(e.getCompany())
+                        .startDate(e.getStartDate())
+                        .endDate(e.getEndDate())
+                        .description(e.getDescription())
+                        .build())
+                .toList();
+    }
+
+    private List<ParsedCvData.Education> mapEducation(
+            List<CandidateProfile.EducationEntry> src) {
+        if (src == null) return List.of();
+        return src.stream()
+                .map(e -> ParsedCvData.Education.builder()
+                        .degree(e.getDegree())
+                        .institution(e.getInstitution())
+                        .graduationYear(e.getGraduationYear())
+                        .build())
+                .toList();
     }
 }

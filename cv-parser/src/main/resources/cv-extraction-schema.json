@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cv-extraction-schema",
+  "title": "CvExtractionResult",
+  "description": "Schema for the structured JSON that Gemini must return when parsing a CV.",
+  "type": "object",
+  "required": ["skills"],
+  "additionalProperties": false,
+  "properties": {
+    "fullName": {
+      "type": ["string", "null"],
+      "description": "Full name of the candidate."
+    },
+    "email": {
+      "type": ["string", "null"],
+      "format": "email",
+      "description": "Primary email address."
+    },
+    "phone": {
+      "type": ["string", "null"],
+      "description": "Phone number in any format."
+    },
+    "linkedIn": {
+      "type": ["string", "null"],
+      "description": "LinkedIn profile URL."
+    },
+    "summary": {
+      "type": ["string", "null"],
+      "description": "Professional summary or objective statement."
+    },
+    "yearsOfExperience": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Total years of professional experience."
+    },
+    "skills": {
+      "type": "array",
+      "description": "List of technical and soft skills.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "experience": {
+      "type": "array",
+      "description": "Work experience entries in reverse chronological order.",
+      "items": {
+        "type": "object",
+        "required": ["title", "company"],
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Job title or position."
+          },
+          "company": {
+            "type": "string",
+            "description": "Employer name."
+          },
+          "startDate": {
+            "type": ["string", "null"],
+            "pattern": "^\\d{4}-\\d{2}$",
+            "description": "Start month in YYYY-MM format."
+          },
+          "endDate": {
+            "type": ["string", "null"],
+            "pattern": "^\\d{4}-\\d{2}$",
+            "description": "End month in YYYY-MM format. Null if current role."
+          },
+          "description": {
+            "type": ["string", "null"],
+            "description": "Responsibilities and achievements."
+          }
+        }
+      }
+    },
+    "education": {
+      "type": "array",
+      "description": "Education entries.",
+      "items": {
+        "type": "object",
+        "required": ["institution"],
+        "additionalProperties": false,
+        "properties": {
+          "degree": {
+            "type": ["string", "null"],
+            "description": "Degree or qualification obtained."
+          },
+          "institution": {
+            "type": "string",
+            "description": "Name of the school or university."
+          },
+          "graduationYear": {
+            "type": ["string", "null"],
+            "pattern": "^\\d{4}$",
+            "description": "Year of graduation (YYYY)."
+          }
+        }
+      }
+    }
+  }
+}
