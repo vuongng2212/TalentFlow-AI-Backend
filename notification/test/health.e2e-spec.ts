@@ -14,8 +14,6 @@ type HealthResponseBody = {
     };
     rabbitmq: {
       status: string;
-      exchange: string;
-      queue: string;
     };
   };
 };
@@ -49,8 +47,6 @@ describe('HealthController (e2e)', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    rabbitmqServiceMock.getExchangeName.mockReturnValue('talentflow.events');
-    rabbitmqServiceMock.getQueueName.mockReturnValue('notification_queue');
   });
 
   afterAll(async () => {
@@ -70,11 +66,7 @@ describe('HealthController (e2e)', () => {
 
         expect(body.status).toBe('ok');
         expect(body.info.database).toEqual({ status: 'up' });
-        expect(body.info.rabbitmq).toEqual({
-          status: 'up',
-          exchange: 'talentflow.events',
-          queue: 'notification_queue',
-        });
+        expect(body.info.rabbitmq).toEqual({ status: 'up' });
       });
   });
 });

@@ -54,7 +54,6 @@ export class HealthController {
       throw new HealthCheckError('Database check failed', {
         database: {
           status: 'down',
-          message: error instanceof Error ? error.message : 'Unknown error',
         },
       });
     }

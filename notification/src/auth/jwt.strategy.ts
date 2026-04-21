@@ -23,15 +23,19 @@ export interface AuthenticatedUser {
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(configService: ConfigService) {
     const secret = configService.get<string>('jwt.secret');
+    const issuer = configService.get<string>('jwt.issuer');
+    const audience = configService.get<string>('jwt.audience');
 
-    if (!secret) {
-      throw new Error('JWT secret is not configured');
+    if (!secret || !issuer || !audience) {
+      throw new Error('JWT auth configuration is incomplete');
     }
 
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: secret,
+      issuer,
+      audience,
     });
   }
 

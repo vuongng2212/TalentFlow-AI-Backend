@@ -66,13 +66,8 @@ export class WsJwtGuard extends AuthGuard('jwt') {
   private extractToken(client: AuthenticatedSocket): string | null {
     const authToken = this.extractAuthToken(client.handshake.auth);
     const headerToken = client.handshake.headers?.authorization;
-    const queryToken = client.handshake.query?.token;
 
-    return (
-      this.normalizeToken(authToken) ??
-      this.normalizeToken(headerToken) ??
-      this.normalizeToken(queryToken)
-    );
+    return this.normalizeToken(authToken) ?? this.normalizeToken(headerToken);
   }
 
   private extractAuthToken(auth: unknown): unknown {

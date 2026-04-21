@@ -16,16 +16,9 @@ export class RabbitmqHealthIndicator extends HealthIndicator {
     try {
       await this.rabbitmqService.ping();
 
-      return this.getStatus(key, true, {
-        exchange: this.rabbitmqService.getExchangeName(),
-        queue: this.rabbitmqService.getQueueName(),
-      });
+      return this.getStatus(key, true);
     } catch (error) {
-      const result = this.getStatus(key, false, {
-        exchange: this.rabbitmqService.getExchangeName(),
-        queue: this.rabbitmqService.getQueueName(),
-        message: error instanceof Error ? error.message : 'Unknown error',
-      });
+      const result = this.getStatus(key, false);
 
       throw new HealthCheckError('RabbitMQ check failed', result);
     }
