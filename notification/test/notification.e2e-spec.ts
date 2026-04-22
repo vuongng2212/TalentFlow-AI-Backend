@@ -42,6 +42,7 @@ describe('NotificationController (e2e)', () => {
     jwtService = new JwtService({
       secret: jwtSecret,
       signOptions: {
+        algorithm: 'HS256',
         issuer: jwtIssuer,
         audience: jwtAudience,
       },
@@ -122,6 +123,54 @@ describe('NotificationController (e2e)', () => {
     await request(server)
       .get('/api/notifications/user-123')
       .set('Authorization', `Bearer ${invalidAudienceToken}`)
+      .expect(401)
+      .expect((response: request.Response) => {
+        const body = response.body as unknown as UnauthorizedResponseBody;
+
+        expectUnauthorized(body);
+      });
+  });
+
+  it('GET /api/notifications/:id should return 401 when the token issuer is invalid', async () => {
+    const server = app.getHttpServer() as Server;
+    const invalidIssuerToken = jwtService.sign(
+      {
+        sub: 'user-123',
+        email: 'user@example.com',
+        role: 'RECRUITER',
+      },
+      {
+        issuer: 'another-issuer',
+      },
+    );
+
+    await request(server)
+      .get('/api/notifications/user-123')
+      .set('Authorization', `Bearer ${invalidIssuerToken}`)
+      .expect(401)
+      .expect((response: request.Response) => {
+        const body = response.body as unknown as UnauthorizedResponseBody;
+
+        expectUnauthorized(body);
+      });
+  });
+
+  it('GET /api/notifications/:id should return 401 when the token algorithm is invalid', async () => {
+    const server = app.getHttpServer() as Server;
+    const invalidAlgorithmToken = jwtService.sign(
+      {
+        sub: 'user-123',
+        email: 'user@example.com',
+        role: 'RECRUITER',
+      },
+      {
+        algorithm: 'HS512',
+      },
+    );
+
+    await request(server)
+      .get('/api/notifications/user-123')
+      .set('Authorization', `Bearer ${invalidAlgorithmToken}`)
       .expect(401)
       .expect((response: request.Response) => {
         const body = response.body as unknown as UnauthorizedResponseBody;

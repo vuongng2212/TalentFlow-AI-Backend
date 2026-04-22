@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   HealthCheckError,
   HealthIndicator,
@@ -8,6 +8,8 @@ import { RabbitmqService } from '../rabbitmq/rabbitmq.service';
 
 @Injectable()
 export class RabbitmqHealthIndicator extends HealthIndicator {
+  private readonly logger = new Logger(RabbitmqHealthIndicator.name);
+
   constructor(private readonly rabbitmqService: RabbitmqService) {
     super();
   }
@@ -18,6 +20,11 @@ export class RabbitmqHealthIndicator extends HealthIndicator {
 
       return this.getStatus(key, true);
     } catch (error) {
+      this.logger.error(
+        'RabbitMQ health check failed',
+        error instanceof Error ? error.stack : String(error),
+      );
+
       const result = this.getStatus(key, false);
 
       throw new HealthCheckError('RabbitMQ check failed', result);

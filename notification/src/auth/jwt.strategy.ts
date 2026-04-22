@@ -25,6 +25,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const secret = configService.get<string>('jwt.secret');
     const issuer = configService.get<string>('jwt.issuer');
     const audience = configService.get<string>('jwt.audience');
+    const algorithms = ['HS256'];
 
     if (!secret || !issuer || !audience) {
       throw new Error('JWT auth configuration is incomplete');
@@ -36,6 +37,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       secretOrKey: secret,
       issuer,
       audience,
+      algorithms,
     });
   }
 

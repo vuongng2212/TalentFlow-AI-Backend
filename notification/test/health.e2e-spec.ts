@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import { Server } from 'http';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
@@ -8,18 +8,11 @@ import { RabbitmqService } from '../src/rabbitmq/rabbitmq.service';
 
 type HealthResponseBody = {
   status: string;
-  info: {
-    database: {
-      status: string;
-    };
-    rabbitmq: {
-      status: string;
-    };
-  };
 };
 
 describe('HealthController (e2e)', () => {
   let app: INestApplication;
+  let loggerErrorSpy: jest.SpyInstance;
 
   const prismaServiceMock = {
     $queryRaw: jest.fn(),
@@ -27,11 +20,13 @@ describe('HealthController (e2e)', () => {
 
   const rabbitmqServiceMock = {
     ping: jest.fn(),
-    getExchangeName: jest.fn().mockReturnValue('talentflow.events'),
-    getQueueName: jest.fn().mockReturnValue('notification_queue'),
   };
 
   beforeAll(async () => {
+    loggerErrorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [HealthModule],
     })
@@ -51,9 +46,10 @@ describe('HealthController (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
+    loggerErrorSpy.mockRestore();
   });
 
-  it('/health (GET) should return 200 with database and rabbitmq status up', async () => {
+  it('/health (GET) should return 200 with a generic success payload', async () => {
     prismaServiceMock.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
     rabbitmqServiceMock.ping.mockResolvedValue(undefined);
     const server = app.getHttpServer() as Server;
@@ -65,8 +61,49 @@ describe('HealthController (e2e)', () => {
         const body = response.body as unknown as HealthResponseBody;
 
         expect(body.status).toBe('ok');
-        expect(body.info.database).toEqual({ status: 'up' });
-        expect(body.info.rabbitmq).toEqual({ status: 'up' });
+        expect(body).not.toHaveProperty('info');
+        expect(body).not.toHaveProperty('error');
+        expect(body).not.toHaveProperty('details');
       });
+  });
+
+  it('/health (GET) should return 503 with a generic error payload when database is unavailable', async () => {
+    prismaServiceMock.$queryRaw.mockRejectedValue(new Error('database timeout'));
+    rabbitmqServiceMock.ping.mockResolvedValue(undefined);
+    const server = app.getHttpServer() as Server;
+
+    await request(server)
+      .get('/health')
+      .expect(503)
+      .expect((response: request.Response) => {
+        const body = response.body as unknown as HealthResponseBody;
+
+        expect(body).toEqual({ status: 'error' });
+        expect(body).not.toHaveProperty('info');
+        expect(body).not.toHaveProperty('error');
+        expect(body).not.toHaveProperty('details');
+      });
+
+    expect(loggerErrorSpy).toHaveBeenCalled();
+  });
+
+  it('/health/ready (GET) should return 503 with a generic error payload when RabbitMQ is unavailable', async () => {
+    prismaServiceMock.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
+    rabbitmqServiceMock.ping.mockRejectedValue(new Error('channel closed'));
+    const server = app.getHttpServer() as Server;
+
+    await request(server)
+      .get('/health/ready')
+      .expect(503)
+      .expect((response: request.Response) => {
+        const body = response.body as unknown as HealthResponseBody;
+
+        expect(body).toEqual({ status: 'error' });
+        expect(body).not.toHaveProperty('info');
+        expect(body).not.toHaveProperty('error');
+        expect(body).not.toHaveProperty('details');
+      });
+
+    expect(loggerErrorSpy).toHaveBeenCalled();
   });
 });
