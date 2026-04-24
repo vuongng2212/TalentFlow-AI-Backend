@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Notification {
+  id           String              @id @default(uuid())
+  userId       String              @map("user_id")
+  type         NotificationType
+  channel      NotificationChannel @default(IN_APP)
+  title        String
+  message      String              @db.Text
+  subject      String?
+  recipient    String?
+  templateId   String?             @map("template_id")
+  templateData Json?               @map("template_data")
+  metadata     Json?
+  externalId   String?             @unique @map("external_id")
+  status       NotificationStatus  @default(PENDING)
+  isRead       Boolean             @default(false) @map("is_read")
+  readAt       DateTime?           @map("read_at") @db.Timestamptz(3)
+  sentAt       DateTime?           @map("sent_at") @db.Timestamptz(3)
+  failedAt     DateTime?           @map("failed_at") @db.Timestamptz(3)
+  errorMessage String?             @map("error_message") @db.Text
+  expiresAt    DateTime?           @map("expires_at") @db.Timestamptz(3)
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt    DateTime?           @map("deleted_at") @db.Timestamptz(3)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, isRead])
+  @@index([status])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  EMAIL
+  PUSH
+  APPLICATION_UPDATE
+  INTERVIEW_INVITATION
+  SYSTEM
+}
+
+enum NotificationChannel {
+  EMAIL
+  IN_APP
+  WEBSOCKET
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+}

@@ -60,10 +60,10 @@
     [ ] Add PostgreSQL (Prisma) health indicator
     [ ] Test: curl http://localhost:5000/health
 
-[ ] 1.6 Docker Setup
-    [ ] Create Dockerfile (multi-stage Node.js build)
-    [ ] Update docker-compose.yml
-    [ ] Test: docker-compose up notification
+[x] 1.6 Docker Setup
+    [x] Create Dockerfile (multi-stage Node.js build)
+    [x] Update docker-compose.yml
+    [x] Test: docker-compose up notification
 ```
 
 **Verification:**
