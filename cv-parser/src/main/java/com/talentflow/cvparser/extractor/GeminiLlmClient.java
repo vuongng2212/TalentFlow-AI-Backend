@@ -16,7 +16,6 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 
@@ -69,14 +68,15 @@ public class GeminiLlmClient {
     }
 
     /**
-     * Send a prompt to Gemini and return the raw text of the first candidate.
+     * Send a two-part prompt to Gemini and return the raw text of the first candidate.
      *
-     * @param prompt The complete prompt string (system + user, pre-assembled by the caller).
+     * @param prompt Built by {@link PromptBuilder}; carries system instruction and user CV text.
      * @return Raw text from Gemini — expected to be valid JSON matching cv-extraction-schema.json.
      * @throws ExtractionException on non-retryable errors (4xx, empty response).
      */
-    public String generate(String prompt) {
-        log.debug("[GEMINI] Request. model={}, promptLength={}", model, prompt.length());
+    public String generate(CvExtractionPrompt prompt) {
+        log.debug("[GEMINI] Request. model={}, systemLength={}, userLength={}",
+                model, prompt.systemInstruction().length(), prompt.userContent().length());
 
         var decorated = Decorators.ofSupplier(() -> callGeminiApi(prompt))
                 .withRateLimiter(rateLimiter)
@@ -91,9 +91,10 @@ public class GeminiLlmClient {
 
     // ─── Internal ─────────────────────────────────────────────────────────────────
 
-    private String callGeminiApi(String prompt) {
+    private String callGeminiApi(CvExtractionPrompt prompt) {
         GeminiRequest request = new GeminiRequest(
-                List.of(new Content("user", List.of(new Part(prompt)))),
+                new SystemInstruction(List.of(new Part(prompt.systemInstruction()))),
+                List.of(new Content("user", List.of(new Part(prompt.userContent())))),
                 new GenerationConfig(0.1, maxTokens, "application/json")
         );
 
@@ -170,7 +171,12 @@ public class GeminiLlmClient {
 
     // ─── Request DTOs ─────────────────────────────────────────────────────────────
 
-    record GeminiRequest(List<Content> contents, GenerationConfig generationConfig) {}
+    record GeminiRequest(
+            SystemInstruction systemInstruction,
+            List<Content> contents,
+            GenerationConfig generationConfig) {}
+
+    record SystemInstruction(List<Part> parts) {}
 
     record Content(String role, List<Part> parts) {}
 
