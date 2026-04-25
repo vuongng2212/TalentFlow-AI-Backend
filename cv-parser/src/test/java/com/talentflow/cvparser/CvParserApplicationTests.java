@@ -7,20 +7,29 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
+import software.amazon.awssdk.services.s3.S3Client;
 
-@SpringBootTest
+/**
+ * Smoke test: verifies the Spring ApplicationContext loads successfully.
+ *
+ * External infrastructure beans are replaced with mocks so the test can run
+ * in CI without a real RabbitMQ broker, S3-compatible store, or Tesseract.
+ */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("test")
 class CvParserApplicationTests {
 
-    // Mock RabbitMQ connection so context loads without a running broker
+    // ── Infrastructure mocks ─────────────────────────────────────────────
     @MockBean
     ConnectionFactory connectionFactory;
 
-    // Mock the validator to avoid @PostConstruct schema loading from classpath
+    @MockBean
+    S3Client s3Client;
+
+    // ── Beans whose @PostConstruct loads classpath resources ──────────────
     @MockBean
     GeminiResponseValidator geminiResponseValidator;
 
-    // Mock the prompt builder to avoid @PostConstruct schema loading from classpath
     @MockBean
     PromptBuilder promptBuilder;
 
