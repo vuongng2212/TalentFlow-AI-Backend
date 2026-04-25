@@ -1,7 +1,7 @@
 package com.talentflow.cvparser.usecase;
 
 import com.talentflow.cvparser.extractor.CandidateProfile;
-import com.talentflow.cvparser.extractor.CvExtractorService;
+import com.talentflow.cvparser.extractor.ExtractionStatus;
 import com.talentflow.cvparser.parser.ParserFactory;
 import com.talentflow.cvparser.repository.CvParseResultRepository;
 import com.talentflow.cvparser.shared.config.RabbitMqConfig;
@@ -15,12 +15,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -30,14 +30,14 @@ class CvParsingUseCaseImplTest {
 
     private final StorageService storageService = mock(StorageService.class);
     private final ParserFactory parserFactory = mock(ParserFactory.class);
-    private final CvExtractorService cvExtractorService = mock(CvExtractorService.class);
+    private final DataExtractionUseCase dataExtractionUseCase = mock(DataExtractionUseCase.class);
     private final CvParseResultRepository cvParseResultRepository = mock(CvParseResultRepository.class);
     private final RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
 
     private final CvParsingUseCaseImpl useCase = new CvParsingUseCaseImpl(
             storageService,
             parserFactory,
-            cvExtractorService,
+            dataExtractionUseCase,
             cvParseResultRepository,
             rabbitTemplate
     );
@@ -49,7 +49,7 @@ class CvParsingUseCaseImplTest {
 
         when(storageService.downloadSafely(event.getFileKey())).thenReturn(tempFile);
         when(parserFactory.parse(tempFile)).thenReturn("raw text");
-        when(cvExtractorService.extract("raw text")).thenReturn(CompletableFuture.completedFuture(sampleProfile()));
+        when(dataExtractionUseCase.extract("raw text")).thenReturn(sampleProfile());
 
         useCase.execute(event);
 
@@ -71,26 +71,44 @@ class CvParsingUseCaseImplTest {
                 .hasMessageContaining("parse failed");
 
         assertThat(Files.exists(tempFile)).isFalse();
-        verify(cvExtractorService, never()).extract(any());
+        verify(dataExtractionUseCase, never()).extract(any());
         verify(cvParseResultRepository, never()).save(any(), any());
     }
 
     @Test
-    void executeDeletesTempFileWhenExtractionFails() throws Exception {
-        Path tempFile = Files.createTempFile("cv-extract-fail-", ".tmp");
+    void executeContinuesWhenExtractionReturnsFailedProfile() throws Exception {
+        // DataExtractionUseCase no longer throws — it absorbs failures and returns
+        // a FAILED profile. The pipeline should still persist + publish.
+        Path tempFile = Files.createTempFile("cv-extract-failed-", ".tmp");
         CvUploadedEvent event = sampleEvent();
 
         when(storageService.downloadSafely(event.getFileKey())).thenReturn(tempFile);
         when(parserFactory.parse(tempFile)).thenReturn("raw text");
-        when(cvExtractorService.extract("raw text"))
-                .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("llm failed")));
+        when(dataExtractionUseCase.extract("raw text")).thenReturn(failedProfile());
 
-        assertThatThrownBy(() -> useCase.execute(event))
-                .isInstanceOf(Exception.class)
-                .hasMessageContaining("llm failed");
+        useCase.execute(event);
 
         assertThat(Files.exists(tempFile)).isFalse();
-        verify(cvParseResultRepository, never()).save(any(), any());
+        verify(cvParseResultRepository).save(eq(event), any(CandidateProfile.class));
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMqConfig.ROUTING_KEY_CV_PARSED), any(CvParsedEvent.class));
+    }
+
+    @Test
+    void executeDeletesTempFileWhenPersistenceFails() throws Exception {
+        Path tempFile = Files.createTempFile("cv-persist-fail-", ".tmp");
+        CvUploadedEvent event = sampleEvent();
+
+        when(storageService.downloadSafely(event.getFileKey())).thenReturn(tempFile);
+        when(parserFactory.parse(tempFile)).thenReturn("raw text");
+        when(dataExtractionUseCase.extract("raw text")).thenReturn(sampleProfile());
+        doThrow(new RuntimeException("db failed"))
+                .when(cvParseResultRepository).save(eq(event), any(CandidateProfile.class));
+
+        assertThatThrownBy(() -> useCase.execute(event))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("db failed");
+
+        assertThat(Files.exists(tempFile)).isFalse();
         verify(rabbitTemplate, never()).convertAndSend(any(String.class), any(Object.class));
     }
 
@@ -112,7 +130,14 @@ class CvParsingUseCaseImplTest {
                 .email("alice@example.com")
                 .phone("0123456789")
                 .skills(List.of("Java"))
-                .extractionStatus("SUCCESS")
+                .extractionStatus(ExtractionStatus.SUCCESS)
+                .build();
+    }
+
+    private CandidateProfile failedProfile() {
+        return CandidateProfile.builder()
+                .skills(List.of())
+                .extractionStatus(ExtractionStatus.FAILED)
                 .build();
     }
 }
