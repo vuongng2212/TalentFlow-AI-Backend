@@ -18,7 +18,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  *   - llmExecutor: Gemini API calls (I/O bound, high latency)
  */
 @Configuration
-@EnableAsync
+@EnableAsync(proxyTargetClass = true)
 public class ThreadPoolConfig {
 
     /**
