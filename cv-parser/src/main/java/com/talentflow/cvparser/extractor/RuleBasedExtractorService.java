@@ -52,6 +52,14 @@ public class RuleBasedExtractorService implements CvExtractorService {
     @Override
     @Async("llmExecutor")
     public CompletableFuture<CandidateProfile> extract(String rawText) {
+        return CompletableFuture.completedFuture(extractSync(rawText));
+    }
+
+    /**
+     * Synchronous extraction — called directly by {@link GeminiExtractorService}
+     * in its fallback path (already running inside llmExecutor, no re-scheduling needed).
+     */
+    public CandidateProfile extractSync(String rawText) {
         log.info("[RULE-EXTRACTOR] Extracting from {} chars", rawText.length());
 
         String email = extractFirst(EMAIL_PATTERN, rawText);
@@ -70,13 +78,13 @@ public class RuleBasedExtractorService implements CvExtractorService {
                 .build();
 
         log.info("[RULE-EXTRACTOR] Done. email={}, phone={}, linkedIn={}, skills={}, status={}",
-                email   != null ? "[found]" : "[not found]",
-                phone   != null ? "[found]" : "[not found]",
+                email    != null ? "[found]" : "[not found]",
+                phone    != null ? "[found]" : "[not found]",
                 linkedIn != null ? "[found]" : "[not found]",
                 skills.size(),
                 status);
 
-        return CompletableFuture.completedFuture(profile);
+        return profile;
     }
 
     private String extractFirst(Pattern pattern, String text) {

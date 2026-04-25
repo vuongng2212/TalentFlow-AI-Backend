@@ -9,6 +9,7 @@ import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
+import io.github.resilience4j.retry.RetryRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -89,7 +90,6 @@ public class GeminiLlmClient {
         return text;
     }
 
-    // ─── Internal ─────────────────────────────────────────────────────────────────
 
     private String callGeminiApi(CvExtractionPrompt prompt) {
         GeminiRequest request = new GeminiRequest(
@@ -169,8 +169,6 @@ public class GeminiLlmClient {
         return cause != null ? cause : e;
     }
 
-    // ─── Request DTOs ─────────────────────────────────────────────────────────────
-
     record GeminiRequest(
             SystemInstruction systemInstruction,
             List<Content> contents,
@@ -183,8 +181,6 @@ public class GeminiLlmClient {
     record Part(String text) {}
 
     record GenerationConfig(double temperature, int maxOutputTokens, String responseMimeType) {}
-
-    // ─── Response DTOs ────────────────────────────────────────────────────────────
 
     record GeminiResponse(List<Candidate> candidates) {}
 
