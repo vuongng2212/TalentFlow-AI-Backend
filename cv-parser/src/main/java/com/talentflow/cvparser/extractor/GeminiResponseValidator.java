@@ -42,7 +42,14 @@ public class GeminiResponseValidator {
         JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
         SchemaValidatorsConfig config = new SchemaValidatorsConfig();
         config.setFormatAssertionsEnabled(true);
-        try (InputStream is = new ClassPathResource(SCHEMA_CLASSPATH).getInputStream()) {
+
+        ClassPathResource resource = new ClassPathResource(SCHEMA_CLASSPATH);
+        if (!resource.exists()) {
+            throw new IOException("Schema file not found at classpath:" + SCHEMA_CLASSPATH
+                    + ". Expected location: src/main/resources/" + SCHEMA_CLASSPATH);
+        }
+
+        try (InputStream is = resource.getInputStream()) {
             this.jsonSchema = factory.getSchema(is, config);
         }
         log.info("[SCHEMA-VALIDATOR] Schema loaded from classpath:{}", SCHEMA_CLASSPATH);
