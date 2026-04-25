@@ -1,7 +1,5 @@
 package com.talentflow.cvparser;
 
-import com.talentflow.cvparser.extractor.GeminiResponseValidator;
-import com.talentflow.cvparser.extractor.PromptBuilder;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,26 +10,29 @@ import software.amazon.awssdk.services.s3.S3Client;
 /**
  * Smoke test: verifies the Spring ApplicationContext loads successfully.
  *
- * External infrastructure beans are replaced with mocks so the test can run
- * in CI without a real RabbitMQ broker, S3-compatible store, or Tesseract.
+ * Heavy infrastructure auto-configurations (JPA, DataSource) are excluded via
+ * properties so the test can run in CI without a database.  RabbitMQ and S3
+ * infrastructure beans are replaced with mocks.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.NONE,
+        properties = {
+                "spring.autoconfigure.exclude="
+                        + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
+                        + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,"
+                        + "org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration"
+        }
+)
 @ActiveProfiles("test")
 class CvParserApplicationTests {
 
-    // ── Infrastructure mocks ─────────────────────────────────────────────
+    // RabbitMQ — provides the ConnectionFactory that RabbitMqConfig and listeners need
     @MockBean
     ConnectionFactory connectionFactory;
 
+    // S3 — created by S3Config @Bean, needs mock to avoid real S3 connection
     @MockBean
     S3Client s3Client;
-
-    // ── Beans whose @PostConstruct loads classpath resources ──────────────
-    @MockBean
-    GeminiResponseValidator geminiResponseValidator;
-
-    @MockBean
-    PromptBuilder promptBuilder;
 
     @Test
     void contextLoads() {
