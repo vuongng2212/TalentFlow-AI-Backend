@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "cv-extraction-schema",
+  "$id": "https://talentflow.com/schemas/cv-extraction-schema.json",
   "title": "CvExtractionResult",
   "description": "Schema for the structured JSON that Gemini must return when parsing a CV.",
   "type": "object",
