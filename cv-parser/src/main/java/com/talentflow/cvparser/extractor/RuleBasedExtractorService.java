@@ -67,22 +67,21 @@ public class RuleBasedExtractorService implements CvExtractorService {
         String linkedIn = extractLinkedIn(rawText);
         List<String> skills = extractSkills(rawText);
 
-        ExtractionStatus status = email != null ? ExtractionStatus.PARTIAL : ExtractionStatus.REGEX_FALLBACK;
-
+        // Status reflects the mechanism used (rule-based), not what was found.
+        // Completeness is conveyed via the populated fields themselves.
         CandidateProfile profile = CandidateProfile.builder()
                 .email(email)
                 .phone(phone)
                 .linkedIn(linkedIn)
                 .skills(skills)
-                .extractionStatus(status)
+                .extractionStatus(ExtractionStatus.REGEX_FALLBACK)
                 .build();
 
-        log.info("[RULE-EXTRACTOR] Done. email={}, phone={}, linkedIn={}, skills={}, status={}",
+        log.info("[RULE-EXTRACTOR] Done. email={}, phone={}, linkedIn={}, skills={}",
                 email    != null ? "[found]" : "[not found]",
                 phone    != null ? "[found]" : "[not found]",
                 linkedIn != null ? "[found]" : "[not found]",
-                skills.size(),
-                status);
+                skills.size());
 
         return profile;
     }
