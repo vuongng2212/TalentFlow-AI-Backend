@@ -4,7 +4,6 @@ import com.talentflow.cvparser.shared.config.GeminiConfig;
 import com.talentflow.cvparser.shared.exception.ExtractionException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
-import io.github.resilience4j.decorators.Decorators;
 import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import io.github.resilience4j.retry.Retry;
@@ -19,6 +18,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 /**
  * HTTP client for the Google Gemini generateContent API.
@@ -79,13 +79,15 @@ public class GeminiLlmClient {
         log.debug("[GEMINI] Request. model={}, systemLength={}, userLength={}",
                 model, prompt.systemInstruction().length(), prompt.userContent().length());
 
-        var decorated = Decorators.ofSupplier(() -> callGeminiApi(prompt))
-                .withRateLimiter(rateLimiter)
-                .withCircuitBreaker(circuitBreaker)
-                .withRetry(retry)
-                .decorate();
+        // Decoration order — innermost first → outermost last:
+        // RateLimiter (innermost) → CircuitBreaker → Retry (outermost).
+        // Each retry attempt thus passes through the CB and rate limit again.
+        Supplier<String> supplier = () -> callGeminiApi(prompt);
+        supplier = RateLimiter.decorateSupplier(rateLimiter, supplier);
+        supplier = CircuitBreaker.decorateSupplier(circuitBreaker, supplier);
+        supplier = Retry.decorateSupplier(retry, supplier);
 
-        String text = decorated.get();
+        String text = supplier.get();
         log.debug("[GEMINI] Response. responseLength={}", text.length());
         return text;
     }
