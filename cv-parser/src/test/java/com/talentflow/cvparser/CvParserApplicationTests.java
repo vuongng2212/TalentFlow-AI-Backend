@@ -10,27 +10,26 @@ import software.amazon.awssdk.services.s3.S3Client;
 /**
  * Smoke test: verifies the Spring ApplicationContext loads successfully.
  *
- * Heavy infrastructure auto-configurations (JPA, DataSource) are excluded via
- * properties so the test can run in CI without a database.  RabbitMQ and S3
- * infrastructure beans are replaced with mocks.
+ * <p>RabbitMQ auto-configuration is excluded to prevent listener containers from
+ * starting (they would try to open real connections via the mocked ConnectionFactory).
+ * JPA/DataSource is left enabled — H2 in-memory DB handles it in the test profile.</p>
+ *
+ * <p>The {@code ConnectionFactory} mock satisfies {@code RabbitMqConfig#rabbitTemplate()},
+ * and the {@code S3Client} mock satisfies {@code S3StorageService}.</p>
  */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.NONE,
         properties = {
-                "spring.autoconfigure.exclude="
-                        + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
-                        + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,"
-                        + "org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration"
+                "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
+                "spring.jpa.hibernate.ddl-auto=create-drop"
         }
 )
 @ActiveProfiles("test")
 class CvParserApplicationTests {
 
-    // RabbitMQ — provides the ConnectionFactory that RabbitMqConfig and listeners need
     @MockBean
     ConnectionFactory connectionFactory;
 
-    // S3 — created by S3Config @Bean, needs mock to avoid real S3 connection
     @MockBean
     S3Client s3Client;
 
