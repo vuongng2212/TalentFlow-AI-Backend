@@ -5,7 +5,7 @@
 | Phase | Name | Duration | Status |
 |-------|------|----------|--------|
 | 1 | Project Setup & Core Infrastructure | Day 1-2 | ⬜ Not Started |
-| 2 | Email Service | Day 2-3 | ⬜ Not Started |
+| 2 | Email Service | Day 2-3 | ✅ Completed |
 | 3 | RabbitMQ Consumer | Day 3-4 | ⬜ Not Started |
 | 4 | Socket.IO Real-time | Day 4-5 | ⬜ Not Started |
 | 5 | Notification History | Day 5-6 | ⬜ Not Started |
@@ -98,36 +98,36 @@ curl -X GET http://localhost:5000/api/notifications/user-123 \
 
 **Tasks:**
 ```
-[ ] 2.1 Email DTOs
-    [ ] Create notification/dto/send-notification.dto.ts (class-validator)
-    [ ] Create notification/dto/notification-response.dto.ts
-    [ ] Create notification/entities/notification.entity.ts
+[x] 2.1 Email DTOs
+    [x] Create notification/dto/send-notification.dto.ts (class-validator)
+    [x] Create notification/dto/notification-response.dto.ts
+    [x] Create notification/entities/notification.entity.ts
 
-[ ] 2.2 Email Infrastructure
-    [ ] Install: @nestjs-modules/mailer nodemailer handlebars
-    [ ] Create email/email.module.ts (MailerModule.forRootAsync)
-    [ ] Create email/email.service.ts
-    [ ] Implement retry với exponential backoff (3 attempts)
-    [ ] Add PII masking trong logs (common/utils/pii-masker.ts)
+[x] 2.2 Email Infrastructure
+    [x] Install: @nestjs-modules/mailer nodemailer handlebars
+    [x] Create email/email.module.ts (MailerModule.forRootAsync)
+    [x] Create email/email.service.ts
+    [x] Implement retry với exponential backoff (3 attempts)
+    [x] Add PII masking trong logs (common/utils/pii-masker.ts)
 
-[ ] 2.3 Email Templates (Handlebars)
-    [ ] Create email/templates/ folder
-    [ ] Create application-confirmation.hbs
-    [ ] Create interview-invitation.hbs
-    [ ] Create new-application-hr.hbs
-    [ ] Implement template rendering via @nestjs-modules/mailer
+[x] 2.3 Email Templates (Handlebars)
+    [x] Create email/templates/ folder
+    [x] Create application-confirmation.hbs
+    [x] Create interview-invitation.hbs
+    [x] Create new-application-hr.hbs
+    [x] Implement template rendering via @nestjs-modules/mailer
 
-[ ] 2.4 REST API Endpoint
-    [ ] Create notification/notification.module.ts
-    [ ] Create notification/notification.controller.ts
-    [ ] Add @UseGuards(JwtAuthGuard)
-    [ ] Add @Throttle() rate limiting
-    [ ] POST /api/notifications/send endpoint
-    [ ] Test với JWT token
+[x] 2.4 REST API Endpoint
+    [x] Create notification/notification.module.ts
+    [x] Create notification/notification.controller.ts
+    [x] Add @UseGuards(JwtAuthGuard)
+    [x] Add @Throttle() rate limiting
+    [x] POST /api/notifications/send endpoint
+    [x] Test với JWT token
 
-[ ] 2.5 DI Registration
-    [ ] Register EmailService trong EmailModule
-    [ ] Verify startup validation cho SMTP credentials
+[x] 2.5 DI Registration
+    [x] Register EmailService trong EmailModule
+    [x] Verify startup validation cho SMTP credentials
 ```
 
 **Verification:**

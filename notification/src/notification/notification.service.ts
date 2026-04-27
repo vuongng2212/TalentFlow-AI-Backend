@@ -1,9 +1,51 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { EmailService } from '../email/email.service';
 import { NotificationResponseDto } from './dto/notification-response.dto';
+import {
+  SendNotificationDto,
+  SendNotificationType,
+} from './dto/send-notification.dto';
 import { NotificationEntity } from './entities/notification.entity';
 
 @Injectable()
 export class NotificationService {
+  constructor(private readonly emailService: EmailService) {}
+
+  async send(
+    dto: SendNotificationDto,
+    user: AuthenticatedUser,
+  ): Promise<NotificationResponseDto> {
+    const templateId = dto.templateId ?? this.resolveTemplateId(dto.type);
+
+    await this.emailService.sendEmail({
+      to: dto.to,
+      subject: dto.subject,
+      body: dto.body,
+      templateId: dto.body ? undefined : templateId,
+      templateData: dto.templateData,
+    });
+
+    const now = new Date();
+    const notification: NotificationEntity = {
+      id: randomUUID(),
+      userId: user.userId,
+      type: dto.type,
+      channel: 'email',
+      title: dto.subject,
+      message: dto.body ?? `Email sent with template ${templateId}`,
+      recipient: dto.to,
+      subject: dto.subject,
+      status: 'sent',
+      read: false,
+      sentAt: now,
+      createdAt: now,
+    };
+
+    return this.toResponse(notification);
+  }
+
   getNotificationById(id: string, userId: string): NotificationResponseDto {
     const notification: NotificationEntity = {
       id,
@@ -14,9 +56,28 @@ export class NotificationService {
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
     };
 
+    return this.toResponse(notification);
+  }
+
+  private resolveTemplateId(type: SendNotificationType): string | undefined {
+    const templates: Partial<Record<SendNotificationType, string>> = {
+      [SendNotificationType.APPLICATION_CONFIRMATION]:
+        'application-confirmation',
+      [SendNotificationType.INTERVIEW_INVITATION]: 'interview-invitation',
+      [SendNotificationType.NEW_APPLICATION_HR]: 'new-application-hr',
+      [SendNotificationType.APPLICATION_RESULT]: 'application-result',
+    };
+
+    return templates[type];
+  }
+
+  private toResponse(
+    notification: NotificationEntity,
+  ): NotificationResponseDto {
     return {
       ...notification,
       createdAt: notification.createdAt.toISOString(),
+      sentAt: notification.sentAt?.toISOString(),
     };
   }
 }

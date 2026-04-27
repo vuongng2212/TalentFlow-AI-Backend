@@ -1,10 +1,11 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Server } from 'http';
 import * as request from 'supertest';
 import { jwtConfig } from '../src/config/jwt.config';
+import { EmailService } from '../src/email/email.service';
 import { NotificationModule } from '../src/notification/notification.module';
 
 type UnauthorizedResponseBody = {
@@ -16,6 +17,7 @@ describe('NotificationController (e2e)', () => {
   let app: INestApplication;
   let previousEnv: NodeJS.ProcessEnv;
   let jwtService: JwtService;
+  let emailService: jest.Mocked<Pick<EmailService, 'sendEmail'>>;
 
   const jwtSecret = 'test-jwt-secret-please-change';
   const jwtIssuer = 'talentflow-api-gateway';
@@ -36,9 +38,22 @@ describe('NotificationController (e2e)', () => {
         }),
         NotificationModule,
       ],
-    }).compile();
+    })
+      .overrideProvider(EmailService)
+      .useValue({
+        sendEmail: jest.fn().mockResolvedValue(undefined),
+      })
+      .compile();
 
     app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+    emailService = moduleFixture.get(EmailService);
     jwtService = new JwtService({
       secret: jwtSecret,
       signOptions: {
@@ -52,7 +67,12 @@ describe('NotificationController (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
-    for (const key of ['JWT_SECRET', 'JWT_ISSUER', 'JWT_AUDIENCE', 'JWT_EXPIRES_IN']) {
+    for (const key of [
+      'JWT_SECRET',
+      'JWT_ISSUER',
+      'JWT_AUDIENCE',
+      'JWT_EXPIRES_IN',
+    ]) {
       const previousValue = previousEnv[key];
 
       if (typeof previousValue === 'undefined') {
@@ -68,6 +88,14 @@ describe('NotificationController (e2e)', () => {
     expect(body).toMatchObject({
       statusCode: 401,
       error: 'Unauthorized',
+    });
+  }
+
+  function createValidToken(): string {
+    return jwtService.sign({
+      sub: 'user-123',
+      email: 'user@example.com',
+      role: 'RECRUITER',
     });
   }
 
@@ -190,5 +218,73 @@ describe('NotificationController (e2e)', () => {
 
         expectUnauthorized(body);
       });
+  });
+
+  it('POST /api/notifications/send should return 401 when the authorization header is missing', async () => {
+    const server = app.getHttpServer() as Server;
+
+    await request(server)
+      .post('/api/notifications/send')
+      .send({
+        to: 'candidate@example.com',
+        subject: 'Test',
+        body: 'Hello',
+        type: 'email',
+      })
+      .expect(401)
+      .expect((response: request.Response) => {
+        expectUnauthorized(response.body);
+      });
+  });
+
+  it('POST /api/notifications/send should return 400 for invalid email payload', async () => {
+    const server = app.getHttpServer() as Server;
+
+    await request(server)
+      .post('/api/notifications/send')
+      .set('Authorization', `Bearer ${createValidToken()}`)
+      .send({
+        to: 'invalid-email',
+        subject: 'Test',
+        body: 'Hello',
+        type: 'email',
+      })
+      .expect(400);
+  });
+
+  it('POST /api/notifications/send should send an email for a valid request', async () => {
+    const server = app.getHttpServer() as Server;
+
+    await request(server)
+      .post('/api/notifications/send')
+      .set('Authorization', `Bearer ${createValidToken()}`)
+      .send({
+        to: 'candidate@example.com',
+        subject: 'Test',
+        body: 'Hello',
+        type: 'email',
+      })
+      .expect(201)
+      .expect((response: request.Response) => {
+        expect(response.body).toMatchObject({
+          userId: 'user-123',
+          type: 'email',
+          channel: 'email',
+          title: 'Test',
+          message: 'Hello',
+          recipient: 'candidate@example.com',
+          subject: 'Test',
+          status: 'sent',
+          read: false,
+        });
+      });
+
+    expect(emailService.sendEmail).toHaveBeenCalledWith({
+      to: 'candidate@example.com',
+      subject: 'Test',
+      body: 'Hello',
+      templateId: undefined,
+      templateData: undefined,
+    });
   });
 });

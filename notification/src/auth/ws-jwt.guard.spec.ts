@@ -33,7 +33,11 @@ describe('WsJwtGuard', () => {
       },
     };
 
-    const token = (guard as unknown as { extractToken: (socket: MockSocket) => string | null }).extractToken(client);
+    const token = (
+      guard as unknown as {
+        extractToken: (socket: MockSocket) => string | null;
+      }
+    ).extractToken(client);
 
     expect(token).toBe('auth-token');
   });
@@ -47,7 +51,11 @@ describe('WsJwtGuard', () => {
       },
     };
 
-    const token = (guard as unknown as { extractToken: (socket: MockSocket) => string | null }).extractToken(client);
+    const token = (
+      guard as unknown as {
+        extractToken: (socket: MockSocket) => string | null;
+      }
+    ).extractToken(client);
 
     expect(token).toBe('header-token');
   });
@@ -61,7 +69,11 @@ describe('WsJwtGuard', () => {
       },
     };
 
-    const token = (guard as unknown as { extractToken: (socket: MockSocket) => string | null }).extractToken(client);
+    const token = (
+      guard as unknown as {
+        extractToken: (socket: MockSocket) => string | null;
+      }
+    ).extractToken(client);
 
     expect(token).toBeNull();
   });

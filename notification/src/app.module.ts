@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import {
   utilities as nestWinstonModuleUtilities,
   WinstonModule,
@@ -48,6 +49,12 @@ import { NotificationModule } from './notification/notification.module';
         ],
       }),
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
     HealthModule,
     NotificationModule,
   ],

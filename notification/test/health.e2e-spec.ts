@@ -68,7 +68,9 @@ describe('HealthController (e2e)', () => {
   });
 
   it('/health (GET) should return 503 with a generic error payload when database is unavailable', async () => {
-    prismaServiceMock.$queryRaw.mockRejectedValue(new Error('database timeout'));
+    prismaServiceMock.$queryRaw.mockRejectedValue(
+      new Error('database timeout'),
+    );
     rabbitmqServiceMock.ping.mockResolvedValue(undefined);
     const server = app.getHttpServer() as Server;
 
