@@ -42,7 +42,15 @@ jobs:
         run: chmod +x mvnw
 
       - name: Run tests
-        run: ./mvnw -B -ntp clean test
+        run: ./mvnw -B -ntp -e clean test
+
+      - name: Print surefire reports on failure
+        if: failure()
+        run: |
+          for f in target/surefire-reports/*.txt; do
+            echo "=== $f ==="
+            cat "$f"
+          done
 
   package:
     name: Package cv-parser

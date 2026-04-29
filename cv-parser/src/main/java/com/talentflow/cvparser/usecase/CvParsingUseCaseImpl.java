@@ -1,7 +1,6 @@
 package com.talentflow.cvparser.usecase;
 
 import com.talentflow.cvparser.extractor.CandidateProfile;
-import com.talentflow.cvparser.extractor.CvExtractorService;
 import com.talentflow.cvparser.parser.ParserFactory;
 import com.talentflow.cvparser.repository.CvParseResultRepository;
 import com.talentflow.cvparser.shared.config.RabbitMqConfig;
@@ -17,20 +16,16 @@ import org.springframework.stereotype.Service;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.concurrent.TimeUnit;
+import java.util.List;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CvParsingUseCaseImpl implements CvParsingUseCase {
 
-    // [Decision Log] Timeout 30 giây cho LLM extraction — ngắn hơn OCR (120s) vì
-    // Gemini là network call, không phải CPU-bound.
-    private static final long EXTRACTOR_TIMEOUT_SECONDS = 30L;
-
     private final StorageService storageService;
     private final ParserFactory parserFactory;
-    private final CvExtractorService cvExtractorService;
+    private final DataExtractionUseCase dataExtractionUseCase;
     private final CvParseResultRepository cvParseResultRepository;
     private final RabbitTemplate rabbitTemplate;
 
@@ -41,9 +36,7 @@ public class CvParsingUseCaseImpl implements CvParsingUseCase {
         String rawText = parseRawText(event);
         log.debug("[CVP-USECASE] Parsed. candidateId={}, textLength={}", event.getCandidateId(), rawText.length());
 
-        CandidateProfile profile = cvExtractorService
-                .extract(rawText)
-                .get(EXTRACTOR_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        CandidateProfile profile = dataExtractionUseCase.extract(rawText);
         log.info("[CVP-USECASE] Extracted. candidateId={}, status={}",
                 event.getCandidateId(), profile.getExtractionStatus());
 
@@ -83,15 +76,42 @@ public class CvParsingUseCaseImpl implements CvParsingUseCase {
         }
     }
 
-    /**
-     * Map CandidateProfile (internal extraction model) → ParsedCvData (event DTO).
-     */
     private ParsedCvData toParsedCvData(CandidateProfile profile) {
         return ParsedCvData.builder()
                 .fullName(profile.getFullName())
                 .email(profile.getEmail())
                 .phone(profile.getPhone())
+                .linkedIn(profile.getLinkedIn())
+                .summary(profile.getSummary())
                 .skills(profile.getSkills())
+                .experience(mapExperience(profile.getExperience()))
+                .education(mapEducation(profile.getEducation()))
                 .build();
+    }
+
+    private List<ParsedCvData.Experience> mapExperience(
+            List<CandidateProfile.WorkExperience> src) {
+        if (src == null) return List.of();
+        return src.stream()
+                .map(e -> ParsedCvData.Experience.builder()
+                        .title(e.getTitle())
+                        .company(e.getCompany())
+                        .startDate(e.getStartDate())
+                        .endDate(e.getEndDate())
+                        .description(e.getDescription())
+                        .build())
+                .toList();
+    }
+
+    private List<ParsedCvData.Education> mapEducation(
+            List<CandidateProfile.EducationEntry> src) {
+        if (src == null) return List.of();
+        return src.stream()
+                .map(e -> ParsedCvData.Education.builder()
+                        .degree(e.getDegree())
+                        .institution(e.getInstitution())
+                        .graduationYear(e.getGraduationYear())
+                        .build())
+                .toList();
     }
 }
