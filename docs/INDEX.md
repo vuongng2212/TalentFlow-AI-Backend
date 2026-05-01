@@ -3,7 +3,7 @@
 **Type:** Multi-part monorepo with 3 parts
 **Primary language:** TypeScript and Java
 **Architecture:** Polyglot microservice backend
-**Last updated:** 2026-04-18
+**Last updated:** 2026-05-01
 
 ## Project overview
 
@@ -12,28 +12,31 @@ TalentFlow AI Backend is a brownfield ATS backend with one implemented HTTP gate
 ## Project structure
 
 ### API Gateway (`api-gateway`)
+
 - **Type:** Implemented backend service
 - **Location:** `./api-gateway`
 - **Tech stack:** NestJS 11, Prisma, PostgreSQL, Redis, RabbitMQ, S3-compatible storage
 - **Entry point:** `api-gateway/src/main.ts`
 
 ### CV Parser (`cv-parser`)
+
 - **Type:** Partially implemented worker service
 - **Location:** `./cv-parser`
 - **Tech stack:** Spring Boot 3.3, Java 17, Spring AMQP, JPA, PDFBox, POI, Tess4J, Tika, Resilience4j
 - **Entry point:** `cv-parser/src/main/java/com/talentflow/cvparser/CvParserApplication.java`
 
 ### Notification (`notification`)
-- **Type:** Planned service
+
+- **Type:** Partial runtime scaffold
 - **Location:** `./notification`
-- **Tech stack:** Planning docs only; intended NestJS service
-- **Entry point:** none yet
+- **Tech stack:** NestJS 10, Prisma, PostgreSQL, Redis, RabbitMQ, Socket.IO, SMTP
+- **Entry point:** `notification/src/main.ts`
 
 ## Cross-part integration
 
 - API Gateway publishes `cv.uploaded` after a CV upload is saved to object storage.
 - CV Parser consumes `cv.uploaded`, processes the file, and publishes `cv.parsed` or `cv.failed`.
-- Notification is documented as a future consumer of downstream events, but no runtime code exists yet.
+- Notification is a runnable NestJS scaffold with health checks and a sample lookup route, but its delivery pipelines are still incomplete.
 
 ## Quick reference
 
@@ -46,26 +49,31 @@ TalentFlow AI Backend is a brownfield ATS backend with one implemented HTTP gate
 ## Generated documentation
 
 ### Core documentation
+
 - **[Project Overview](./project-overview.md)** - Executive summary and part map
 - **[Source Tree Analysis](./source-tree-analysis.md)** - Directory layout and runtime roles
 - **[Integration Architecture](./integration-architecture.md)** - Cross-service events and boundaries
 
 ### API Gateway
+
 - **[Architecture](./architecture-api-gateway.md)** - NestJS gateway design and runtime flow
 - **[Development Guide](./development-guide-api-gateway.md)** - Gateway setup, scripts, and workflow
 - **[API Contracts](./api-contracts-api-gateway.md)** - Routes, payloads, and auth contracts
 - **[Data Models](./data-models-api-gateway.md)** - Prisma schema and domain entities
 
 ### CV Parser
+
 - **[Architecture](./architecture-cv-parser.md)** - Spring worker flow and queue handling
 - **[Development Guide](./development-guide-cv-parser.md)** - Worker setup, build, and run steps
 - **[Data Models](./data-models-cv-parser.md)** - Event payloads and persistence shape
 
 ### Notification
+
 - **[Architecture](./architecture-notification.md)** - Planned notification service scope
 - **[Development Guide](./development-guide-notification.md)** - Future service workflow and setup notes
 
 ### Workflow metadata
+
 - **[Project Parts Metadata](./project-parts.json)** - Machine-readable service inventory
 - **[Project Scan Report](./project-scan-report.json)** - Generated scan results and coverage
 

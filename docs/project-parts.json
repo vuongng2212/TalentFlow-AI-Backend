@@ -4,8 +4,8 @@
   "parts_count": 3,
   "architecture_type": "polyglot microservice backend",
   "primary_languages": ["TypeScript", "Java", "Markdown"],
-  "project_root": "d:/Project/TalentFlow-AI/TalentFlow-AI-Backend",
-  "project_knowledge": "d:/Project/TalentFlow-AI/TalentFlow-AI-Backend/docs",
+  "project_root": "/home/vuongnguyen/Documents/Project/TalentFlow-AI-Backend",
+  "project_knowledge": "/home/vuongnguyen/Documents/Project/TalentFlow-AI-Backend/docs",
   "parts": [
     {
       "part_id": "api-gateway",
@@ -29,26 +29,26 @@
       "status": "partial",
       "has_api": false,
       "has_data": true,
-      "summary": "Queue-driven worker that consumes CV upload events, parses documents, applies OCR fallback, and publishes parsed or failed outcomes; persistence is still a no-op placeholder."
+      "summary": "Queue-driven worker that consumes CV upload events, downloads files from S3-compatible storage, parses documents with OCR fallback, extracts structured data with Gemini/rule-based logic, and publishes parsed or failed outcomes; persistence is still a no-op placeholder."
     },
     {
       "part_id": "notification",
       "name": "Notification",
       "root_path": "./notification",
       "language": "TypeScript",
-      "framework": "Planned NestJS service",
-      "entry_point": null,
-      "status": "planned",
-      "has_api": false,
-      "has_data": false,
-      "summary": "Planning-only service for email, WebSocket push, and notification history; no runtime implementation exists in the current snapshot."
+      "framework": "NestJS 10",
+      "entry_point": "notification/src/main.ts",
+      "status": "partial",
+      "has_api": true,
+      "has_data": true,
+      "summary": "Runtime notification shell with JWT auth, health checks, Prisma schema, and a sample notification lookup route; email, WebSocket, and RabbitMQ delivery flows are still placeholders."
     }
   ],
   "integration": {
     "message_broker": "RabbitMQ topic exchange talentflow.events",
     "storage": "S3-compatible object storage (MinIO locally, Cloudflare R2 in production)",
-    "database": "PostgreSQL via Prisma in API Gateway",
+    "database": "PostgreSQL via Prisma in API Gateway and notification scaffold",
     "cache": "Redis",
-    "notes": "API Gateway publishes cv.uploaded; CV Parser consumes it and publishes cv.parsed/cv.failed; Notification is documented as a future consumer in legacy/planning docs."
+    "notes": "API Gateway publishes cv.uploaded; CV Parser consumes it and publishes cv.parsed/cv.failed; Notification exists as a runtime scaffold with auth, health, and Prisma wiring, but its message consumers and delivery channels are not fully implemented yet."
   }
 }

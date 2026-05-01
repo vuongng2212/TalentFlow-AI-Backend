@@ -1,25 +1,40 @@
 # Notification Architecture
 
-**Status:** Planned only
+**Status:** Partial runtime scaffold
+**Entry points:** `src/main.ts`, `src/app.module.ts`, `src/notification/notification.controller.ts`, `src/health/health.controller.ts`
 
 ## Purpose
 
-The Notification service is documented as the future home for email notifications, WebSocket push updates, and notification history. The current repository snapshot does not contain runtime code for the service.
+Notification is the NestJS shell for future email, WebSocket, and notification-history features. The current codebase boots a real service, exposes health probes, wires JWT auth, and serves a stub notification lookup route, but the delivery and consumer modules are still incomplete.
 
 ## Current maturity
 
-- Planning docs exist.
-- No executable service entry point exists in the current snapshot.
-- The service should not be treated as runnable or production-ready yet.
+- The app boots with `ConfigModule`, Winston logging, `HealthModule`, and `NotificationModule`.
+- JWT auth strategy and guards exist.
+- Prisma and RabbitMQ health wiring are present through `HealthModule`.
+- `GET /api/notifications/:id` returns a sample DTO from `notification.service.ts`.
+- `email.service.ts`, `notification.gateway.ts`, and `rabbitmq/notification.consumer.ts` are currently empty placeholders.
+- Notification history persistence is represented by a Prisma schema, but no real repository logic is wired yet.
+
+## Current HTTP and operational surface
+
+| Area | Current state |
+|---|---|
+| HTTP API | `GET /api/notifications/:id` guarded by JWT |
+| Health | `/health`, `/health/ready`, `/health/live` |
+| Database | Prisma service and `notifications` schema exist |
+| Messaging | RabbitMQ connection and health checks exist; consumer flow is not implemented |
+| Real-time | Socket.IO support is scaffolded but not wired |
+| Email | SMTP config and service scaffold exist, but delivery flow is not wired |
 
 ## Intended responsibilities
 
-According to the planning docs, the service is expected to:
+According to the legacy planning material, the final service should:
 
 - Send transactional email
 - Push real-time notifications to clients
 - Store notification history
-- Consume RabbitMQ events from the backend ecosystem
+- Consume RabbitMQ events from the ATS backend
 
 ## Intended integration points
 
@@ -31,20 +46,6 @@ According to the planning docs, the service is expected to:
 | SMTP | Send email |
 | Socket.IO | Real-time client push |
 
-## Planning-doc architecture themes
-
-The legacy planning material describes a modular NestJS service with:
-
-- An HTTP API for notification history and actions
-- A WebSocket gateway for authenticated push notifications
-- A RabbitMQ consumer for backend events
-- A Prisma-backed persistence layer
-- JWT-based auth shared with the rest of the backend
-
-## Important caution
-
-The above are design intentions, not current runtime facts. Use them for future implementation planning only.
-
 ## Recommended interpretation
 
-When reading this repository today, treat Notification as a service design area rather than a live service. Any future implementation should be checked against the current event contracts and the live code in `api-gateway/` and `cv-parser/`.
+Treat this repository area as a scaffolded runtime shell. It is useful for bootstrapping auth, health, and persistence work, but it is not yet a complete notification platform.

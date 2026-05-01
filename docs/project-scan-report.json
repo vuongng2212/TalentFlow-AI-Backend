@@ -1,1 +1,121 @@
-{"workflow_version":"1.2.0","timestamps":{"started":"2026-04-17T17:26:33Z","last_updated":"2026-04-29T15:48:14Z"},"mode":"initial_scan","scan_level":"deep","project_root":"d:/Project/TalentFlow-AI/TalentFlow-AI-Backend","project_knowledge":"d:/Project/TalentFlow-AI/TalentFlow-AI-Backend/docs","completed_steps":[{"step":"step_1","status":"completed","timestamp":"2026-04-17T17:26:33Z","outputs":["docs/project-parts.json","docs/project-overview.md","docs/source-tree-analysis.md","docs/integration-architecture.md","docs/index.md"],"summary":"Classified the repository as a three-part polyglot backend and generated the core documentation set."},{"step":"step_2","status":"completed","timestamp":"2026-04-17T17:26:33Z","outputs":["docs/architecture-api-gateway.md","docs/development-guide-api-gateway.md","docs/api-contracts-api-gateway.md","docs/data-models-api-gateway.md"],"summary":"Documented the implemented API Gateway from code truth, including routes, security, data model, and developer workflow."},{"step":"step_3","status":"completed","timestamp":"2026-04-17T17:26:33Z","outputs":["docs/architecture-cv-parser.md","docs/development-guide-cv-parser.md","docs/data-models-cv-parser.md"],"summary":"Documented the partially implemented CV Parser worker, including message contracts, parsing flow, and the persistence gap."},{"step":"step_4","status":"completed","timestamp":"2026-04-17T17:26:33Z","outputs":["docs/architecture-notification.md","docs/development-guide-notification.md"],"summary":"Documented the Notification service as planning-only so it is clearly separated from runnable code."}],"current_step":"complete","findings":{"project_classification":{"repository_type":"multi-part monorepo","parts_count":3,"primary_language":"TypeScript and Java","architecture_type":"polyglot microservice backend"},"technology_stack":[{"part_id":"api-gateway","tech_summary":"NestJS 11, Prisma, PostgreSQL, Redis, RabbitMQ, S3-compatible storage"},{"part_id":"cv-parser","tech_summary":"Spring Boot 3.3, Java 17, RabbitMQ, JPA, PDFBox, POI, Tess4J, Tika, Resilience4j"},{"part_id":"notification","tech_summary":"Planning-only NestJS notification service"}],"batches_completed":[{"path":"api-gateway","files_scanned":9,"summary":"Reviewed entry points, app module, queue/storage integration, Prisma schema, environment contract, and major controllers."},{"path":"cv-parser","files_scanned":9,"summary":"Reviewed Maven build, runtime configuration, RabbitMQ listener/config, event DTOs, and the placeholder repository."},{"path":"notification","files_scanned":2,"summary":"Reviewed planning docs and confirmed no runtime implementation exists yet."}]},"outputs_generated":["docs/project-parts.json","docs/project-overview.md","docs/source-tree-analysis.md","docs/integration-architecture.md","docs/index.md","docs/architecture-api-gateway.md","docs/development-guide-api-gateway.md","docs/api-contracts-api-gateway.md","docs/data-models-api-gateway.md","docs/architecture-cv-parser.md","docs/development-guide-cv-parser.md","docs/data-models-cv-parser.md","docs/architecture-notification.md","docs/development-guide-notification.md"],"resume_instructions":"Resume from current_step=complete only if a post-generation update is needed. Otherwise the documentation set is complete.","validation_status":{"last_validated":"2026-04-29T15:48:14Z","validation_errors":[]},"deep_dive_targets":[]}
+{
+  "workflow_version": "1.2.0",
+  "timestamps": {
+    "started": "2026-04-17T17:26:33Z",
+    "last_updated": "2026-05-01T09:31:37Z"
+  },
+  "mode": "initial_scan",
+  "scan_level": "deep",
+  "project_root": "/home/vuongnguyen/Documents/Project/TalentFlow-AI-Backend",
+  "project_knowledge": "/home/vuongnguyen/Documents/Project/TalentFlow-AI-Backend/docs",
+  "completed_steps": [
+    {
+      "step": "step_1",
+      "status": "completed",
+      "timestamp": "2026-04-17T17:26:33Z",
+      "outputs": [
+        "docs/project-parts.json",
+        "docs/project-overview.md",
+        "docs/source-tree-analysis.md",
+        "docs/integration-architecture.md",
+        "docs/INDEX.md"
+      ],
+      "summary": "Classified the repository as a three-part polyglot backend and generated the core documentation set."
+    },
+    {
+      "step": "step_2",
+      "status": "completed",
+      "timestamp": "2026-04-17T17:26:33Z",
+      "outputs": [
+        "docs/architecture-api-gateway.md",
+        "docs/development-guide-api-gateway.md",
+        "docs/api-contracts-api-gateway.md",
+        "docs/data-models-api-gateway.md"
+      ],
+      "summary": "Documented the implemented API Gateway from code truth, including routes, security, data model, and developer workflow."
+    },
+    {
+      "step": "step_3",
+      "status": "completed",
+      "timestamp": "2026-04-17T17:26:33Z",
+      "outputs": [
+        "docs/architecture-cv-parser.md",
+        "docs/development-guide-cv-parser.md",
+        "docs/data-models-cv-parser.md"
+      ],
+      "summary": "Documented the partially implemented CV Parser worker, including message contracts, parsing flow, and the persistence gap."
+    },
+    {
+      "step": "step_4",
+      "status": "completed",
+      "timestamp": "2026-04-17T17:26:33Z",
+      "outputs": [
+        "docs/architecture-notification.md",
+        "docs/development-guide-notification.md"
+      ],
+      "summary": "Documented the Notification runtime scaffold and separated the current shell from future email, WebSocket, and queue features."
+    }
+  ],
+  "current_step": "complete",
+  "findings": {
+    "project_classification": {
+      "repository_type": "multi-part monorepo",
+      "parts_count": 3,
+      "primary_language": "TypeScript and Java",
+      "architecture_type": "polyglot microservice backend"
+    },
+    "technology_stack": [
+      {
+        "part_id": "api-gateway",
+        "tech_summary": "NestJS 11, Prisma, PostgreSQL, Redis, RabbitMQ, S3-compatible storage"
+      },
+      {
+        "part_id": "cv-parser",
+        "tech_summary": "Spring Boot 3.3, Java 17, RabbitMQ, JPA, PDFBox, POI, Tess4J, Tika, Resilience4j, Gemini-based extraction, S3-compatible storage"
+      },
+      {
+        "part_id": "notification",
+        "tech_summary": "Partial NestJS notification scaffold with Prisma, PostgreSQL, RabbitMQ, Redis, Socket.IO, SMTP, and JWT support"
+      }
+    ],
+    "batches_completed": [
+      {
+        "path": "api-gateway",
+        "files_scanned": 9,
+        "summary": "Reviewed entry points, app module, queue/storage integration, Prisma schema, environment contract, and major controllers."
+      },
+      {
+        "path": "cv-parser",
+        "files_scanned": 9,
+        "summary": "Reviewed Maven build, runtime configuration, RabbitMQ listener/config, event DTOs, and the placeholder repository."
+      },
+      {
+        "path": "notification",
+        "files_scanned": 28,
+        "summary": "Reviewed the runtime shell, auth, health, Prisma, RabbitMQ, config, and notification files; the service is scaffolded but not feature-complete."
+      }
+    ]
+  },
+  "outputs_generated": [
+    "docs/project-parts.json",
+    "docs/project-overview.md",
+    "docs/source-tree-analysis.md",
+    "docs/integration-architecture.md",
+    "docs/INDEX.md",
+    "docs/architecture-api-gateway.md",
+    "docs/development-guide-api-gateway.md",
+    "docs/api-contracts-api-gateway.md",
+    "docs/data-models-api-gateway.md",
+    "docs/architecture-cv-parser.md",
+    "docs/development-guide-cv-parser.md",
+    "docs/data-models-cv-parser.md",
+    "docs/architecture-notification.md",
+    "docs/development-guide-notification.md"
+  ],
+  "resume_instructions": "Resume from current_step=complete only if a post-generation update is needed. Otherwise the documentation set is complete.",
+  "validation_status": {
+    "last_validated": "2026-05-01T09:31:37Z",
+    "validation_errors": []
+  },
+  "deep_dive_targets": []
+}

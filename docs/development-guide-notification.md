@@ -1,51 +1,87 @@
 # Notification Development Guide
 
-**Status:** Planned only
+**Status:** Partial runtime scaffold
 
 ## Current situation
 
-There is no runtime notification service in the current repository snapshot. This guide documents the intended direction from the legacy planning material, not an already-working application.
+The notification service boots as a NestJS app shell with JWT auth, health checks, and a sample `GET /api/notifications/:id` endpoint. The email, RabbitMQ consumer, and Socket.IO fan-out files exist as scaffolding, but the production notification workflows are not wired yet.
 
-## Planned stack
+## Local setup
 
-- NestJS
-- RabbitMQ consumer
-- Socket.IO gateway
-- Email via SMTP
-- Prisma + PostgreSQL
-- Redis for WebSocket scaling
+1. `cd notification`
+2. `npm install`
+3. Copy `.env.example` to `.env`
+4. `npm run start:dev`
+5. `npm test`
 
-## Intended setup flow
+## Useful commands
 
-If and when the service is implemented, the expected path is:
+| Command | Purpose |
+|---|---|
+| `npm run start:dev` | Start the app shell in watch mode |
+| `npm run build` | Build the NestJS app |
+| `npm test` | Run unit and integration tests |
+| `npm run test:e2e` | Run e2e tests |
+| `npm run test:cov` | Generate coverage |
 
-1. Create the service runtime folder and package manifest.
-2. Add environment validation.
-3. Wire RabbitMQ, SMTP, and WebSocket support.
-4. Add notification history persistence.
-5. Add health and metrics endpoints.
-6. Add unit and integration tests.
+## Runtime configuration
 
-## Planning-only notes
+The service reads config from `src/config/*.ts` and validates environment values through `src/config/validation.schema.ts`.
 
-- Do not try to run this service from the current snapshot; there is no executable entry point yet.
-- Use the event contracts in `docs/integration-architecture.md` as the starting point for future work.
-- Keep the service aligned with the shared RabbitMQ exchange and the existing ATS domain events.
+### Application
+- `NODE_ENV`
+- `PORT`
+- `APP_NAME`
+- `APP_URL`
+- `CORS_ORIGIN`
+- `WS_CORS_ORIGIN`
 
-## Suggested future commands
+### JWT
+- `JWT_SECRET`
+- `JWT_EXPIRES_IN`
+- `JWT_ISSUER`
+- `JWT_AUDIENCE`
 
-These are placeholders for a later implementation and should not be treated as current commands:
+### Database
+- `DATABASE_URL`
 
-- install dependencies
-- run the app in watch mode
-- run unit and integration tests
-- connect to RabbitMQ and Redis
+### Redis
+- `REDIS_HOST`
+- `REDIS_PORT`
+- `REDIS_PASSWORD`
 
-## What to verify once the service exists
+### RabbitMQ
+- `RABBITMQ_URL`
+- `RABBITMQ_QUEUE`
+- `RABBITMQ_EXCHANGE`
+- `RABBITMQ_PREFETCH_COUNT`
 
-- Auth and authorization boundaries
-- Event consumption from RabbitMQ
-- Idempotent processing for duplicate events
-- Email delivery and retry behavior
-- Socket.IO client connection and room membership
-- Persistence of notification history
+### SMTP
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_SECURE`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM`
+
+## Local URLs
+
+- Health: `http://localhost:5000/health`
+- Readiness: `http://localhost:5000/health/ready`
+- Liveness: `http://localhost:5000/health/live`
+
+## Development notes
+
+- `GET /api/notifications/:id` currently returns sample data from `notification.service.ts`.
+- `HealthModule` checks both PostgreSQL and RabbitMQ connectivity.
+- The RabbitMQ consumer, email sender, and WebSocket gateway are placeholder files today.
+- Keep JWT issuer/audience aligned with the API Gateway.
+- Do not treat notification delivery as complete until the placeholder modules are implemented and wired into `AppModule`.
+
+## Verification checklist
+
+- `npm run build` succeeds
+- `npm test` succeeds
+- `GET /health` returns OK
+- `GET /api/notifications/:id` works with a JWT
+- Startup config validation passes with the expected environment variables

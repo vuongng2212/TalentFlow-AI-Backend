@@ -1,42 +1,45 @@
 # TalentFlow AI Backend - Project Overview
 
-**Date:** 2026-04-18
+**Date:** 2026-05-01
 **Repository type:** Multi-part monorepo
 **Architecture:** Polyglot microservice backend
 
 ## Executive summary
 
-TalentFlow AI Backend is an ATS backend split across three parts: an implemented NestJS API Gateway, a partially implemented Spring Boot CV Parser worker, and a planning-only Notification service. The current codebase already supports authentication, jobs, applications, workspaces, analytics, health/metrics, file upload to S3-compatible storage, and RabbitMQ-based CV processing.
+TalentFlow AI Backend is an ATS backend split across three parts: an implemented NestJS API Gateway, a partially implemented Spring Boot CV Parser worker, and a partially implemented NestJS Notification scaffold. The current codebase already supports authentication, jobs, applications, workspaces, analytics, health/metrics, file upload to S3-compatible storage, RabbitMQ-based CV processing, and a notification runtime shell with health checks and a sample lookup route.
 
 ## Project classification
 
-| Dimension | Value |
-|---|---|
-| Repository type | Multi-part monorepo |
-| Parts | 3 |
-| Primary languages | TypeScript, Java |
-| Architecture pattern | Polyglot service architecture |
-| Current maturity | API Gateway: implemented; CV Parser: partial; Notification: planned |
+| Dimension            | Value                                                               |
+| -------------------- | ------------------------------------------------------------------- |
+| Repository type      | Multi-part monorepo                                                 |
+| Parts                | 3                                                                   |
+| Primary languages    | TypeScript, Java                                                    |
+| Architecture pattern | Polyglot service architecture                                       |
+| Current maturity     | API Gateway: implemented; CV Parser: partial; Notification: planned |
 
 ## Part summary
 
 ### API Gateway
+
 - **Location:** `api-gateway/`
 - **Stack:** NestJS 11, Prisma, PostgreSQL, Redis, RabbitMQ, S3-compatible storage
 - **Entry point:** `api-gateway/src/main.ts`
 - **Role:** Main HTTP entry point and orchestration layer
 
 ### CV Parser
+
 - **Location:** `cv-parser/`
 - **Stack:** Spring Boot 3.3, Java 17, Spring AMQP, JPA, PDFBox, POI, Tess4J, Tika, Resilience4j
 - **Entry point:** `cv-parser/src/main/java/com/talentflow/cvparser/CvParserApplication.java`
 - **Role:** Queue-driven document parsing and scoring worker
 
 ### Notification
+
 - **Location:** `notification/`
-- **Stack:** Planning docs only; intended NestJS service
-- **Entry point:** none in current snapshot
-- **Role:** Future email, WebSocket, and notification history service
+- **Stack:** NestJS 10, Prisma, PostgreSQL, Redis, RabbitMQ, Socket.IO, SMTP
+- **Entry point:** `notification/src/main.ts`
+- **Role:** Runtime notification scaffold for future email, WebSocket, and notification history features
 
 ## Key features
 
@@ -60,20 +63,22 @@ TalentFlow AI Backend is an ATS backend split across three parts: an implemented
 
 ## Technology stack summary
 
-| Part | Framework | Supporting systems |
-|---|---|---|
-| API Gateway | NestJS 11 | Prisma, PostgreSQL, Redis, RabbitMQ, S3-compatible storage, Swagger, Prometheus |
-| CV Parser | Spring Boot 3.3 | RabbitMQ, PostgreSQL, S3-compatible storage, OCR, Resilience4j, Actuator |
-| Notification | Planned NestJS service | RabbitMQ, Redis adapter, SMTP, Socket.IO, PostgreSQL (planned) |
+| Part         | Framework              | Supporting systems                                                              |
+| ------------ | ---------------------- | ------------------------------------------------------------------------------- |
+| API Gateway  | NestJS 11              | Prisma, PostgreSQL, Redis, RabbitMQ, S3-compatible storage, Swagger, Prometheus |
+| CV Parser    | Spring Boot 3.3        | RabbitMQ, PostgreSQL, S3-compatible storage, OCR, Resilience4j, Actuator        |
+| Notification | Planned NestJS service | RabbitMQ, Redis adapter, SMTP, Socket.IO, PostgreSQL (planned)                  |
 
 ## Getting started
 
 ### Local infrastructure
+
 ```bash
 docker-compose up -d
 ```
 
 ### API Gateway
+
 ```bash
 cd api-gateway
 npm install
@@ -83,6 +88,7 @@ npm run start:dev
 ```
 
 ### CV Parser
+
 ```bash
 cd cv-parser
 mvn test
@@ -90,7 +96,8 @@ mvn spring-boot:run
 ```
 
 ### Notification
-- No runtime commands yet; only planning docs exist in `notification/`.
+
+- Runtime entry point exists in `notification/src/main.ts`, but the service is still a scaffold rather than a finished notification platform.
 
 ## Documentation map
 
@@ -106,4 +113,3 @@ mvn spring-boot:run
 - [Notification Architecture](./architecture-notification.md)
 - [Notification Development Guide](./development-guide-notification.md)
 - [Integration Architecture](./integration-architecture.md)
-

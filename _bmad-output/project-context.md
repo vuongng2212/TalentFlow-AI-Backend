@@ -1,7 +1,7 @@
 ---
 project_name: 'TalentFlow-AI-Backend'
 user_name: 'VuongNguyen'
-date: '2026-04-29'
+date: '2026-05-01'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules', 'anti_patterns']
 status: 'complete'
 rule_count: 81
@@ -26,7 +26,7 @@ _This file contains the non-obvious rules and patterns AI agents must follow in 
 
 - **Notification (`notification/`)**
   - NestJS `10.4.22`
-  - TypeScript `5.9.3` with `module` = `commonjs` and `target` = `ES2021`
+  - TypeScript `5.7.2` with `module` = `commonjs` and `target` = `ES2021`
   - Prisma `5.22.0`
   - Jest `29.7.0`, nest-winston `1.10.2`, `@nestjs/websockets`, `@nestjs/platform-socket.io`, Redis adapter
   - RabbitMQ, Joi config validation
@@ -131,4 +131,4 @@ _This file contains the non-obvious rules and patterns AI agents must follow in 
 - Refresh it when versions, queue contracts, auth flows, or validation rules change.
 - Remove guidance once it becomes obvious from code or config.
 
-Last Updated: 2026-04-29
+Last Updated: 2026-05-01
