@@ -33,26 +33,18 @@ export class EmailService {
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const text =
-          input.body ??
-          (input.templateId
-            ? this.renderTextTemplate(
-                input.templateId,
-                input.templateData ?? {},
-              )
-            : undefined);
+        const renderedTemplate = input.templateId
+          ? this.renderTextTemplate(input.templateId, input.templateData ?? {})
+          : undefined;
+
+        const text = input.body ?? renderedTemplate;
+        const html = input.body ?? renderedTemplate;
 
         const mailOptions = {
           to: input.to,
           subject: input.subject,
           text,
-          ...(input.body ? { html: input.body } : {}),
-          ...(input.templateId
-            ? {
-                template: input.templateId,
-                context: input.templateData ?? {},
-              }
-            : {}),
+          html,
         };
 
         await this.mailerService.sendMail(mailOptions);
