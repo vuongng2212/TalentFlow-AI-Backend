@@ -1,5 +1,6 @@
 import { MailerService } from '@nestjs-modules/mailer';
 import { ServiceUnavailableException } from '@nestjs/common';
+import { EmailTemplateId } from './email-template';
 import { EmailService } from './email.service';
 
 describe('EmailService', () => {
@@ -42,19 +43,25 @@ describe('EmailService', () => {
     await service.sendEmail({
       to: 'candidate@example.com',
       subject: 'Interview',
-      templateId: 'interview-invitation',
+      templateId: EmailTemplateId.INTERVIEW_INVITATION,
       templateData: {
         candidateName: 'Jane',
+        jobTitle: 'Backend Engineer',
+        interviewTime: '2026-05-05 09:00',
+        location: 'Google Meet',
       },
     });
 
     expect(mailerService.sendMail).toHaveBeenCalledWith({
       to: 'candidate@example.com',
       subject: 'Interview',
-      text: undefined,
-      template: 'interview-invitation',
+      text: 'Hello Jane,\n\nYou have been invited to interview for Backend Engineer.\n\nInterview time: 2026-05-05 09:00\nLocation: Google Meet\n\nTalentFlow Team\n',
+      template: EmailTemplateId.INTERVIEW_INVITATION,
       context: {
         candidateName: 'Jane',
+        jobTitle: 'Backend Engineer',
+        interviewTime: '2026-05-05 09:00',
+        location: 'Google Meet',
       },
     });
   });

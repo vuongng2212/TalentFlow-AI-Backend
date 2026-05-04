@@ -4,13 +4,17 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { readFileSync } from 'fs';
+import * as Handlebars from 'handlebars';
+import { join } from 'path';
 import { maskPii } from '../common/utils/pii-masker';
+import { EmailTemplateId } from './email-template';
 
 export type SendEmailInput = {
   to: string;
   subject: string;
   body?: string;
-  templateId?: string;
+  templateId?: EmailTemplateId;
   templateData?: Record<string, unknown>;
 };
 
@@ -20,6 +24,7 @@ const BASE_DELAY_MS = 2000;
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
+  private readonly templateDir = join(__dirname, 'templates');
 
   constructor(private readonly mailerService: MailerService) {}
 
@@ -28,10 +33,19 @@ export class EmailService {
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
+        const text =
+          input.body ??
+          (input.templateId
+            ? this.renderTextTemplate(
+                input.templateId,
+                input.templateData ?? {},
+              )
+            : undefined);
+
         const mailOptions = {
           to: input.to,
           subject: input.subject,
-          text: input.body,
+          text,
           ...(input.body ? { html: input.body } : {}),
           ...(input.templateId
             ? {
@@ -72,5 +86,16 @@ export class EmailService {
 
   private async delay(delayMs: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  private renderTextTemplate(
+    templateId: EmailTemplateId,
+    context: Record<string, unknown>,
+  ): string {
+    const source = readFileSync(
+      join(this.templateDir, `${templateId}.hbs`),
+      'utf8',
+    );
+    return Handlebars.compile(source, { strict: true })(context);
   }
 }

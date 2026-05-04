@@ -8,6 +8,7 @@ import {
   MaxLength,
   ValidateIf,
 } from 'class-validator';
+import { EmailTemplateId } from '../../email/email-template';
 
 export enum SendNotificationType {
   EMAIL = 'email',
@@ -44,9 +45,9 @@ export class SendNotificationDto {
   body?: string;
 
   @ValidateIf((dto: SendNotificationDto) => !dto.body)
-  @IsString()
+  @IsEnum(EmailTemplateId)
   @IsNotEmpty()
-  templateId?: string;
+  templateId?: EmailTemplateId;
 
   @IsOptional()
   @IsObject()

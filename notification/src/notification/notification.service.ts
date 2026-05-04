@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
+import { EmailTemplateId } from '../email/email-template';
 import { EmailService } from '../email/email.service';
 import { NotificationResponseDto } from './dto/notification-response.dto';
 import {
@@ -59,13 +60,18 @@ export class NotificationService {
     return this.toResponse(notification);
   }
 
-  private resolveTemplateId(type: SendNotificationType): string | undefined {
-    const templates: Partial<Record<SendNotificationType, string>> = {
+  private resolveTemplateId(
+    type: SendNotificationType,
+  ): EmailTemplateId | undefined {
+    const templates: Partial<Record<SendNotificationType, EmailTemplateId>> = {
       [SendNotificationType.APPLICATION_CONFIRMATION]:
-        'application-confirmation',
-      [SendNotificationType.INTERVIEW_INVITATION]: 'interview-invitation',
-      [SendNotificationType.NEW_APPLICATION_HR]: 'new-application-hr',
-      [SendNotificationType.APPLICATION_RESULT]: 'application-result',
+        EmailTemplateId.APPLICATION_CONFIRMATION,
+      [SendNotificationType.INTERVIEW_INVITATION]:
+        EmailTemplateId.INTERVIEW_INVITATION,
+      [SendNotificationType.NEW_APPLICATION_HR]:
+        EmailTemplateId.NEW_APPLICATION_HR,
+      [SendNotificationType.APPLICATION_RESULT]:
+        EmailTemplateId.APPLICATION_RESULT,
     };
 
     return templates[type];
