@@ -3,8 +3,14 @@ name: CI
 on:
   push:
     branches: [main, dev]
+    paths:
+      - 'api-gateway/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [main, dev]
+    paths:
+      - 'api-gateway/**'
+      - '.github/workflows/ci.yml'
 
 env:
   NODE_VERSION: '20'

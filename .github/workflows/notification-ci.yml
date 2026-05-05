@@ -1,0 +1,100 @@
+name: Notification Service CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'notification/**'
+      - '.github/workflows/notification-ci.yml'
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'notification/**'
+      - '.github/workflows/notification-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notification-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  lint:
+    name: Lint notification
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: notification
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: notification/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+  test:
+    name: Test notification
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: notification
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: notification/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test -- --runInBand
+
+      - name: Run e2e tests
+        run: npm run test:e2e -- --runInBand
+
+  build:
+    name: Build notification
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    defaults:
+      run:
+        working-directory: notification
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: notification/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build

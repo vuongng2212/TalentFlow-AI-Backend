@@ -9,9 +9,11 @@ export const CurrentUser = createParamDecorator(
   (
     data: keyof AuthenticatedUser | undefined,
     context: ExecutionContext,
-  ): AuthenticatedUser | AuthenticatedUser[keyof AuthenticatedUser] | undefined => {
-    const request =
-      context.switchToHttp().getRequest<AuthenticatedRequest>();
+  ):
+    | AuthenticatedUser
+    | AuthenticatedUser[keyof AuthenticatedUser]
+    | undefined => {
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const user = request.user;
 
     if (!user) {
