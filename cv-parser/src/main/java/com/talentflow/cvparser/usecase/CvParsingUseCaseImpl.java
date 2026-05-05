@@ -1,0 +1,117 @@
+package com.talentflow.cvparser.usecase;
+
+import com.talentflow.cvparser.extractor.CandidateProfile;
+import com.talentflow.cvparser.parser.ParserFactory;
+import com.talentflow.cvparser.repository.CvParseResultRepository;
+import com.talentflow.cvparser.shared.config.RabbitMqConfig;
+import com.talentflow.cvparser.shared.dto.CvParsedEvent;
+import com.talentflow.cvparser.shared.dto.CvUploadedEvent;
+import com.talentflow.cvparser.shared.dto.ParsedCvData;
+import com.talentflow.cvparser.storage.StorageService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.stereotype.Service;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.util.List;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class CvParsingUseCaseImpl implements CvParsingUseCase {
+
+    private final StorageService storageService;
+    private final ParserFactory parserFactory;
+    private final DataExtractionUseCase dataExtractionUseCase;
+    private final CvParseResultRepository cvParseResultRepository;
+    private final RabbitTemplate rabbitTemplate;
+
+    @Override
+    public void execute(CvUploadedEvent event) throws Exception {
+        log.info("[CVP-USECASE] Pipeline started. candidateId={}", event.getCandidateId());
+
+        String rawText = parseRawText(event);
+        log.debug("[CVP-USECASE] Parsed. candidateId={}, textLength={}", event.getCandidateId(), rawText.length());
+
+        CandidateProfile profile = dataExtractionUseCase.extract(rawText);
+        log.info("[CVP-USECASE] Extracted. candidateId={}, status={}",
+                event.getCandidateId(), profile.getExtractionStatus());
+
+        cvParseResultRepository.save(event, profile);
+        log.debug("[CVP-USECASE] Persisted. candidateId={}", event.getCandidateId());
+
+        CvParsedEvent parsedEvent = CvParsedEvent.builder()
+                .candidateId(event.getCandidateId())
+                .applicationId(event.getApplicationId())
+                .jobId(event.getJobId())
+                .aiScore(0)
+                .parsedData(toParsedCvData(profile))
+                .scoringReasoning(null)
+                .parsedAt(Instant.now())
+                .build();
+        rabbitTemplate.convertAndSend(RabbitMqConfig.ROUTING_KEY_CV_PARSED, parsedEvent);
+        log.info("[CVP-USECASE] Pipeline completed. candidateId={}", event.getCandidateId());
+    }
+
+    private String parseRawText(CvUploadedEvent event) throws Exception {
+        Path tempFile = storageService.downloadSafely(event.getFileKey());
+        log.debug("[CVP-USECASE] Downloaded. candidateId={}, tempFile={}", event.getCandidateId(), tempFile);
+
+        try {
+            return parserFactory.parse(tempFile);
+        } finally {
+            deleteTempFile(tempFile);
+        }
+    }
+
+    private void deleteTempFile(Path tempFile) {
+        try {
+            Files.deleteIfExists(tempFile);
+            log.debug("[CVP-USECASE] TempFile deleted. path={}", tempFile);
+        } catch (Exception deleteEx) {
+            log.warn("[CVP-USECASE] Failed to delete TempFile. path={}", tempFile, deleteEx);
+        }
+    }
+
+    private ParsedCvData toParsedCvData(CandidateProfile profile) {
+        return ParsedCvData.builder()
+                .fullName(profile.getFullName())
+                .email(profile.getEmail())
+                .phone(profile.getPhone())
+                .linkedIn(profile.getLinkedIn())
+                .summary(profile.getSummary())
+                .skills(profile.getSkills())
+                .experience(mapExperience(profile.getExperience()))
+                .education(mapEducation(profile.getEducation()))
+                .build();
+    }
+
+    private List<ParsedCvData.Experience> mapExperience(
+            List<CandidateProfile.WorkExperience> src) {
+        if (src == null) return List.of();
+        return src.stream()
+                .map(e -> ParsedCvData.Experience.builder()
+                        .title(e.getTitle())
+                        .company(e.getCompany())
+                        .startDate(e.getStartDate())
+                        .endDate(e.getEndDate())
+                        .description(e.getDescription())
+                        .build())
+                .toList();
+    }
+
+    private List<ParsedCvData.Education> mapEducation(
+            List<CandidateProfile.EducationEntry> src) {
+        if (src == null) return List.of();
+        return src.stream()
+                .map(e -> ParsedCvData.Education.builder()
+                        .degree(e.getDegree())
+                        .institution(e.getInstitution())
+                        .graduationYear(e.getGraduationYear())
+                        .build())
+                .toList();
+    }
+}

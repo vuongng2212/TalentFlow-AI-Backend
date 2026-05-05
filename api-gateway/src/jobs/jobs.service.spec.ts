@@ -267,5 +267,14 @@ describe('JobsService', () => {
         data: { deletedAt: expect.any(Date) },
       });
     });
+
+    it('should throw ForbiddenException when user is not owner or admin', async () => {
+      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
+
+      await expect(
+        service.remove('job-1', 'user-2', 'RECRUITER'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prisma.job.update).not.toHaveBeenCalled();
+    });
   });
 });

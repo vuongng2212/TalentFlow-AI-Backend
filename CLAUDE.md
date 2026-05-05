@@ -59,6 +59,10 @@ Primary development happens here.
 
 1.  **Database Changes**: Always update `prisma/schema.prisma` and run `npx prisma migrate dev` to create a migration file. Do not edit migrations manually unless necessary.
 2.  **DTOs**: Use class-validator decorators in DTOs. Validation is globally enabled with `whitelist: true`.
-3.  **Error Handling**: Use standard NestJS HTTP exceptions (`NotFoundException`, `BadRequestException`). Global filters handle responses.
-4.  **Response Format**: Responses are automatically transformed to `{ data: ... }` format via `TransformInterceptor`.
-5.  **Environment**: Ensure `.env` is configured (copy from `.env.example`).
+3.  **Typing**: Do not use `any` for variable, payload, or response shape definitions. Prefer dedicated DTOs, `type`, or `interface` declarations with explicit fields.
+4.  **Nested Shapes**: When a request body contains nested structured data, create a nested DTO instead of using inline object literals or `any`.
+5.  **Error Handling**: Use standard NestJS HTTP exceptions (`NotFoundException`, `BadRequestException`). Global filters handle responses.
+6.  **Response Format**: Responses are automatically transformed to `{ data: ... }` format via `TransformInterceptor`.
+7.  **Environment**: Ensure `.env` is configured (copy from `.env.example`).
+8.  **Static Config Values**: Any static property value must be moved to `.env`, validated in `src/common/config/config.schema.ts`, and consumed via `ConfigService`.
+9.  **Swagger Enum Documentation**: When documenting enum fields with `@ApiProperty`/`@ApiPropertyOptional`, always provide `enumName` and a clear `description` to make API docs explicit and reusable.

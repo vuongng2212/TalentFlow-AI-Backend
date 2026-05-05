@@ -1,0 +1,79 @@
+name: CV Parser CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'cv-parser/**'
+      - '.github/workflows/cv-parser-ci.yml'
+  push:
+    branches: [main, dev]
+    paths:
+      - 'cv-parser/**'
+      - '.github/workflows/cv-parser-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cv-parser-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test cv-parser
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cv-parser
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: cv-parser/pom.xml
+
+      - name: Ensure Maven wrapper is executable
+        run: chmod +x mvnw
+
+      - name: Run tests
+        run: ./mvnw -B -ntp -e clean test
+
+      - name: Print surefire reports on failure
+        if: failure()
+        run: |
+          for f in target/surefire-reports/*.txt; do
+            echo "=== $f ==="
+            cat "$f"
+          done
+
+  package:
+    name: Package cv-parser
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+    defaults:
+      run:
+        working-directory: cv-parser
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: cv-parser/pom.xml
+
+      - name: Ensure Maven wrapper is executable
+        run: chmod +x mvnw
+
+      - name: Build package
+        run: ./mvnw -B -ntp -DskipTests clean package
