@@ -3,7 +3,7 @@
 **Feature Branch**: `002-brownfield-context`  
 **Created**: 2026-05-04  
 **Status**: Draft  
-**Input**: User description: "Phân tích document của brownfield project @file:_bmad-output để hoàn thiện context của dự án"
+**Input**: User description: "Phân tích tài liệu brownfield đã lưu trữ và codebase hiện tại để hoàn thiện context của dự án"
 
 ## Clarifications
 
@@ -92,7 +92,7 @@ As a future feature planner, I can use the completed context as a launch point f
 ## Assumptions
 
 - Current runtime code and configuration are the source of truth when documentation conflicts arise.
-- The brownfield document set in `_bmad-output` and the current repository snapshot are sufficient for context completion.
+- The archived brownfield corpus and the current repository snapshot are sufficient for context completion.
 - No source-code changes or new runtime features are required to complete this feature.
 - Planning-only services remain documented as such unless runtime code exists.
 - Legacy PRD capabilities are included only when they help explain gaps or historical intent; they are not merged into the current runtime truth.

@@ -13,9 +13,9 @@ TalentFlow-AI-Backend/
 ├── api-gateway/                  # NestJS HTTP API and orchestration layer
 ├── cv-parser/                    # Spring Boot CV parsing worker
 ├── notification/                 # NestJS notification scaffold and planning artifacts
-├── docs/                         # Generated brownfield documentation
-├── _bmad/                        # BMAD configuration and generated context
-├── _bmad-output/                 # BMAD workflow artifacts
+├── docs/                         # Active documentation index and runtime references
+├── specs/                        # Spec Kit feature artifacts
+├── archive/                      # Historical materials preserved for traceability
 ├── docker-compose.yml            # Local infrastructure and API Gateway
 ├── k8s/                          # Kubernetes manifests currently centered on API Gateway
 └── README.md                     # Repository-level overview
