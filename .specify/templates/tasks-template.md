@@ -1,5 +1,4 @@
 ---
-
 description: "Task list template for feature implementation"
 ---
 
@@ -27,7 +26,7 @@ description: "Task list template for feature implementation"
 
 **Purpose**: Confirm runtime ownership, lock the contract surface, and create only the files required for the feature slice.
 
-- [ ] T001 Review the current runtime entrypoint and affected service files for the feature
+- [ ] T001 Review the current runtime entrypoint and affected service files for the feature in the owning module
 - [ ] T002 [P] Draft or update contract notes in `specs/[###-feature-name]/contracts/`
 - [ ] T003 [P] Add or update validation and config requirements in the owning service
 

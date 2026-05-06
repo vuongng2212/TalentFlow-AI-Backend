@@ -7,16 +7,16 @@
 
 ## Problem Statement
 
-[Describe the problem in terms of the runtime system, the impacted service boundary, and the value to the business.]
+[Describe the problem in terms of the runtime system, the impacted service boundary, and the business value. Call out whether the work belongs in `api-gateway/`, `cv-parser/`, `notification/`, or spans services.]
 
 ## Scope And Ownership
 
 - **Primary service(s)**: [API Gateway | CV Parser | Notification | cross-service]
 - **Runtime boundary**: [HTTP API | queue consumer | scheduled job | background worker | mixed]
 - **Data boundary**: [Prisma schema | file storage | message contract | none]
-- **Legacy context**: Frozen sources may be consulted for background only; they are not active requirements.
+- **Active docs**: Use `.specify/` and `specs/` as the current planning surface; frozen sources are reference only.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 User stories must be ordered by business priority and independently testable. Each story should name the service boundary it touches.
 
@@ -58,11 +58,11 @@ User stories must be ordered by business priority and independently testable. Ea
 ## Edge Cases
 
 - What happens when the request hits the wrong service boundary?
-- How does the system handle duplicate queue messages or retry delivery?
+- How does the system handle duplicate queue messages, retries, or delayed delivery?
 - What happens when file metadata, config, or contract fields are missing or invalid?
 - How is backward compatibility handled if a producer or consumer changes first?
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -95,7 +95,7 @@ User stories must be ordered by business priority and independently testable. Ea
 - **Failure behavior**: [retry, DLQ, rollback, user-visible error]
 - **Config**: [environment variable or runtime config requirement]
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

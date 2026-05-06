@@ -5,13 +5,13 @@
 
 ## Summary
 
-[Summarize the feature, the owning service boundary, and the smallest safe implementation path.]
+[Summarize the feature, the owning service boundary, and the smallest safe implementation path. Mention the exact service folders involved and whether this is HTTP, queue, storage, or cross-service work.]
 
 ## Technical Context
 
 **Primary Runtime**: [api-gateway | cv-parser | notification | cross-service]
 **Language/Version**: [TypeScript 5.x / Java 17 / mixed or NEEDS CLARIFICATION]
-**Primary Dependencies**: [NestJS, Prisma, Spring Boot, RabbitMQ, Redis, MinIO, Swagger, etc.]
+**Primary Dependencies**: [NestJS 11, Prisma 6, Spring Boot 3.3, RabbitMQ, Redis, MinIO, Swagger, etc.]
 **Storage**: [PostgreSQL / files / queue / mixed / N/A]
 **Testing**: [npm test, npm run test:e2e, mvn test, or mixed]
 **Target Platform**: [Linux containers / local dev / Kubernetes / mixed]
@@ -22,7 +22,7 @@
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 - Runtime code and current Spec Kit artifacts are authoritative.
 - Frozen legacy sources are context only and must not be indexed as active requirements.
@@ -58,7 +58,9 @@ api-gateway/
 │   ├── workspaces/
 │   ├── queue/
 │   ├── storage/
-│   ├── prisma/
+│   ├── redis/
+│   ├── metrics/
+│   ├── analytics/
 │   └── common/
 ├── prisma/
 ├── test/
@@ -77,7 +79,7 @@ notification/
 └── package.json
 ```
 
-**Structure Decision**: [State which service(s) own the feature and reference the exact directories above. Add k8s/ or docs/ only if the feature changes deployment or runtime guidance.]
+**Structure Decision**: [State which service(s) own the feature and reference the exact directories above. Add `k8s/` or `docs/` only if the feature changes deployment or runtime guidance.]
 
 ## Delivery Phases
 
@@ -116,7 +118,7 @@ notification/
 
 Use this table only if the plan needs a justified exception to the normal brownfield guardrails.
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [cross-service contract change] | [reason] | [why single-service change is insufficient] |
-| [schema migration] | [reason] | [why config-only change is insufficient] |
+| Violation                       | Why Needed | Simpler Alternative Rejected Because        |
+| ------------------------------- | ---------- | ------------------------------------------- |
+| [cross-service contract change] | [reason]   | [why single-service change is insufficient] |
+| [schema migration]              | [reason]   | [why config-only change is insufficient]    |
