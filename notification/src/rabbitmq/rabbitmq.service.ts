@@ -19,6 +19,7 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
   private shuttingDown = false;
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private connectingPromise: Promise<void> | null = null;
+  private setupCallbacks: Array<() => Promise<void>> = [];
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -46,6 +47,20 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
     return (
       this.configService.get<string>('rabbitmq.exchange') ?? 'talentflow.events'
     );
+  }
+
+  async getChannel(): Promise<Channel> {
+    await this.ensureConnection();
+
+    if (!this.channel) {
+      throw new Error('RabbitMQ channel is not available');
+    }
+
+    return this.channel;
+  }
+
+  onReconnect(callback: () => Promise<void>): void {
+    this.setupCallbacks.push(callback);
   }
 
   async ping(): Promise<void> {
@@ -142,6 +157,8 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(
         `RabbitMQ connected to exchange "${exchange}" and queue "${queue}"`,
       );
+
+      await this.invokeSetupCallbacks();
     } catch (error) {
       this.connected = false;
       this.connection = null;
@@ -185,6 +202,18 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       this.reconnectTimeout = null;
       void this.connect();
     }, RECONNECT_DELAY_MS);
+  }
+
+  private async invokeSetupCallbacks(): Promise<void> {
+    for (const callback of this.setupCallbacks) {
+      try {
+        await callback();
+      } catch (error) {
+        this.logger.error(
+          `Setup callback failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
   }
 
   private clearReconnectTimer(): void {
