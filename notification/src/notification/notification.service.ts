@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { maskPii } from '../common/utils/pii-masker';
 import { EmailTemplateId } from '../email/email-template';
-import { EmailService, SendEmailInput } from '../email/email.service';
+import { EmailService } from '../email/email.service';
 import {
   ApplicationCreatedEvent,
   CvFailedEvent,

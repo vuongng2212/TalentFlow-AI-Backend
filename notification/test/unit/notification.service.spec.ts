@@ -6,6 +6,13 @@ describe('NotificationService', () => {
   let emailService: jest.Mocked<Pick<EmailService, 'sendEmail'>>;
   let service: NotificationService;
 
+  function expectSuccessfulResult(
+    result: Awaited<ReturnType<NotificationService['sendFromEvent']>>,
+  ): void {
+    expect(result.success).toBe(true);
+    expect(result.messageId).toBeDefined();
+  }
+
   beforeEach(() => {
     emailService = {
       sendEmail: jest.fn(),
@@ -25,8 +32,7 @@ describe('NotificationService', () => {
         type: 'email',
       });
 
-      expect(result.success).toBe(true);
-      expect(result.messageId).toBeDefined();
+      expectSuccessfulResult(result);
       expect(emailService.sendEmail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'candidate@example.com',
@@ -71,18 +77,14 @@ describe('NotificationService', () => {
         appliedAt: '2026-05-07T10:00:00Z',
       });
 
-      expect(result.success).toBe(true);
-      expect(result.messageId).toBeDefined();
-      expect(emailService.sendEmail).toHaveBeenCalledWith(
-        expect.objectContaining({
-          to: 'jane@example.com',
-          templateId: EmailTemplateId.APPLICATION_CONFIRMATION,
-          templateData: expect.objectContaining({
-            applicantName: 'Jane Doe',
-            jobTitle: 'Senior Developer',
-          }),
-        }),
-      );
+      expectSuccessfulResult(result);
+      const [input] = emailService.sendEmail.mock.calls[0];
+      expect(input.to).toBe('jane@example.com');
+      expect(input.templateId).toBe(EmailTemplateId.APPLICATION_CONFIRMATION);
+      expect(input.templateData).toMatchObject({
+        applicantName: 'Jane Doe',
+        jobTitle: 'Senior Developer',
+      });
     });
   });
 
@@ -99,18 +101,14 @@ describe('NotificationService', () => {
         parsedAt: '2026-05-07T10:00:00Z',
       });
 
-      expect(result.success).toBe(true);
-      expect(result.messageId).toBeDefined();
-      expect(emailService.sendEmail).toHaveBeenCalledWith(
-        expect.objectContaining({
-          to: 'bob@example.com',
-          subject: 'CV Processed: Backend Engineer',
-          templateData: expect.objectContaining({
-            applicantName: 'Bob Smith',
-            score: 92,
-          }),
-        }),
-      );
+      expectSuccessfulResult(result);
+      const [input] = emailService.sendEmail.mock.calls[0];
+      expect(input.to).toBe('bob@example.com');
+      expect(input.subject).toBe('CV Processed: Backend Engineer');
+      expect(input.templateData).toMatchObject({
+        applicantName: 'Bob Smith',
+        score: 92,
+      });
     });
 
     it('handles missing score', async () => {
@@ -124,11 +122,8 @@ describe('NotificationService', () => {
         parsedAt: '2026-05-07T10:00:00Z',
       });
 
-      expect(emailService.sendEmail).toHaveBeenCalledWith(
-        expect.objectContaining({
-          templateData: expect.objectContaining({ score: 'N/A' }),
-        }),
-      );
+      const [input] = emailService.sendEmail.mock.calls[0];
+      expect(input.templateData).toMatchObject({ score: 'N/A' });
     });
   });
 
@@ -145,15 +140,11 @@ describe('NotificationService', () => {
         failedAt: '2026-05-07T10:00:00Z',
       });
 
-      expect(result.success).toBe(true);
-      expect(result.messageId).toBeDefined();
-      expect(emailService.sendEmail).toHaveBeenCalledWith(
-        expect.objectContaining({
-          to: 'fail@example.com',
-          subject: 'CV Processing Failed: Data Scientist',
-          body: expect.stringContaining('Unsupported file format'),
-        }),
-      );
+      expectSuccessfulResult(result);
+      const [input] = emailService.sendEmail.mock.calls[0];
+      expect(input.to).toBe('fail@example.com');
+      expect(input.subject).toBe('CV Processing Failed: Data Scientist');
+      expect(input.body).toContain('Unsupported file format');
     });
   });
 });
