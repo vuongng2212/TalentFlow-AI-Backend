@@ -1,5 +1,9 @@
 # TalentFlow AI Backend Constitution
 
+## Project Identity
+
+TalentFlow AI Backend is a brownfield polyglot ATS backend composed of three service boundaries: `api-gateway/` for the primary HTTP API, `cv-parser/` for the RabbitMQ-driven Java worker, and `notification/` for the NestJS notification runtime.
+
 ## Core Principles
 
 ### I. Runtime Truth First
@@ -29,6 +33,7 @@ Keep structured logging, correlation IDs, health checks, metrics, explicit error
 ## Brownfield Scope Guardrails
 
 - Treat `api-gateway/`, `cv-parser/`, and `notification/` as distinct service boundaries with different maturity levels.
+- Keep `api-gateway/src/` as the HTTP, queue producer, storage, metrics, and Prisma boundary; keep `cv-parser/src/main/java/com/talentflow/cvparser/` as the parser/consumer boundary; keep `notification/src/` as the notification delivery boundary.
 - Use runtime entrypoints and current Spec Kit artifacts as authority; use frozen legacy sources only for context recovery or comparison.
 - Preserve the current runtime contract rule that CV upload events use `bucket` plus `fileKey`; do not reintroduce direct file URLs.
 - Keep repository changes minimal and localized unless a cross-service contract requires coordinated updates.
@@ -39,7 +44,7 @@ Keep structured logging, correlation IDs, health checks, metrics, explicit error
 ## Workflow And Quality Gates
 
 - For non-trivial work, plan first, then RED -> GREEN -> REFACTOR for the touched slice where practical, then validate before broadening scope.
-- Use service-local commands and tests that match the runtime: Jest and NestJS checks in the gateway, Maven and Spring Boot tests in the parser, and scaffold-aware checks for Notification until delivery features are complete.
+- Use service-local commands and tests that match the runtime: `cd api-gateway && npm test`, `npm run test:e2e`, `npm run lint`, `npm run build`; `cd cv-parser && mvn test`; `cd notification && npm test`, `npm run test:e2e`, `npm run lint`, `npm run build`.
 - For Notification, validate bootstrapping, config schema, health probes, auth guards, Prisma wiring, and RabbitMQ connectivity alongside feature work.
 - Schema changes in the gateway must update `prisma/schema.prisma` and the related migration path together.
 - Documentation updates are required when contracts, flows, configuration expectations, or service maturity claims change.
@@ -61,4 +66,4 @@ All agents and contributors must check constitution compliance before making imp
 
 Compliance reviews must compare proposed work against the runtime code and the active brownfield context, not only legacy planning materials. If a document or task relies on archival truth that no longer matches the runtime, correct the document or narrow the scope before implementation proceeds.
 
-**Version**: 1.4.0 | **Ratified**: 2026-05-06 | **Last Amended**: 2026-05-06
+**Version**: 1.5.0 | **Ratified**: 2026-05-07 | **Last Amended**: 2026-05-07

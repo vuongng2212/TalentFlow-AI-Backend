@@ -81,6 +81,13 @@ notification/
 
 **Structure Decision**: [State which service(s) own the feature and reference the exact directories above. Add `k8s/` or `docs/` only if the feature changes deployment or runtime guidance.]
 
+### Ownership Check
+
+- If the feature touches HTTP, auth, queue production, storage, metrics, or Prisma schema, start in `api-gateway/`.
+- If the feature touches CV parsing, OCR, extraction, or queue consumption, start in `cv-parser/`.
+- If the feature touches email, websocket delivery, or notification persistence, start in `notification/`.
+- If the feature spans producer and consumer, plan both sides in the same implementation window.
+
 ## Delivery Phases
 
 ### Phase 0: Discovery And Contract Check
@@ -113,6 +120,12 @@ notification/
 - API Gateway: `cd api-gateway && npm test`, `npm run test:e2e`, `npm run lint`, `npm run build`
 - CV Parser: `cd cv-parser && mvn test`
 - Notification: `cd notification && npm test`, `npm run test:e2e`, `npm run lint`, `npm run build`
+
+## Local Verification Strategy
+
+- Prefer the narrowest service-local test that covers the touched boundary before broadening to lint or build.
+- For queue or storage changes, add or update producer/consumer or contract tests in the owning service before cross-service verification.
+- For schema changes in the gateway, update `prisma/schema.prisma` and the migration path together, then run the gateway tests.
 
 ## Complexity Tracking
 

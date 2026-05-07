@@ -81,6 +81,12 @@ User stories must be ordered by business priority and independently testable. Ea
 - **Compatibility rule**: [backward-compatible / breaking / migration required]
 - **Validation rule**: [what must be checked before accepting data]
 
+### Service Boundary Notes
+
+- **API Gateway**: Prefer NestJS controllers, DTOs, guards, interceptors, Prisma schema changes, and queue/storage adapters under `api-gateway/src/` and `api-gateway/prisma/`.
+- **CV Parser**: Prefer RabbitMQ listeners, parser implementations, and use-case classes under `cv-parser/src/main/java/com/talentflow/cvparser/` and tests under `cv-parser/src/test/java/com/talentflow/cvparser/`.
+- **Notification**: Prefer NestJS modules, mailer/websocket/rabbitmq services, and Prisma wiring under `notification/src/` and `notification/prisma/`.
+
 ### Data / Schema Changes
 
 - **Entity**: [what it represents]
@@ -94,6 +100,12 @@ User stories must be ordered by business priority and independently testable. Ea
 - **Observability**: [logs, metrics, tracing, audit trail]
 - **Failure behavior**: [retry, DLQ, rollback, user-visible error]
 - **Config**: [environment variable or runtime config requirement]
+
+### Validation Expectations
+
+- **Gateway**: `npm test`, `npm run test:e2e`, `npm run lint`, `npm run build`
+- **Parser**: `mvn test`
+- **Notification**: `npm test`, `npm run test:e2e`, `npm run lint`, `npm run build`
 
 ## Success Criteria _(mandatory)_
 

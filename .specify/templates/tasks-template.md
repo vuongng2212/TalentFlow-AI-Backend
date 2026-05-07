@@ -22,6 +22,13 @@ description: "Task list template for feature implementation"
 - Notification: `notification/src/`, `notification/prisma/`, `notification/test/`
 - Shared planning docs: `specs/[###-feature-name]/`
 
+## Service Routing
+
+- Start with `api-gateway/` when the feature is HTTP-facing or changes auth, storage, queue production, metrics, or Prisma schema.
+- Start with `cv-parser/` when the feature is queue-consuming, parsing, OCR, or extraction work.
+- Start with `notification/` when the feature is mail, websocket, notification persistence, or RabbitMQ consumption for the notification service.
+- If the feature crosses services, include producer and consumer tasks in the same phase.
+
 ## Phase 1: Setup And Contract Lock
 
 **Purpose**: Confirm runtime ownership, lock the contract surface, and create only the files required for the feature slice.
@@ -117,6 +124,12 @@ description: "Task list template for feature implementation"
 - [ ] T025 [P] Run or update the owning service tests using the real commands for that service
 - [ ] T026 [P] Add observability, security, or failure-path hardening if required
 - [ ] T027 Validate backward compatibility or provide a migration note if contracts changed
+
+### Real Commands To Use
+
+- API Gateway: `cd api-gateway && npm test`, `npm run test:e2e`, `npm run lint`, `npm run build`
+- CV Parser: `cd cv-parser && mvn test`
+- Notification: `cd notification && npm test`, `npm run test:e2e`, `npm run lint`, `npm run build`
 
 ---
 
