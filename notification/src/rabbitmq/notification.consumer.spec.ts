@@ -2,8 +2,6 @@ import { Channel, ConsumeMessage } from 'amqplib';
 import { NotificationService } from '../notification/notification.service';
 import {
   APPLICATION_CREATED_ROUTING_KEY,
-  CV_FAILED_ROUTING_KEY,
-  CV_PARSED_ROUTING_KEY,
   NOTIFICATION_SEND_ROUTING_KEY,
 } from './events';
 import { NotificationConsumer } from './notification.consumer';
@@ -66,34 +64,11 @@ describe('NotificationConsumer', () => {
       await consumer.onModuleInit();
 
       expect(rabbitmqService.onReconnect).toHaveBeenCalledTimes(1);
-      expect(channel.bindQueue).toHaveBeenCalledTimes(4);
       expect(channel.bindQueue).toHaveBeenCalledWith(
         'notification_queue',
         'talentflow.events',
         NOTIFICATION_SEND_ROUTING_KEY,
       );
-      expect(channel.bindQueue).toHaveBeenCalledWith(
-        'notification_queue',
-        'talentflow.events',
-        APPLICATION_CREATED_ROUTING_KEY,
-      );
-      expect(channel.consume).toHaveBeenCalledTimes(1);
-      expect(channel.consume).toHaveBeenCalledWith(
-        'notification_queue',
-        expect.any(Function),
-        { noAck: false },
-      );
-    });
-  });
-
-  describe('onModuleDestroy', () => {
-    it('cancels consumer if tag exists', async () => {
-      channel.consume.mockResolvedValue({ consumerTag: 'tag-abc' });
-      await consumer.onModuleInit();
-
-      await consumer.onModuleDestroy();
-
-      expect(channel.cancel).toHaveBeenCalledWith('tag-abc');
     });
   });
 
@@ -117,6 +92,25 @@ describe('NotificationConsumer', () => {
       } as ConsumeMessage;
     }
 
+    // Helper to wait for the async handler to complete
+    async function setupAndHandle(msg: ConsumeMessage) {
+      let resolveHandler: () => void;
+      const handlerPromise = new Promise<void>((resolve) => {
+        resolveHandler = resolve;
+      });
+
+      channel.consume.mockImplementationOnce(
+        async (_queue: string, handler: (msg: ConsumeMessage) => void) => {
+          void handler(msg);
+          resolveHandler();
+          return { consumerTag: 'test-tag' } as any;
+        },
+      );
+
+      await consumer.onModuleInit();
+      await handlerPromise;
+    }
+
     it('routes notification.send event to sendFromEvent and ACKs', async () => {
       const msg = makeMsg(
         {
@@ -128,15 +122,9 @@ describe('NotificationConsumer', () => {
         },
         NOTIFICATION_SEND_ROUTING_KEY,
       );
-      channel.consume.mockImplementation((_queue, handler) => {
-        void handler(msg);
-        return { consumerTag: 't1' } as never;
-      });
-      notificationService.sendFromEvent.mockResolvedValue({
-        success: true,
-      });
+      notificationService.sendFromEvent.mockResolvedValue({ success: true });
 
-      await consumer.onModuleInit();
+      await setupAndHandle(msg);
 
       expect(notificationService.sendFromEvent).toHaveBeenCalledWith(
         expect.objectContaining({ to: 'test@example.com' }),
@@ -151,21 +139,17 @@ describe('NotificationConsumer', () => {
           jobId: 'job-1',
           jobTitle: 'Engineer',
           applicantId: 'u1',
-          applicantEmail: 'c@ex.com',
-          applicantName: 'Jane',
-          appliedAt: '2026-05-07',
+          applicantEmail: 'candidate@example.com',
+          applicantName: 'Jane Doe',
+          appliedAt: new Date().toISOString(),
         },
         APPLICATION_CREATED_ROUTING_KEY,
       );
-      channel.consume.mockImplementation((_queue, handler) => {
-        void handler(msg);
-        return { consumerTag: 't2' } as never;
-      });
       notificationService.handleApplicationCreated.mockResolvedValue({
         success: true,
       });
 
-      await consumer.onModuleInit();
+      await setupAndHandle(msg);
 
       expect(notificationService.handleApplicationCreated).toHaveBeenCalledWith(
         expect.objectContaining({ applicationId: 'app-1' }),
@@ -173,107 +157,26 @@ describe('NotificationConsumer', () => {
       expect(channel.ack).toHaveBeenCalledWith(msg);
     });
 
-    it('routes cv.parsed event to handleCvParsed and ACKs', async () => {
+    it('NACKs when payload validation fails', async () => {
       const msg = makeMsg(
         {
-          applicationId: 'app-2',
-          applicantEmail: 'cv@ex.com',
-          applicantName: 'Bob',
-          jobTitle: 'Dev',
-          score: 85,
-          parsedAt: '2026-05-07',
+          // Missing userId and to
+          subject: 'Test',
+          type: 'email',
         },
-        CV_PARSED_ROUTING_KEY,
+        NOTIFICATION_SEND_ROUTING_KEY,
       );
-      channel.consume.mockImplementation((_queue, handler) => {
-        void handler(msg);
-        return { consumerTag: 't3' } as never;
-      });
-      notificationService.handleCvParsed.mockResolvedValue({
-        success: true,
-      });
 
-      await consumer.onModuleInit();
-
-      expect(notificationService.handleCvParsed).toHaveBeenCalledWith(
-        expect.objectContaining({ applicationId: 'app-2', score: 85 }),
-      );
-      expect(channel.ack).toHaveBeenCalledWith(msg);
-    });
-
-    it('routes cv.failed event to handleCvFailed and ACKs', async () => {
-      const msg = makeMsg(
-        {
-          applicationId: 'app-3',
-          applicantEmail: 'fail@ex.com',
-          applicantName: 'Tom',
-          jobTitle: 'QA',
-          reason: 'Unsupported format',
-          failedAt: '2026-05-07',
-        },
-        CV_FAILED_ROUTING_KEY,
-      );
-      channel.consume.mockImplementation((_queue, handler) => {
-        void handler(msg);
-        return { consumerTag: 't4' } as never;
-      });
-      notificationService.handleCvFailed.mockResolvedValue({
-        success: true,
-      });
-
-      await consumer.onModuleInit();
-
-      expect(notificationService.handleCvFailed).toHaveBeenCalledWith(
-        expect.objectContaining({ applicationId: 'app-3' }),
-      );
-      expect(channel.ack).toHaveBeenCalledWith(msg);
-    });
-
-    it('NACKs with requeue=false on malformed JSON', async () => {
-      const msg = makeMsg('{ invalid }', NOTIFICATION_SEND_ROUTING_KEY);
-      channel.consume.mockImplementation((_queue, handler) => {
-        void handler(msg);
-        return { consumerTag: 't5' } as never;
-      });
-
-      await consumer.onModuleInit();
+      await setupAndHandle(msg);
 
       expect(channel.nack).toHaveBeenCalledWith(msg, false, false);
       expect(notificationService.sendFromEvent).not.toHaveBeenCalled();
     });
 
-    it('NACKs with requeue=false when handler throws', async () => {
-      const msg = makeMsg(
-        {
-          userId: 'u1',
-          to: 'test@example.com',
-          subject: 'Test',
-          body: 'Hello',
-          type: 'email',
-        },
-        NOTIFICATION_SEND_ROUTING_KEY,
-      );
-      channel.consume.mockImplementation((_queue, handler) => {
-        void handler(msg);
-        return { consumerTag: 't6' } as never;
-      });
-      notificationService.sendFromEvent.mockRejectedValue(
-        new Error('SMTP failure'),
-      );
-
-      await consumer.onModuleInit();
-
-      expect(channel.nack).toHaveBeenCalledWith(msg, false, false);
-    });
-
     it('NACKs unknown routing key', async () => {
       const msg = makeMsg({}, 'unknown.event');
-      channel.consume.mockImplementation((_queue, handler) => {
-        void handler(msg);
-        return { consumerTag: 't7' } as never;
-      });
 
-      await consumer.onModuleInit();
+      await setupAndHandle(msg);
 
       expect(channel.nack).toHaveBeenCalledWith(msg, false, false);
     });

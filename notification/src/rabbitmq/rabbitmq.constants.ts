@@ -1,5 +1,8 @@
 export const TALENTFLOW_EXCHANGE = 'talentflow.events';
-export const NOTIFICATION_QUEUE = 'notification.events';
+export const NOTIFICATION_QUEUE = 'notification.queue';
+
+export const DEAD_LETTER_EXCHANGE = 'talentflow.dlx';
+export const DEAD_LETTER_QUEUE = 'notification.dlq';
 
 export const ROUTING_KEYS = {
   // Application Flow

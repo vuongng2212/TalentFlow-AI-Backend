@@ -49,6 +49,14 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  getDeadLetterExchangeName(): string {
+    return this.configService.get<string>('rabbitmq.dlx') ?? 'talentflow.dlx';
+  }
+
+  getDeadLetterQueueName(): string {
+    return this.configService.get<string>('rabbitmq.dlq') ?? 'notification.dlq';
+  }
+
   async getChannel(): Promise<Channel> {
     await this.ensureConnection();
 
@@ -113,6 +121,8 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
     const exchange = this.getExchangeName();
     const prefetchCount =
       this.configService.get<number>('rabbitmq.prefetchCount') ?? 10;
+    const dlx = this.getDeadLetterExchangeName();
+    const dlq = this.getDeadLetterQueueName();
 
     let connection: ChannelModel | null = null;
     let channel: Channel | null = null;
@@ -124,8 +134,27 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       connection = nextConnection;
       channel = nextChannel;
 
+      // 1. Assert DLX
+      await nextChannel.assertExchange(dlx, 'direct', { durable: true });
+
+      // 2. Assert DLQ
+      await nextChannel.assertQueue(dlq, { durable: true });
+
+      // 3. Bind DLQ to DLX
+      // Use an empty routing key for fanout-like behavior on the direct DLX
+      await nextChannel.bindQueue(dlq, dlx, '');
+
+      // 4. Assert main exchange
       await nextChannel.assertExchange(exchange, 'topic', { durable: true });
-      await nextChannel.assertQueue(queue, { durable: true });
+
+      // 5. Assert main queue with DLX configured
+      await nextChannel.assertQueue(queue, {
+        durable: true,
+        arguments: {
+          'x-dead-letter-exchange': dlx,
+        },
+      });
+
       await nextChannel.prefetch(prefetchCount);
 
       nextConnection.on('close', () => {
