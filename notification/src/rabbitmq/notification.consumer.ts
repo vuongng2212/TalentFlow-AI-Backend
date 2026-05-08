@@ -7,24 +7,12 @@ import {
 import { Channel, ConsumeMessage } from 'amqplib';
 import { maskPii } from '../common/utils/pii-masker';
 import { NotificationService } from '../notification/notification.service';
-import {
-  APPLICATION_CREATED_ROUTING_KEY,
-  CV_FAILED_ROUTING_KEY,
-  CV_PARSED_ROUTING_KEY,
-  NOTIFICATION_SEND_ROUTING_KEY,
-} from './events';
+import { BINDING_KEYS, ROUTING_KEYS } from './rabbitmq.constants';
 import { ApplicationCreatedEvent } from './events/application-created.event';
 import { CvFailedEvent } from './events/cv-failed.event';
 import { CvParsedEvent } from './events/cv-parsed.event';
 import { NotificationSendEvent } from './events/notification-send.event';
 import { RabbitmqService } from './rabbitmq.service';
-
-const ROUTING_KEYS = [
-  NOTIFICATION_SEND_ROUTING_KEY,
-  APPLICATION_CREATED_ROUTING_KEY,
-  CV_PARSED_ROUTING_KEY,
-  CV_FAILED_ROUTING_KEY,
-];
 
 @Injectable()
 export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
@@ -67,7 +55,7 @@ export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
       const exchange = this.rabbitmqService.getExchangeName();
       const queue = this.rabbitmqService.getQueueName();
 
-      for (const routingKey of ROUTING_KEYS) {
+      for (const routingKey of BINDING_KEYS) {
         await this.channel.bindQueue(queue, exchange, routingKey);
         this.logger.log(
           `Bound "${queue}" to "${exchange}" with "${routingKey}"`,
@@ -107,7 +95,8 @@ export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
       parsed = JSON.parse(msg.content.toString('utf8'));
     } catch {
       this.logger.warn(
-        `Malformed JSON, routingKey="${routingKey}", nacking with requeue=false`,
+        `Malformed JSON received for routingKey="${routingKey}". nacking with requeue=false.`,
+        { content: msg.content.toString('utf8').substring(0, 200) }, // Log first 200 chars
       );
       this.channel.nack(msg, false, false);
       return;
@@ -126,20 +115,20 @@ export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
 
   private async routeEvent(routingKey: string, data: unknown): Promise<void> {
     switch (routingKey) {
-      case NOTIFICATION_SEND_ROUTING_KEY:
+      case ROUTING_KEYS.NOTIFICATION_SEND:
         await this.notificationService.sendFromEvent(
           data as NotificationSendEvent,
         );
         break;
-      case APPLICATION_CREATED_ROUTING_KEY:
+      case ROUTING_KEYS.APPLICATION_CREATED:
         await this.notificationService.handleApplicationCreated(
           data as ApplicationCreatedEvent,
         );
         break;
-      case CV_PARSED_ROUTING_KEY:
+      case ROUTING_KEYS.CV_PARSED:
         await this.notificationService.handleCvParsed(data as CvParsedEvent);
         break;
-      case CV_FAILED_ROUTING_KEY:
+      case ROUTING_KEYS.CV_FAILED:
         await this.notificationService.handleCvFailed(data as CvFailedEvent);
         break;
       default:
