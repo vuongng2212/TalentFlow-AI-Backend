@@ -1,4 +1,4 @@
-import { Channel, ConsumeMessage } from 'amqplib';
+import { Channel, ConsumeMessage, Replies } from 'amqplib';
 import { NotificationService } from '../notification/notification.service';
 import {
   APPLICATION_CREATED_ROUTING_KEY,
@@ -100,10 +100,12 @@ describe('NotificationConsumer', () => {
       });
 
       channel.consume.mockImplementationOnce(
-        async (_queue: string, handler: (msg: ConsumeMessage) => void) => {
+        (_queue: string, handler: (msg: ConsumeMessage) => void) => {
           void handler(msg);
           resolveHandler();
-          return { consumerTag: 'test-tag' } as any;
+          return Promise.resolve({
+            consumerTag: 'test-tag',
+          } satisfies Replies.Consume);
         },
       );
 
