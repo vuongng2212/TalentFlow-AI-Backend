@@ -2,14 +2,14 @@
 
 ### Progress Overview
 
-| Phase | Name | Duration | Status |
-|-------|------|----------|--------|
-| 1 | Project Setup & Core Infrastructure | Day 1-2 | ⬜ Not Started |
-| 2 | Email Service | Day 2-3 | ✅ Completed |
-| 3 | RabbitMQ Consumer | Day 3-4 | ⬜ Not Started |
-| 4 | Socket.IO Real-time | Day 4-5 | ⬜ Not Started |
-| 5 | Notification History | Day 5-6 | ⬜ Not Started |
-| 6 | Testing & Documentation | Day 6-7 | ⬜ Not Started |
+| Phase | Name                                | Duration | Status         |
+| ----- | ----------------------------------- | -------- | -------------- |
+| 1     | Project Setup & Core Infrastructure | Day 1-2  | ✅ Completed   |
+| 2     | Email Service                       | Day 2-3  | ✅ Completed   |
+| 3     | RabbitMQ Consumer                   | Day 3-4  | ✅ Completed   |
+| 4     | Socket.IO Real-time                 | Day 4-5  | ⬜ Not Started |
+| 5     | Notification History                | Day 5-6  | ⬜ Not Started |
+| 6     | Testing & Documentation             | Day 6-7  | ⬜ Not Started |
 
 **Legend:** ⬜ Not Started | 🔄 In Progress | ✅ Completed | ❌ Blocked
 
@@ -20,6 +20,7 @@
 **Goal:** Project skeleton với health checks hoạt động
 
 **Tasks:**
+
 ```
 [ ] 1.1 Project Initialization
     [ ] Create NestJS project: npx @nestjs/cli new notification
@@ -67,6 +68,7 @@
 ```
 
 **Verification:**
+
 ```bash
 npm run build
 npm run start:dev
@@ -74,6 +76,7 @@ curl http://localhost:5000/health  # Expected: {"status":"ok"}
 ```
 
 **Security Verification:**
+
 ```bash
 # Test invalid JWT token → expect 401
 curl -X GET http://localhost:5000/api/notifications/user-123 \
@@ -97,6 +100,7 @@ curl -X GET http://localhost:5000/api/notifications/user-123 \
 **Goal:** Gửi được email qua Gmail SMTP với retry
 
 **Tasks:**
+
 ```
 [x] 2.1 Email DTOs
     [x] Create notification/dto/send-notification.dto.ts (class-validator)
@@ -131,6 +135,7 @@ curl -X GET http://localhost:5000/api/notifications/user-123 \
 ```
 
 **Verification:**
+
 ```bash
 curl -X POST http://localhost:5000/api/notifications/send \
   -H "Authorization: Bearer <jwt-token>" \
@@ -139,6 +144,7 @@ curl -X POST http://localhost:5000/api/notifications/send \
 ```
 
 **Security Verification:**
+
 ```bash
 # Test rate limiting (100 req/min) → expect 429 after limit
 for i in $(seq 1 110); do
@@ -159,6 +165,7 @@ curl -X POST http://localhost:5000/api/notifications/send \
 ```
 
 **Negative Test - SMTP Failure:**
+
 ```bash
 # Set invalid SMTP credentials temporarily and test retry behavior
 # Check logs for: "Retry 1/3 after 2s due to: ..."
@@ -172,43 +179,45 @@ curl -X POST http://localhost:5000/api/notifications/send \
 **Goal:** Subscribe và xử lý events từ RabbitMQ
 
 **Tasks:**
+
 ```
-[ ] 3.1 RabbitMQ Infrastructure
-    [ ] Install: amqplib @types/amqplib
-    [ ] Create rabbitmq/rabbitmq.module.ts
-    [ ] Create rabbitmq/rabbitmq.service.ts (connection management)
-    [ ] Test RabbitMQ connection
+[x] 3.1 RabbitMQ Infrastructure
+    [x] Install: amqplib @types/amqplib
+    [x] Create rabbitmq/rabbitmq.module.ts
+    [x] Create rabbitmq/rabbitmq.service.ts (connection management)
+    [x] Test RabbitMQ connection
 
-[ ] 3.2 Event DTOs
-    [ ] Create rabbitmq/events/application-created.event.ts
-    [ ] Create rabbitmq/events/cv-parsed.event.ts
-    [ ] Create rabbitmq/events/cv-failed.event.ts
-    [ ] Create rabbitmq/events/notification-send.event.ts
-    [ ] Create rabbitmq/events/index.ts (barrel export)
+[x] 3.2 Event DTOs
+    [x] Create rabbitmq/events/application-created.event.ts
+    [x] Create rabbitmq/events/cv-parsed.event.ts
+    [x] Create rabbitmq/events/cv-failed.event.ts
+    [x] Create rabbitmq/events/notification-send.event.ts
+    [x] Create rabbitmq/events/index.ts (barrel export)
 
-[ ] 3.3 Consumer Implementation
-    [ ] Create rabbitmq/notification.consumer.ts
-    [ ] Implement OnModuleInit → connect + subscribe
-    [ ] Implement OnModuleDestroy → cleanup
-    [ ] Declare exchange: talentflow.events (topic)
-    [ ] Declare queue: notification.events
-    [ ] Bind routing keys: notification.send, application.created, cv.parsed, cv.failed
-    [ ] Implement ACK/NACK pattern
-    [ ] Route events to NotificationService
+[x] 3.3 Consumer Implementation
+    [x] Create rabbitmq/notification.consumer.ts
+    [x] Implement OnModuleInit → connect + subscribe
+    [x] Implement OnModuleDestroy → cleanup
+    [x] Declare exchange: talentflow.events (topic)
+    [x] Declare queue: notification.events
+    [x] Bind routing keys: notification.send, application.created, cv.parsed, cv.failed
+    [x] Implement ACK/NACK pattern
+    [x] Route events to NotificationService
 
-[ ] 3.4 NotificationService Logic
-    [ ] Create notification/notification.service.ts
-    [ ] Implement send()
-    [ ] Implement handleApplicationCreated()
-    [ ] Implement handleCvParsed()
-    [ ] Implement handleCvFailed()
+[x] 3.4 NotificationService Logic
+    [x] Create notification/notification.service.ts
+    [x] Implement send()
+    [x] Implement handleApplicationCreated()
+    [x] Implement handleCvParsed()
+    [x] Implement handleCvFailed()
 
-[ ] 3.5 DI Registration
-    [ ] Register NotificationConsumer trong RabbitmqModule
-    [ ] Export NotificationService từ NotificationModule
+[x] 3.5 DI Registration
+    [x] Register NotificationConsumer trong RabbitmqModule
+    [x] Export NotificationService từ NotificationModule
 ```
 
 **Verification:**
+
 ```bash
 # RabbitMQ Management UI: http://localhost:15672 (guest/guest)
 # Verify queue "notification.events" exists
@@ -216,6 +225,7 @@ curl -X POST http://localhost:5000/api/notifications/send \
 ```
 
 **Negative Test - RabbitMQ Failure:**
+
 ```bash
 # Test malformed JSON message → expect NACK, message goes to DLQ
 # Publish to RabbitMQ Management UI:
@@ -237,6 +247,7 @@ curl -X POST http://localhost:5000/api/notifications/send \
 **Goal:** Push real-time notifications qua WebSocket (authenticated)
 
 **Tasks:**
+
 ```
 [ ] 4.1 Socket.IO Setup
     [ ] Install: @nestjs/websockets @nestjs/platform-socket.io
@@ -268,6 +279,7 @@ curl -X POST http://localhost:5000/api/notifications/send \
 ```
 
 **Client Connection (Next.js):**
+
 ```typescript
 import { io } from 'socket.io-client';
 
@@ -287,6 +299,7 @@ socket.on('connect', () => {
 ```
 
 **Security Verification:**
+
 ```bash
 # Test Socket.IO without token → expect connection refused
 # Browser console:
@@ -307,6 +320,7 @@ const socket2 = io('http://localhost:5000/notifications', {
 **Goal:** Lưu trữ và truy vấn notification history
 
 **Tasks:**
+
 ```
 [ ] 5.1 Database Schema
     [ ] Update prisma/schema.prisma với Notification model (all fields)
@@ -339,12 +353,14 @@ const socket2 = io('http://localhost:5000/notifications', {
 ```
 
 **Verification:**
+
 ```bash
 curl -H "Authorization: Bearer <token>" \
   "http://localhost:5000/api/notifications/user-123?page=1&limit=20"
 ```
 
 **Security Verification:**
+
 ```bash
 # Test accessing another user's notifications → expect 403
 # User A's token trying to access User B's notifications
@@ -370,6 +386,7 @@ curl -X DELETE -H "Authorization: Bearer <user-a-token>" \
 **Goal:** 80%+ test coverage, documentation complete
 
 **Tasks:**
+
 ```
 [ ] 6.1 Unit Tests
     [ ] Install: @nestjs/testing (already in devDeps)
@@ -401,6 +418,7 @@ curl -X DELETE -H "Authorization: Bearer <user-a-token>" \
 ```
 
 **Test Commands:**
+
 ```bash
 npm test
 npm run test:cov
@@ -415,18 +433,13 @@ _Section này để developer ghi chú trong quá trình triển khai_
 
 **Phase 1 Notes:**
 
-
 **Phase 2 Notes:**
-
 
 **Phase 3 Notes:**
 
-
 **Phase 4 Notes:**
 
-
 **Phase 5 Notes:**
-
 
 **Phase 6 Notes:**
 
@@ -435,16 +448,19 @@ _Section này để developer ghi chú trong quá trình triển khai_
 ## Appendix A: Gmail SMTP Setup
 
 ### Step 1: Enable 2-Factor Authentication
+
 1. Go to Google Account Settings
 2. Security > 2-Step Verification > Turn On
 
 ### Step 2: Create App Password
+
 1. Google Account > Security > App passwords
 2. Select app: "Mail"
 3. Select device: "Other" > Enter "TalentFlow Notification"
 4. Copy the 16-character password
 
 ### Step 3: Set Environment Variable
+
 ```bash
 SMTP_PASSWORD="xxxx xxxx xxxx xxxx"
 ```
