@@ -18,56 +18,6 @@
       },
       "registered_skills": [],
       "installed_at": "2026-05-04T15:38:13.503747+00:00"
-    },
-    "repoindex": {
-      "version": "1.0.0",
-      "source": "local",
-      "manifest_hash": "sha256:9cdda95b31e5f1e50b1749c3c5bd61ca07f0f5609bc66b44c652854c233a7c07",
-      "enabled": true,
-      "priority": 10,
-      "registered_commands": {
-        "claude": [
-          "speckit.repoindex.overview",
-          "speckit.repoindex-overview",
-          "speckit.repoindex.architecture",
-          "speckit.repoindex-architecture",
-          "speckit.repoindex.module",
-          "speckit.repoindex-module"
-        ],
-        "copilot": [
-          "speckit.repoindex.overview",
-          "speckit.repoindex-overview",
-          "speckit.repoindex.architecture",
-          "speckit.repoindex-architecture",
-          "speckit.repoindex.module",
-          "speckit.repoindex-module"
-        ]
-      },
-      "registered_skills": [],
-      "installed_at": "2026-05-11T10:08:35.511917+00:00"
-    },
-    "brownfield": {
-      "version": "1.0.0",
-      "source": "local",
-      "manifest_hash": "sha256:671babc47c752bf18868d0aeeef66f0fc4f37c6cf52622cfa07e8715fb5ac4a6",
-      "enabled": true,
-      "priority": 10,
-      "registered_commands": {
-        "claude": [
-          "speckit.brownfield.scan",
-          "speckit.brownfield.bootstrap",
-          "speckit.brownfield.validate",
-          "speckit.brownfield.migrate"
-        ],
-        "copilot": [
-          "speckit.brownfield.scan",
-          "speckit.brownfield.bootstrap",
-          "speckit.brownfield.validate",
-          "speckit.brownfield.migrate"
-        ]
-      },
-      "registered_skills": [],
-      "installed_at": "2026-05-11T10:31:37.388463+00:00"
     }
   }
 }
