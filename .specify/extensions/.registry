@@ -19,6 +19,33 @@
       "registered_skills": [],
       "installed_at": "2026-05-04T15:38:13.503747+00:00"
     },
+    "repoindex": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:9cdda95b31e5f1e50b1749c3c5bd61ca07f0f5609bc66b44c652854c233a7c07",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.repoindex.overview",
+          "speckit.repoindex-overview",
+          "speckit.repoindex.architecture",
+          "speckit.repoindex-architecture",
+          "speckit.repoindex.module",
+          "speckit.repoindex-module"
+        ],
+        "copilot": [
+          "speckit.repoindex.overview",
+          "speckit.repoindex-overview",
+          "speckit.repoindex.architecture",
+          "speckit.repoindex-architecture",
+          "speckit.repoindex.module",
+          "speckit.repoindex-module"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-05-11T10:08:35.511917+00:00"
+    },
     "brownfield": {
       "version": "1.0.0",
       "source": "local",
@@ -40,7 +67,7 @@
         ]
       },
       "registered_skills": [],
-      "installed_at": "2026-05-05T10:14:20.148012+00:00"
+      "installed_at": "2026-05-11T10:31:37.388463+00:00"
     }
   }
 }

@@ -50,32 +50,52 @@ specs/[###-feature]/
 ```text
 api-gateway/
 ├── src/
-│   ├── auth/
-│   ├── jobs/
-│   ├── applications/
-│   ├── candidates/
-│   ├── interviews/
-│   ├── workspaces/
-│   ├── queue/
-│   ├── storage/
-│   ├── redis/
-│   ├── metrics/
 │   ├── analytics/
-│   └── common/
+│   ├── applications/
+│   ├── auth/
+│   ├── candidates/
+│   ├── common/
+│   ├── health/
+│   ├── interviews/
+│   ├── jobs/
+│   ├── metrics/
+│   ├── prisma/
+│   ├── queue/
+│   ├── redis/
+│   ├── storage/
+│   ├── users/
+│   └── workspaces/
 ├── prisma/
 ├── test/
 └── package.json
 
 cv-parser/
 ├── src/main/java/com/talentflow/cvparser/
+│   ├── extractor/
+│   ├── listener/
+│   ├── parser/
+│   ├── repository/
+│   ├── shared/
+│   ├── storage/
+│   └── usecase/
 ├── src/test/java/com/talentflow/cvparser/
 ├── src/main/resources/
 └── pom.xml
 
 notification/
 ├── src/
+│   ├── auth/
+│   ├── common/
+│   ├── config/
+│   ├── email/
+│   ├── health/
+│   ├── notification/
+│   ├── prisma/
+│   └── rabbitmq/
 ├── prisma/
 ├── test/
+│   ├── integration/
+│   └── unit/
 └── package.json
 ```
 

@@ -67,3 +67,5 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 .agents/
 .mcp.json
 _bmad
+.github/agents
+.github/prompts

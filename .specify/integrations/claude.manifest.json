@@ -1,16 +1,16 @@
 {
   "integration": "claude",
-  "version": "0.8.4",
-  "installed_at": "2026-05-04T15:38:43.824622+00:00",
+  "version": "0.8.7.dev0",
+  "installed_at": "2026-05-11T10:07:28.628261+00:00",
   "files": {
-    ".claude/skills/speckit-analyze/SKILL.md": "adb9c4baed1d0e27cebd08e506a7247c1357ee721b6ea340201553d5792e6c8a",
-    ".claude/skills/speckit-checklist/SKILL.md": "812b2a102310470141b313670a51e7f33fe4f673a3b8c3d97ddff4abce2e5fbd",
-    ".claude/skills/speckit-clarify/SKILL.md": "0ca2d6dd6eae86d0e02149b1c3df0b7770e5e5dcfc0482f2b7176b12f6f6457d",
+    ".claude/skills/speckit-analyze/SKILL.md": "2eef0fbff6cad15c9d4714d8986192387811c971a82a1135ab0404f3db0c5e90",
+    ".claude/skills/speckit-checklist/SKILL.md": "26419fc118dcd9c4e1e977460696a04b7757b8fb0a2d1ff9c64732669deb7977",
+    ".claude/skills/speckit-clarify/SKILL.md": "f2560f9f2007b4e995130f0c42633f08837a76a35d94e84091713a6f39bb1064",
     ".claude/skills/speckit-constitution/SKILL.md": "c1a044aba243ca6aff627fb5e4404feb6f1108d4f7dd174631bee3ae477d6c15",
-    ".claude/skills/speckit-implement/SKILL.md": "563c7cdd0afd479092b44edb9caa32cfed7038c1236c94710e32a6ee3ca41abf",
-    ".claude/skills/speckit-plan/SKILL.md": "5dbf517056a7df98de24835cb44c582b8d9b5c95950f917b129a740ca7f6448b",
+    ".claude/skills/speckit-implement/SKILL.md": "6029565c1a56de8919d1846b187cd644f734a0e30a6067a709803e6bc0d2abf7",
+    ".claude/skills/speckit-plan/SKILL.md": "8141ebbce228ad0b422a84e3b995d2bd85de917b96eadd02b5fcb56fb23f2594",
     ".claude/skills/speckit-specify/SKILL.md": "caadc05119eca453709a0425ed88d253883f9c55da4c13a4898367653a859483",
-    ".claude/skills/speckit-tasks/SKILL.md": "99d60cc468fc2fc2d9103f28e57f56cd8bb343a7af1cc54b734bcd1ee434c026",
-    ".claude/skills/speckit-taskstoissues/SKILL.md": "ccacc12041d1e27d3afffc7a189ac3d17444836e10eeb4e128b272b5e8ae45cb"
+    ".claude/skills/speckit-tasks/SKILL.md": "54c4665be61818ed50aa528bb4c51db3627079b2c67d47f2b01046268288c4a5",
+    ".claude/skills/speckit-taskstoissues/SKILL.md": "99bf5ffd90dcb57b63007c7f659a5160a18ce6feb82889895808e2d277abe83b"
   }
 }

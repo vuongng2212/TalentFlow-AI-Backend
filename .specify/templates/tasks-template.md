@@ -19,7 +19,7 @@ description: "Task list template for feature implementation"
 
 - API Gateway: `api-gateway/src/`, `api-gateway/prisma/`, `api-gateway/test/`
 - CV Parser: `cv-parser/src/main/java/com/talentflow/cvparser/`, `cv-parser/src/test/java/com/talentflow/cvparser/`
-- Notification: `notification/src/`, `notification/prisma/`, `notification/test/`
+- Notification: `notification/src/`, `notification/prisma/`, `notification/test/unit/`, `notification/test/integration/`
 - Shared planning docs: `specs/[###-feature-name]/`
 
 ## Service Routing
