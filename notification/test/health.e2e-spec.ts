@@ -1,9 +1,14 @@
 import { INestApplication, Logger } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { Server } from 'http';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
+import { jwtConfig } from '../src/config/jwt.config';
+import { rabbitmqConfig } from '../src/config/rabbitmq.config';
+import { smtpConfig } from '../src/config/smtp.config';
 import { HealthModule } from '../src/health/health.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { NotificationConsumer } from '../src/rabbitmq/notification.consumer';
 import { RabbitmqService } from '../src/rabbitmq/rabbitmq.service';
 
 type HealthResponseBody = {
@@ -13,6 +18,7 @@ type HealthResponseBody = {
 describe('HealthController (e2e)', () => {
   let app: INestApplication;
   let loggerErrorSpy: jest.SpyInstance;
+  let previousEnv: NodeJS.ProcessEnv;
 
   const prismaServiceMock = {
     $queryRaw: jest.fn(),
@@ -23,17 +29,31 @@ describe('HealthController (e2e)', () => {
   };
 
   beforeAll(async () => {
+    previousEnv = { ...process.env };
+    process.env.JWT_SECRET = 'test-jwt-secret-please-change';
+    process.env.JWT_ISSUER = 'talentflow-api-gateway';
+    process.env.JWT_AUDIENCE = 'talentflow-notification-service';
+    process.env.JWT_EXPIRES_IN = '1d';
+
     loggerErrorSpy = jest
       .spyOn(Logger.prototype, 'error')
       .mockImplementation(() => undefined);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [HealthModule],
+      imports: [
+        ConfigModule.forRoot({
+          isGlobal: true,
+          load: [jwtConfig, rabbitmqConfig, smtpConfig],
+        }),
+        HealthModule,
+      ],
     })
       .overrideProvider(PrismaService)
       .useValue(prismaServiceMock)
       .overrideProvider(RabbitmqService)
       .useValue(rabbitmqServiceMock)
+      .overrideProvider(NotificationConsumer)
+      .useValue({})
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -45,8 +65,9 @@ describe('HealthController (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    await app?.close();
     loggerErrorSpy.mockRestore();
+    process.env = previousEnv;
   });
 
   it('/health (GET) should return 200 with a generic success payload', async () => {
