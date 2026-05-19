@@ -74,460 +74,60 @@ We use a **Flexible Polyglot 3-Service Architecture** that lets you choose the b
 
 ---
 
-## 🛠️ Tech Stack
+# TalentFlow AI Backend
 
-> **Flexibility First:** Each service can use the framework that best fits your team's expertise. Below are the recommended options:
+TalentFlow AI Backend is a brownfield ATS backend with three service folders and a single active documentation standard based on Spec Kit artifacts.
 
-### Service 1: API Gateway (NestJS - Required)
-| Component | Technology | Version |
-|-----------|------------|---------|
-| **Runtime** | Node.js | 20.x |
-| **Framework** | NestJS | 10.x |
-| **Language** | TypeScript | 5.x |
-| **ORM** | Prisma | 5.x |
-| **Queue** | amqplib (RabbitMQ) | 0.10.x |
-| **Auth** | Passport + JWT | - |
-| **Testing** | Jest | 29.x |
+## Current stack
 
-### Service 2: CV Parser (Choose One)
+- API Gateway: NestJS 11, Prisma, PostgreSQL, Redis, RabbitMQ, S3-compatible storage
+- CV Parser: Java 17, Spring Boot 3.3, Spring AMQP, JPA, PDFBox, Apache POI, Tess4J, Tika, Resilience4j
+- Notification: NestJS 10 scaffold with Prisma, PostgreSQL, Redis, RabbitMQ, Socket.IO, and health/config wiring
 
-#### Option A: Spring Boot (Java) - Recommended
-| Component | Technology | Version |
-|-----------|------------|---------|
-| **Runtime** | Java JDK | 17+ |
-| **Framework** | Spring Boot | 3.x |
-| **PDF Parsing** | Apache PDFBox | 3.x |
-| **DOCX Parsing** | Apache POI | 5.x |
-| **OCR** | Tesseract | 5.x |
-| **Queue** | Spring AMQP (RabbitMQ) | 3.x |
-| **Testing** | JUnit 5 + Mockito | - |
-
-**When to choose Spring Boot:**
-- ✅ Team has Java expertise
-- ✅ Need mature PDF/OCR libraries (PDFBox, Tesseract4J)
-- ✅ Want JVM performance for CPU-intensive tasks
-- ✅ Prefer Spring ecosystem (Spring Data, Spring Security)
-
-#### Option B: ASP.NET Core (C#)
-| Component | Technology | Version |
-|-----------|------------|---------|
-| **Runtime** | .NET SDK | 8.0+ |
-| **Framework** | ASP.NET Core | 8.x |
-| **PDF Parsing** | iTextSharp / PDFium | Latest |
-| **DOCX Parsing** | DocumentFormat.OpenXml | 3.x |
-| **OCR** | Tesseract (via wrapper) | 5.x |
-| **Queue** | RabbitMQ.Client | 6.x |
-| **ORM** | Entity Framework Core | 8.x |
-| **Testing** | xUnit + Moq | - |
-
-**When to choose ASP.NET Core:**
-- ✅ Team has C# expertise
-- ✅ Prefer .NET ecosystem
-- ✅ Want async/await patterns for I/O
-- ✅ Need Windows-specific integrations
-
-### Service 3: Notification (NestJS - Required)
-| Component | Technology | Version |
-|-----------|------------|---------|
-| **Runtime** | Node.js | 20.x |
-| **Framework** | NestJS | 10.x |
-| **WebSocket** | Socket.IO | 4.x |
-| **Email** | Nodemailer | 6.x |
-| **Testing** | Jest | 29.x |
-
-**Why NestJS for Notification:**
-- ✅ Team already using NestJS for API Gateway
-- ✅ WebSocket support is first-class (Socket.IO)
-- ✅ Prefer TypeScript for all Node services
-- ✅ Want code sharing with API Gateway (DTOs, Types)
-
-### Shared Infrastructure
-| Component | Technology | Version |
-|-----------|------------|---------|
-| **Database** | PostgreSQL | 16.x |
-| **Queue** | RabbitMQ (AMQP) | 3.x |
-| **Storage** | Cloudflare R2 | - |
-| **Cache** | Redis | 7.x |
-
----
-
-## 🎯 Tech Stack Decision Matrix
-
-Use this matrix to choose the right framework for each service based on your team:
-
-| Your Team Has | Service 2 (CV Parser) | Service 3 (Notification) | Total Setup Time |
-|---------------|----------------------|--------------------------|------------------|
-| **TypeScript only** | ⚠️ Spring Boot (learning curve) | ✅ NestJS | 2-3 days |
-| **Java only** | ✅ Spring Boot | ⚠️ NestJS (learning curve) | 2-3 days |
-| **C# only** | ✅ ASP.NET Core | ✅ ASP.NET Core | 1-2 days |
-| **TypeScript + Java** | ✅ Spring Boot | ✅ NestJS | 1 day |
-| **TypeScript + C#** | ✅ ASP.NET Core | ✅ NestJS | 1 day |
-| **Java + C#** | ✅ Either (pick one) | ✅ NestJS | 1-2 days |
-| **All 3 languages** | ✅ Any | ✅ Any | < 1 day |
-
-**Recommended Combinations:**
-
-1. **Full TypeScript Stack** (Easiest for JS/TS teams):
-   - Service 1: NestJS ✅
-   - Service 2: NestJS (but OCR may block event loop ⚠️)
-   - Service 3: NestJS ✅
-   - **Pros:** Code sharing, unified language, fast onboarding
-   - **Cons:** CV Parser performance issues with Tesseract
-
-3. **TypeScript + Java/C#** (Multi-language):
-   - Service 1: NestJS ✅
-   - Service 2: Spring Boot or ASP.NET Core ✅
-   - Service 3: NestJS ✅
-   - **Pros:** Best tool for each job, mature libraries
-   - **Cons:** More languages to maintain
-
----
-
-## 📦 Prerequisites
-
-Make sure you have installed the base requirements:
-
-### Required for All Setups:
-- **Node.js** >= 20.0.0 ([Download](https://nodejs.org/)) - For API Gateway (Service 1)
-- **Docker** & **Docker Compose** ([Download](https://www.docker.com/)) - For PostgreSQL, Redis
-- **Git** ([Download](https://git-scm.com/))
-
-### Choose Based on Your Tech Stack:
-
-#### If using Spring Boot (Service 2 CV Parser):
-- **Java JDK** >= 17 ([Download](https://adoptium.net/))
-- **Maven** or **Gradle** ([Download](https://maven.apache.org/))
-- **Tesseract OCR** ([Installation Guide](https://tesseract-ocr.github.io/tessdoc/Installation.html))
-
-#### If using ASP.NET Core (Service 2 or 3):
-- **.NET SDK** >= 8.0 ([Download](https://dotnet.microsoft.com/download))
-- **Tesseract OCR** (if for Service 2) ([Installation Guide](https://tesseract-ocr.github.io/tessdoc/Installation.html))
-
-### Recommended IDEs:
-- **VS Code** with extensions: ESLint, Prettier, Prisma (for NestJS services)
-- **IntelliJ IDEA** or **Eclipse** (for Spring Boot service)
-- **Visual Studio** or **Rider** (for ASP.NET Core services)
-
----
-
-## 🚀 Quick Start
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/your-org/talentflow-backend.git
-cd talentflow-backend
-```
-
-### 2. Setup Environment Variables
-
-```bash
-# Copy example env file
-cp .env.example .env
-
-# Edit .env with your configuration
-nano .env
-```
-
-**Required Environment Variables:**
-
-```bash
-# Database
-DATABASE_URL="postgresql://postgres:password@localhost:5432/talentflow_dev"
-
-# JWT
-JWT_SECRET="your-super-secret-key-change-this"
-JWT_ACCESS_EXPIRATION="15m"
-JWT_REFRESH_EXPIRATION="7d"
-
-# RabbitMQ (Message Queue for polyglot services)
-RABBITMQ_URL="amqp://rabbitmq:rabbitmq@localhost:5672"
-
-# Redis (Cache only)
-REDIS_URL="redis://localhost:6379"
-
-# Cloudflare R2 Storage
-R2_ACCOUNT_ID="your-account-id"
-R2_ACCESS_KEY_ID="your-access-key"
-R2_SECRET_ACCESS_KEY="your-secret-key"
-R2_BUCKET="talentflow-cvs"
-R2_PUBLIC_URL="https://your-bucket.r2.cloudflarestorage.com"
-
-# LLM API (for CV scoring)
-ANTHROPIC_API_KEY="sk-ant-..."  # or OPENAI_API_KEY
-
-# App
-PORT=3000
-NODE_ENV=development
-```
-
-### 3. Start Infrastructure Services
-
-Start PostgreSQL and Redis using Docker:
+## Start local infrastructure
 
 ```bash
 docker-compose up -d
 ```
 
-**Verify services are running:**
+## Service commands
 
-```bash
-docker-compose ps
-```
-
-You should see:
-- ✅ `postgres` (port 5432)
-- ✅ `redis` (port 6379)
-- ✅ `rabbitmq` (ports 5672, 15672)
-
-### 4. Setup Each Service
-
-> **Note:** Setup depends on which tech stack you chose for Services 2 & 3.
-
-#### Service 1: API Gateway (NestJS) - Required
+### API Gateway
 
 ```bash
 cd api-gateway
-
-# Install dependencies
 npm install
-
-# Generate Prisma Client
-npx prisma generate
-
-# Run database migrations
-npx prisma migrate dev
-
-# (Optional) Seed database
-npx prisma db seed
-
-# Start in development mode
 npm run start:dev
 ```
 
-#### Service 2: CV Parser - Choose Your Stack
-
-##### Option A: Spring Boot (Java)
+### CV Parser
 
 ```bash
 cd cv-parser
-
-# Install dependencies
-mvn clean install
-
-# Start Spring Boot application
+mvn test
 mvn spring-boot:run
-
-# Or using Gradle
-gradle bootRun
 ```
 
-##### Option B: ASP.NET Core (C#)
+### Notification
 
 ```bash
-cd cv-parser
-
-# Restore dependencies
-dotnet restore
-
-# Run database migrations (if using EF Core)
-dotnet ef database update
-
-# Start application
-dotnet run
-
-# Or watch mode
-dotnet watch run
-```
-
-#### Service 3: Notification (NestJS)
-
-```bash
-cd notification-service
-
-# Install dependencies
+cd notification
 npm install
-
-# Start in development mode
 npm run start:dev
 ```
 
-### 5. Verify Installation
+## Active documentation
 
-Open your browser and navigate to:
+- [docs/INDEX.md](docs/INDEX.md)
+- [specs/001-brownfield-context/plan.md](specs/001-brownfield-context/plan.md)
+- [specs/001-brownfield-context/research.md](specs/001-brownfield-context/research.md)
+- [specs/001-brownfield-context/data-model.md](specs/001-brownfield-context/data-model.md)
+- [specs/001-brownfield-context/quickstart.md](specs/001-brownfield-context/quickstart.md)
+- [specs/001-brownfield-context/contracts/runtime-contracts.md](specs/001-brownfield-context/contracts/runtime-contracts.md)
 
-- **API Gateway**: http://localhost:3000
-- **Swagger API Docs**: http://localhost:3000/api/docs
-- **Health Check**: http://localhost:3000/health
+## Archive
 
-**Service 2 (CV Parser):**
-- **Spring Boot**: http://localhost:8080/actuator/health
-- **ASP.NET Core**: http://localhost:5000/health
-
-**Service 3 (Notification):**
-- **NestJS**: http://localhost:5000/health
-
----
-
-## 📁 Project Structure
-
-```
-talentflow-backend/  (Single Git Repository)
-│
-├── api-gateway/                  # Service 1: NestJS API Gateway
-│   ├── src/
-│   │   ├── modules/
-│   │   │   ├── auth/             # JWT Auth + RBAC
-│   │   │   ├── users/            # User management
-│   │   │   ├── jobs/             # Job CRUD
-│   │   │   ├── candidates/       # Candidate management
-│   │   │   ├── applications/     # Application tracking
-│   │   │   └── upload/           # File upload → R2
-│   │   ├── main.ts
-│   │   └── app.module.ts
-│   ├── test/
-│   ├── package.json
-│   └── tsconfig.json
-│
-├── cv-parser/                    # Service 2: CV Parser (Spring Boot OR ASP.NET Core)
-│   ├── src/main/java/
-│   │   └── com/talentflow/parser/
-│   │       ├── consumer/         # RabbitMQ consumer
-│   │       ├── service/
-│   │       │   ├── PdfParserService.java
-│   │       │   ├── TesseractService.java
-│   │       │   └── LlmScoringService.java
-│   │       └── CvParserApplication.java
-│   ├── src/test/java/
-│   ├── pom.xml (or build.gradle)
-│   └── application.yml
-│
-├── notification-service/         # Service 3: Notification (NestJS)
-│   ├── src/
-│   │   ├── gateways/
-│   │   │   └── websocket.gateway.ts
-│   │   ├── services/
-│   │   │   └── email.service.ts
-│   │   ├── main.ts
-│   │   └── app.module.ts
-│   ├── test/
-│   ├── package.json
-│   └── tsconfig.json
-│
-├── shared/                       # Shared code
-│   ├── types/                    # TypeScript types
-│   ├── configs/                  # Config templates
-│   └── scripts/                  # Build scripts
-│
-├── docs/                         # Documentation
-│   ├── adr/                      # Architecture Decision Records
-│   ├── PRD.md                    # Product Requirements
-│   ├── SRS.md                    # Software Requirements
-│   ├── DATABASE_SCHEMA.md        # Database design
-│   ├── API_REFERENCE.md          # API docs
-│   ├── SECURITY.md               # Security policy
-│   └── PROJECT_SUMMARY.md        # Project overview
-│
-├── .github/workflows/            # CI/CD pipelines
-├── docker-compose.yml            # Local dev infrastructure
-├── .env.example                  # Environment template
-└── README.md                     # This file
-```
-
----
-
-## 💻 Development
-
-### Service 1: API Gateway (NestJS)
-
-```bash
-cd api-gateway
-
-# Development
-npm run start:dev              # Watch mode
-npm run start:debug            # Debug mode
-
-# Build
-npm run build
-
-# Testing
-npm run test                   # Unit tests
-npm run test:watch             # Watch mode
-npm run test:cov               # Coverage
-npm run test:e2e               # E2E tests
-
-# Database
-npm run prisma:generate        # Generate Prisma Client
-npm run prisma:migrate         # Run migrations
-npm run prisma:studio          # DB GUI
-
-# Code Quality
-npm run lint
-npm run format
-```
-
-### Service 2: CV Parser - Choose Your Stack
-
-#### Spring Boot (Java)
-
-```bash
-cd cv-parser
-
-# Development
-mvn spring-boot:run            # Start with Maven
-gradle bootRun                 # Start with Gradle
-
-# Build
-mvn clean package              # Build JAR
-gradle build                   # Build with Gradle
-
-# Testing
-mvn test                       # Run tests
-mvn verify                     # Integration tests
-```
-
-#### ASP.NET Core (C#)
-
-```bash
-cd cv-parser
-
-# Development
-dotnet run                     # Start application
-dotnet watch run               # Watch mode (hot reload)
-
-# Build
-dotnet build                   # Build project
-dotnet publish -c Release      # Build for production
-
-# Testing
-dotnet test                    # Run all tests
-dotnet test --filter "Category=Unit"  # Unit tests only
-```
-
-### Service 3: Notification (NestJS)
-
-```bash
-cd notification-service
-
-# Same commands as API Gateway
-npm run start:dev
-npm run test
-npm run lint
-```
-
-### Development Workflow
-
-1. **Pick a task** from project board
-2. **Create a branch**: `git checkout -b feature/add-cv-scoring`
-3. **Write code** in the appropriate service folder
-4. **Write tests** (aim for 80%+ coverage)
-5. **Commit** using conventional commits:
-   ```bash
-   git commit -m "feat(cv-parser): add tesseract OCR support"
-   ```
-6. **Push** and create Pull Request
-7. **Wait for review** and CI/CD checks
-8. **Merge** after approval
+Legacy brownfield materials are preserved in the repository archive for historical traceability only. They are not part of the active documentation set.
 
 ### Conventional Commits
 
@@ -585,43 +185,22 @@ mvn test
 
 ---
 
-## 📚 Documentation
+### 📚 Documentation
 
-**📖 Complete Documentation Index:** [docs/INDEX.md](docs/INDEX.md)
+**📖 Active Documentation Index:** [docs/INDEX.md](docs/INDEX.md)
 
 ### 🚀 Quick Start Guide
-- **New to the project?** → [PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md) (10 min read)
-- **Need architecture details?** → [ADR-006](docs/adr/ADR-006-hybrid-microservices.md)
+- **Need the current project context?** → [Brownfield Context Plan](specs/001-brownfield-context/plan.md)
+- **Need the current runtime contract snapshot?** → [Runtime Contracts](specs/001-brownfield-context/contracts/runtime-contracts.md)
 
-### 📖 Essential Documentation
+### 📖 Active Reference Set
 
-#### 📋 Business & Technical
-| Document | Description | Priority |
-|----------|-------------|----------|
-| [PRD](docs/PRD.md) | Product requirements & MVP scope | ⭐⭐⭐ |
-| [SRS](docs/SRS.md) | Software architecture & tech stack | ⭐⭐⭐⭐⭐ |
-| [DATABASE_SCHEMA](docs/DATABASE_SCHEMA.md) | Database design with Prisma | ⭐⭐⭐⭐⭐ |
-| [API_REFERENCE](docs/API_REFERENCE.md) | REST API endpoints | ⭐⭐⭐⭐ |
-| [SECURITY](docs/SECURITY.md) | Security policy & GDPR | ⭐⭐⭐⭐⭐ |
-
-#### 🛠️ Operations & Performance
-| Document | Description | Priority |
-|----------|-------------|----------|
-| [MONITORING](docs/MONITORING.md) | ELK + Prometheus + Grafana setup | ⭐⭐⭐⭐⭐ |
-| [PERFORMANCE](docs/PERFORMANCE.md) | Load testing & optimization guide | ⭐⭐⭐⭐⭐ |
-| [DEPLOYMENT](docs/DEPLOYMENT.md) | Deployment guide (Vercel + Railway) | ⭐⭐⭐⭐ |
-| [TESTING_STRATEGY](docs/TESTING_STRATEGY.md) | Testing guide & strategies | ⭐⭐⭐⭐ |
-
-#### 🏛️ Architecture Decisions (ADRs)
-| Document | Topic | Status |
-|----------|-------|--------|
-| [ADR-001](docs/adr/ADR-001-nestjs-monorepo.md) | NestJS Monorepo | ❌ SUPERSEDED |
-| [ADR-002](docs/adr/ADR-002-kafka-message-queue.md) | Apache Kafka | ❌ SUPERSEDED |
-| [ADR-003](docs/adr/ADR-003-prisma-orm.md) | Prisma ORM | ✅ Active |
-| [ADR-006](docs/adr/ADR-006-hybrid-microservices.md) | **3-Service Architecture** | ✅ **CURRENT** |
-| [ADR-007](docs/adr/ADR-007-bullmq-over-kafka.md) | **BullMQ Queue** | ❌ SUPERSEDED |
-| [ADR-008](docs/adr/ADR-008-cloudflare-r2.md) | **Cloudflare R2 Storage** | ✅ **CURRENT** |
-| [ADR-009](docs/adr/ADR-009-rabbitmq-polyglot.md) | **RabbitMQ (Polyglot)** | ✅ **CURRENT** |
+- [Brownfield Context Plan](specs/001-brownfield-context/plan.md)
+- [Research Notes](specs/001-brownfield-context/research.md)
+- [Data Model](specs/001-brownfield-context/data-model.md)
+- [Quickstart](specs/001-brownfield-context/quickstart.md)
+- [Runtime Contracts](specs/001-brownfield-context/contracts/runtime-contracts.md)
+- [Docs Index](docs/INDEX.md)
 
 ---
 
