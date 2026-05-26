@@ -172,9 +172,12 @@ export class NotificationGateway
 
   private configureCors(server: SocketIoServerOrNamespace): void {
     const socketServer = 'engine' in server ? server : server.server;
+    const existingCors = socketServer.engine.opts.cors;
+    const existingCorsOptions =
+      existingCors && typeof existingCors === 'object' ? existingCors : {};
 
     socketServer.engine.opts.cors = {
-      ...(socketServer.engine.opts.cors ?? {}),
+      ...existingCorsOptions,
       origin:
         this.configService.get<string>('app.wsCorsOrigin') ??
         'http://localhost:3000',
