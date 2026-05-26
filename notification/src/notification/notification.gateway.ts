@@ -57,8 +57,11 @@ export class NotificationGateway
         .then(() => next())
         .catch((error: unknown) => {
           const message = this.toHandshakeErrorMessage(error);
+          const cause = this.toLoggableErrorMessage(error);
 
-          this.logger.warn(`WebSocket authentication failed: ${message}`);
+          this.logger.warn(
+            `WebSocket authentication failed: ${message}; cause=${cause}`,
+          );
           next(new Error(message));
         });
     });
