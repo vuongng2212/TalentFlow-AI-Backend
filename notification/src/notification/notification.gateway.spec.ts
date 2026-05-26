@@ -86,7 +86,7 @@ describe('NotificationGateway', () => {
     },
     options?: Parameters<JwtService['sign']>[1],
   ): string {
-    return jwtService.sign(payload, options);
+    return jwtService.sign(payload, options ?? { expiresIn: '1h' });
   }
 
   function createSocket(
@@ -239,6 +239,25 @@ describe('NotificationGateway', () => {
     expect(error?.message).toBe(
       'Invalid or expired WebSocket authentication token',
     );
+    expect(socket.data.user).toBeUndefined();
+  });
+
+  it('rejects Socket.IO handshake when token has no exp claim', async () => {
+    const middleware = getHandshakeMiddleware();
+    const socket = createSocket({
+      auth: {
+        token: jwtService.sign({
+          sub: 'user-123',
+          email: 'user@example.com',
+          role: 'RECRUITER',
+        }),
+      },
+    });
+
+    const error = await runMiddleware(middleware, socket);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error?.message).toBe('Invalid JWT payload');
     expect(socket.data.user).toBeUndefined();
   });
 

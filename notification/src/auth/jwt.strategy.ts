@@ -2,6 +2,10 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import {
+  INVALID_JWT_PAYLOAD_MESSAGE,
+  toAuthenticatedUser,
+} from './jwt-user.util';
 
 export interface JwtPayload {
   sub: string;
@@ -36,14 +40,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   validate(payload: JwtPayload): AuthenticatedUser {
-    if (!payload.sub || !payload.email || !payload.role) {
-      throw new UnauthorizedException('Invalid JWT payload');
+    try {
+      return toAuthenticatedUser(payload);
+    } catch {
+      throw new UnauthorizedException(INVALID_JWT_PAYLOAD_MESSAGE);
     }
-
-    return {
-      userId: payload.sub,
-      email: payload.email,
-      role: payload.role,
-    };
   }
 }

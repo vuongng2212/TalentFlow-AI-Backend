@@ -81,11 +81,14 @@ describe('NotificationController (e2e)', () => {
   }
 
   function createValidToken(): string {
-    return jwtService.sign({
-      sub: 'user-123',
-      email: 'user@example.com',
-      role: 'RECRUITER',
-    });
+    return jwtService.sign(
+      {
+        sub: 'user-123',
+        email: 'user@example.com',
+        role: 'RECRUITER',
+      },
+      { expiresIn: '1h' },
+    );
   }
 
   it('GET /api/notifications/:id should return 401 for an invalid bearer token', async () => {
@@ -132,11 +135,14 @@ describe('NotificationController (e2e)', () => {
         algorithm: 'HS256',
       },
     });
-    const wrongSignatureToken = wrongSecretJwtService.sign({
-      sub: 'user-123',
-      email: 'user@example.com',
-      role: 'RECRUITER',
-    });
+    const wrongSignatureToken = wrongSecretJwtService.sign(
+      {
+        sub: 'user-123',
+        email: 'user@example.com',
+        role: 'RECRUITER',
+      },
+      { expiresIn: '1h' },
+    );
 
     await request(server)
       .get('/api/notifications/user-123')
@@ -159,6 +165,7 @@ describe('NotificationController (e2e)', () => {
       },
       {
         algorithm: 'HS512',
+        expiresIn: '1h',
       },
     );
 

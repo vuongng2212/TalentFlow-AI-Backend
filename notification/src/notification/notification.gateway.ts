@@ -13,6 +13,10 @@ import { Logger, UseGuards } from '@nestjs/common';
 import { Namespace, Server, Socket } from 'socket.io';
 import { AuthenticatedUser, JwtPayload } from '../auth/jwt.strategy';
 import { WsJwtGuard } from '../auth/ws-jwt.guard';
+import {
+  INVALID_JWT_PAYLOAD_MESSAGE,
+  toAuthenticatedUser,
+} from '../auth/jwt-user.util';
 import { extractSocketToken } from '../auth/ws-token.util';
 import { maskPii } from '../common/utils/pii-masker';
 
@@ -141,19 +145,7 @@ export class NotificationGateway
       algorithms: ['HS256'],
     });
 
-    client.data.user = this.toAuthenticatedUser(payload);
-  }
-
-  private toAuthenticatedUser(payload: JwtPayload): AuthenticatedUser {
-    if (!payload.sub || !payload.email || !payload.role) {
-      throw new Error('Invalid JWT payload');
-    }
-
-    return {
-      userId: payload.sub,
-      email: payload.email,
-      role: payload.role,
-    };
+    client.data.user = toAuthenticatedUser(payload);
   }
 
   private requireSocketUser(client: NotificationSocket): AuthenticatedUser {
@@ -189,7 +181,7 @@ export class NotificationGateway
     if (error instanceof Error) {
       if (
         error.message === 'Missing WebSocket authentication token' ||
-        error.message === 'Invalid JWT payload'
+        error.message === INVALID_JWT_PAYLOAD_MESSAGE
       ) {
         return error.message;
       }
