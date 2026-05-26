@@ -13,6 +13,7 @@ import { Logger, UseGuards } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { AuthenticatedUser, JwtPayload } from '../auth/jwt.strategy';
 import { WsJwtGuard } from '../auth/ws-jwt.guard';
+import { extractSocketToken } from '../auth/ws-token.util';
 import { maskPii } from '../common/utils/pii-masker';
 
 type SocketDataWithUser = {
@@ -51,8 +52,9 @@ export class NotificationGateway
       void this.authenticate(socket)
         .then(() => next())
         .catch((error: unknown) => {
-          const message =
-            error instanceof Error ? error.message : 'Unauthorized websocket';
+          const message = this.toHandshakeErrorMessage(error);
+
+          this.logger.warn(`WebSocket authentication failed: ${message}`);
           next(new Error(message));
         });
     });
@@ -117,16 +119,14 @@ export class NotificationGateway
   }
 
   private async authenticate(client: NotificationSocket): Promise<void> {
-    const token = this.extractToken(client);
+    const token = extractSocketToken(client);
 
     if (!token) {
       throw new Error('Missing WebSocket authentication token');
     }
 
     const payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
-      secret: this.configService.getOrThrow<string>('jwt.secret'),
-      issuer: this.configService.getOrThrow<string>('jwt.issuer'),
-      audience: this.configService.getOrThrow<string>('jwt.audience'),
+      secret: this.configService.getOrThrow<string>('jwt.accessSecret'),
       algorithms: ['HS256'],
     });
 
@@ -159,36 +159,16 @@ export class NotificationGateway
     return `user:${userId}`;
   }
 
-  private extractToken(client: NotificationSocket): string | null {
-    const authToken = this.extractAuthToken(client.handshake.auth);
-    const headerToken = client.handshake.headers?.authorization;
-
-    return this.normalizeToken(authToken) ?? this.normalizeToken(headerToken);
-  }
-
-  private extractAuthToken(auth: unknown): unknown {
-    if (!auth || typeof auth !== 'object') {
-      return undefined;
+  private toHandshakeErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      if (
+        error.message === 'Missing WebSocket authentication token' ||
+        error.message === 'Invalid JWT payload'
+      ) {
+        return error.message;
+      }
     }
 
-    return (auth as { token?: unknown }).token;
-  }
-
-  private normalizeToken(token: unknown): string | null {
-    const value = Array.isArray(token)
-      ? token.find((item): item is string => typeof item === 'string')
-      : token;
-
-    if (typeof value !== 'string') {
-      return null;
-    }
-
-    const normalized = value.replace(/^Bearer\s+/i, '').trim();
-
-    if (!normalized) {
-      return null;
-    }
-
-    return normalized;
+    return 'Invalid or expired WebSocket authentication token';
   }
 }

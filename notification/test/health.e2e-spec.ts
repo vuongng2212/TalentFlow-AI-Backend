@@ -30,9 +30,7 @@ describe('HealthController (e2e)', () => {
 
   beforeAll(async () => {
     previousEnv = { ...process.env };
-    process.env.JWT_SECRET = 'test-jwt-secret-please-change';
-    process.env.JWT_ISSUER = 'talentflow-api-gateway';
-    process.env.JWT_AUDIENCE = 'talentflow-notification-service';
+    process.env.JWT_ACCESS_SECRET = 'test-access-secret-change-me';
     process.env.JWT_EXPIRES_IN = '1d';
 
     loggerErrorSpy = jest
