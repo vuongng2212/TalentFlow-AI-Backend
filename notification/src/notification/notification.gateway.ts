@@ -10,7 +10,7 @@ import {
 } from '@nestjs/websockets';
 import { ConfigService } from '@nestjs/config';
 import { Logger, UseGuards } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
+import { Namespace, Server, Socket } from 'socket.io';
 import { AuthenticatedUser, JwtPayload } from '../auth/jwt.strategy';
 import { WsJwtGuard } from '../auth/ws-jwt.guard';
 import { extractSocketToken } from '../auth/ws-token.util';
@@ -27,12 +27,10 @@ type NotificationSocket = Socket<
   SocketDataWithUser
 >;
 
+type SocketIoServerOrNamespace = Server | Namespace;
+
 @WebSocketGateway({
   namespace: '/notifications',
-  cors: {
-    origin: process.env.WS_CORS_ORIGIN || 'http://localhost:3000',
-    credentials: true,
-  },
 })
 export class NotificationGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
@@ -47,7 +45,9 @@ export class NotificationGateway
     private readonly configService: ConfigService,
   ) {}
 
-  afterInit(server: Server): void {
+  afterInit(server: SocketIoServerOrNamespace): void {
+    this.configureCors(server);
+
     server.use((socket: NotificationSocket, next) => {
       void this.authenticate(socket)
         .then(() => next())
@@ -60,7 +60,7 @@ export class NotificationGateway
     });
   }
 
-  handleConnection(client: NotificationSocket): void {
+  async handleConnection(client: NotificationSocket): Promise<void> {
     const user = client.data.user;
 
     if (!user) {
@@ -69,7 +69,18 @@ export class NotificationGateway
       return;
     }
 
-    void client.join(this.getUserRoom(user.userId));
+    try {
+      await client.join(this.getUserRoom(user.userId));
+    } catch (error) {
+      this.logger.warn(
+        `Failed to join authenticated user room for user=${maskPii(
+          user.email,
+        )}: ${this.toLoggableErrorMessage(error)}`,
+      );
+      client.disconnect(true);
+      return;
+    }
+
     this.logger.log(
       `WebSocket connected for user=${maskPii(user.email)} socket=${client.id}`,
     );
@@ -84,11 +95,11 @@ export class NotificationGateway
 
   @UseGuards(WsJwtGuard)
   @SubscribeMessage('joinUserRoom')
-  joinUserRoom(@ConnectedSocket() client: NotificationSocket) {
+  async joinUserRoom(@ConnectedSocket() client: NotificationSocket) {
     const user = this.requireSocketUser(client);
     const room = this.getUserRoom(user.userId);
 
-    void client.join(room);
+    await client.join(room);
 
     return {
       event: 'joinedUserRoom',
@@ -100,11 +111,11 @@ export class NotificationGateway
 
   @UseGuards(WsJwtGuard)
   @SubscribeMessage('leaveUserRoom')
-  leaveUserRoom(@ConnectedSocket() client: NotificationSocket) {
+  async leaveUserRoom(@ConnectedSocket() client: NotificationSocket) {
     const user = this.requireSocketUser(client);
     const room = this.getUserRoom(user.userId);
 
-    void client.leave(room);
+    await client.leave(room);
 
     return {
       event: 'leftUserRoom',
@@ -159,6 +170,18 @@ export class NotificationGateway
     return `user:${userId}`;
   }
 
+  private configureCors(server: SocketIoServerOrNamespace): void {
+    const socketServer = 'engine' in server ? server : server.server;
+
+    socketServer.engine.opts.cors = {
+      ...(socketServer.engine.opts.cors ?? {}),
+      origin:
+        this.configService.get<string>('app.wsCorsOrigin') ??
+        'http://localhost:3000',
+      credentials: true,
+    };
+  }
+
   private toHandshakeErrorMessage(error: unknown): string {
     if (error instanceof Error) {
       if (
@@ -170,5 +193,9 @@ export class NotificationGateway
     }
 
     return 'Invalid or expired WebSocket authentication token';
+  }
+
+  private toLoggableErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : 'Unknown error';
   }
 }

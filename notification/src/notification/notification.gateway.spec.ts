@@ -48,6 +48,13 @@ describe('NotificationGateway', () => {
     });
 
     const configService = {
+      get: jest.fn((key: string) => {
+        const values: Record<string, string> = {
+          'app.wsCorsOrigin': 'http://localhost:3000',
+        };
+
+        return values[key];
+      }),
       getOrThrow: jest.fn((key: string) => {
         const values: Record<string, string> = {
           'jwt.accessSecret': jwtAccessSecret,
@@ -98,6 +105,11 @@ describe('NotificationGateway', () => {
   function getHandshakeMiddleware(): SocketMiddleware {
     let middleware: SocketMiddleware | undefined;
     const server = {
+      engine: {
+        opts: {
+          cors: {},
+        },
+      },
       use: jest.fn((nextMiddleware: SocketMiddleware) => {
         middleware = nextMiddleware;
       }),
@@ -110,6 +122,17 @@ describe('NotificationGateway', () => {
     }
 
     return middleware;
+  }
+
+  function createServer() {
+    return {
+      engine: {
+        opts: {
+          cors: {},
+        },
+      },
+      use: jest.fn(),
+    };
   }
 
   async function runMiddleware(
@@ -256,7 +279,18 @@ describe('NotificationGateway', () => {
     expect(socket.data.user).toBeUndefined();
   });
 
-  it('joins the authenticated user room when connection is established', () => {
+  it('configures Socket.IO CORS from validated app config during init', () => {
+    const server = createServer();
+
+    gateway.afterInit(server as unknown as Server);
+
+    expect(server.engine.opts.cors).toEqual({
+      origin: 'http://localhost:3000',
+      credentials: true,
+    });
+  });
+
+  it('joins the authenticated user room when connection is established', async () => {
     const socket = createSocket({});
 
     socket.data.user = {
@@ -265,7 +299,7 @@ describe('NotificationGateway', () => {
       role: 'RECRUITER',
     };
 
-    gateway.handleConnection(socket as never);
+    await gateway.handleConnection(socket as never);
 
     expect(socket.join).toHaveBeenCalledWith('user:user-123');
     expect(socket.disconnect).not.toHaveBeenCalled();
@@ -274,13 +308,30 @@ describe('NotificationGateway', () => {
     );
   });
 
-  it('disconnects the socket when connection has no authenticated user', () => {
+  it('disconnects the socket when connection has no authenticated user', async () => {
     const socket = createSocket({});
 
-    gateway.handleConnection(socket as never);
+    await gateway.handleConnection(socket as never);
 
     expect(socket.disconnect).toHaveBeenCalledWith(true);
     expect(socket.join).not.toHaveBeenCalled();
+  });
+
+  it('disconnects the socket when authenticated room join fails', async () => {
+    const socket = createSocket({});
+    socket.data.user = {
+      userId: 'user-123',
+      email: 'user@example.com',
+      role: 'RECRUITER',
+    };
+    socket.join.mockRejectedValueOnce(new Error('adapter unavailable'));
+
+    await gateway.handleConnection(socket as never);
+
+    expect(socket.disconnect).toHaveBeenCalledWith(true);
+    expect(loggerWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to join authenticated user room'),
+    );
   });
 
   it('logs handshake failures without raw token values', async () => {
