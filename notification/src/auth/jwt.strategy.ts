@@ -12,7 +12,7 @@ export interface JwtPayload {
   email: string;
   role: string;
   iat?: number;
-  exp?: number;
+  exp: number;
 }
 
 export interface AuthenticatedUser {

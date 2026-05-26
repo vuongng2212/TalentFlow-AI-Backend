@@ -23,8 +23,14 @@ describe('jwt user mapper', () => {
 
   it.each([
     ['sub', { ...validPayload, sub: undefined }],
+    ['sub type', { ...validPayload, sub: 123 }],
+    ['sub empty', { ...validPayload, sub: '   ' }],
     ['email', { ...validPayload, email: undefined }],
+    ['email type', { ...validPayload, email: 123 }],
+    ['email empty', { ...validPayload, email: '   ' }],
     ['role', { ...validPayload, role: undefined }],
+    ['role type', { ...validPayload, role: 123 }],
+    ['role empty', { ...validPayload, role: '   ' }],
     ['exp', { ...validPayload, exp: undefined }],
     ['iat', { ...validPayload, iat: 'not-a-number' }],
   ])('rejects a payload with invalid %s', (_field, payload) => {

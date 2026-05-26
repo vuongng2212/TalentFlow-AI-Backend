@@ -4,9 +4,9 @@ export const INVALID_JWT_PAYLOAD_MESSAGE = 'Invalid JWT payload';
 
 export function toAuthenticatedUser(payload: JwtPayload): AuthenticatedUser {
   if (
-    !payload.sub ||
-    !payload.email ||
-    !payload.role ||
+    !isNonEmptyString(payload.sub) ||
+    !isNonEmptyString(payload.email) ||
+    !isNonEmptyString(payload.role) ||
     !isNumericDate(payload.exp) ||
     !isOptionalNumericDate(payload.iat)
   ) {
@@ -18,6 +18,10 @@ export function toAuthenticatedUser(payload: JwtPayload): AuthenticatedUser {
     email: payload.email,
     role: payload.role,
   };
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
 function isNumericDate(value: unknown): value is number {
