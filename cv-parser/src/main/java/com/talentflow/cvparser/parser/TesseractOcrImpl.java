@@ -23,8 +23,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.*;
 
 @Slf4j
 @Service
@@ -33,6 +32,7 @@ public class TesseractOcrImpl {
     private static final String MIME_PDF  = "application/pdf";
     private final Executor ocrExecutor;
     private final Executor ocrPageExecutor;
+    private BlockingQueue<ITesseract> tesseractPool;
     private static final String MIME_PNG  = "image/png";
     private static final String MIME_JPEG = "image/jpeg";
     private static final String MIME_TIFF = "image/tiff";
@@ -56,6 +56,9 @@ public class TesseractOcrImpl {
     @Value("${app.ocr.max-rendered-pixels-per-page:20000000}")
     private long maxRenderedPixelsPerPage;
 
+    @Value("${app.ocr.pool-borrow-timeout-seconds:30}")
+    private int poolBorrowTimeoutSeconds;
+
     public TesseractOcrImpl(
             @Qualifier("ocrExecutor") Executor ocrExecutor,
             @Qualifier("ocrPageExecutor") Executor ocrPageExecutor
@@ -66,8 +69,35 @@ public class TesseractOcrImpl {
 
     @PostConstruct
     public void init() {
+        tesseractPool = new LinkedBlockingQueue<>(maxParallelPages);
+        for (int i = 0; i <= maxParallelPages; i++) {
+            tesseractPool.offer(buildTesseract());
+        }
         log.info("Initialized TesseractOcrImpl. maxPages={}, maxParallelPages={}, maxRenderedPixelsPerPage={}, dpi={}, language={}, tessdataPath={}",
                 maxPages, maxParallelPages, maxRenderedPixelsPerPage, dpi, language, tessdataPath);
+    }
+
+    private ITesseract borrowTesseract() {
+        try {
+            ITesseract instance = tesseractPool.poll(poolBorrowTimeoutSeconds, TimeUnit.SECONDS);
+            if (instance == null) {
+                throw new ParsingException(
+                        "Tesseract pool exhausted: no instance available after "
+                        + poolBorrowTimeoutSeconds + " seconds. Possible pool exhaustion." ,
+                        "OCR_POOL_TIMEOUT"
+                );
+            }
+            return instance;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ParsingException("Interrupted while waiting for Tesseract instance", "OCR_INTERRUPTED");
+        }
+    }
+
+    private void returnTesseract(ITesseract instance) {
+        if (instance != null) {
+            tesseractPool.offer(instance);
+        }
     }
 
     @Async("ocrExecutor")
@@ -137,12 +167,15 @@ public class TesseractOcrImpl {
     }
 
     private String ocrImage(Path filePath) {
+        ITesseract tesseract = borrowTesseract();
         try {
-            return buildTesseract().doOCR(filePath.toFile()).trim();
+            return tesseract.doOCR(filePath.toFile()).trim();
         } catch (TesseractException e) {
             log.warn("Tesseract failed on image. file=[{}], reason={}",
                     filePath.getFileName(), e.getMessage());
             return "";
+        } finally {
+            returnTesseract(tesseract);
         }
     }
 
@@ -182,12 +215,15 @@ public class TesseractOcrImpl {
     }
 
     protected String runTesseract(BufferedImage image, Path filePath, int pageNumber) {
+        ITesseract tesseract = borrowTesseract();
         try {
-            return buildTesseract().doOCR(image).trim();
+            return tesseract.doOCR(image).trim();
         } catch (TesseractException e) {
             log.warn("Tesseract failed on page {}. file=[{}], reason={}",
                     pageNumber, filePath.getFileName(), e.getMessage());
             return "";
+        } finally {
+            returnTesseract(tesseract);
         }
     }
 
