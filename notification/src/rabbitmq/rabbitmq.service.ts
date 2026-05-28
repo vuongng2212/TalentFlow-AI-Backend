@@ -19,6 +19,7 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
   private shuttingDown = false;
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private connectingPromise: Promise<void> | null = null;
+  private setupCallbacks: Array<() => Promise<void>> = [];
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -46,6 +47,28 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
     return (
       this.configService.get<string>('rabbitmq.exchange') ?? 'talentflow.events'
     );
+  }
+
+  getDeadLetterExchangeName(): string {
+    return this.configService.get<string>('rabbitmq.dlx') ?? 'talentflow.dlx';
+  }
+
+  getDeadLetterQueueName(): string {
+    return this.configService.get<string>('rabbitmq.dlq') ?? 'notification.dlq';
+  }
+
+  async getChannel(): Promise<Channel> {
+    await this.ensureConnection();
+
+    if (!this.channel) {
+      throw new Error('RabbitMQ channel is not available');
+    }
+
+    return this.channel;
+  }
+
+  onReconnect(callback: () => Promise<void>): void {
+    this.setupCallbacks.push(callback);
   }
 
   async ping(): Promise<void> {
@@ -98,6 +121,8 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
     const exchange = this.getExchangeName();
     const prefetchCount =
       this.configService.get<number>('rabbitmq.prefetchCount') ?? 10;
+    const dlx = this.getDeadLetterExchangeName();
+    const dlq = this.getDeadLetterQueueName();
 
     let connection: ChannelModel | null = null;
     let channel: Channel | null = null;
@@ -109,8 +134,27 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       connection = nextConnection;
       channel = nextChannel;
 
+      // 1. Assert DLX
+      await nextChannel.assertExchange(dlx, 'direct', { durable: true });
+
+      // 2. Assert DLQ
+      await nextChannel.assertQueue(dlq, { durable: true });
+
+      // 3. Bind DLQ to DLX
+      // Use an empty routing key for fanout-like behavior on the direct DLX
+      await nextChannel.bindQueue(dlq, dlx, '');
+
+      // 4. Assert main exchange
       await nextChannel.assertExchange(exchange, 'topic', { durable: true });
-      await nextChannel.assertQueue(queue, { durable: true });
+
+      // 5. Assert main queue with DLX configured
+      await nextChannel.assertQueue(queue, {
+        durable: true,
+        arguments: {
+          'x-dead-letter-exchange': dlx,
+        },
+      });
+
       await nextChannel.prefetch(prefetchCount);
 
       nextConnection.on('close', () => {
@@ -142,6 +186,8 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(
         `RabbitMQ connected to exchange "${exchange}" and queue "${queue}"`,
       );
+
+      await this.invokeSetupCallbacks();
     } catch (error) {
       this.connected = false;
       this.connection = null;
@@ -185,6 +231,18 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       this.reconnectTimeout = null;
       void this.connect();
     }, RECONNECT_DELAY_MS);
+  }
+
+  private async invokeSetupCallbacks(): Promise<void> {
+    for (const callback of this.setupCallbacks) {
+      try {
+        await callback();
+      } catch (error) {
+        this.logger.error(
+          `Setup callback failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
   }
 
   private clearReconnectTimer(): void {
