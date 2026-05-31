@@ -9,22 +9,12 @@ export const validationSchema = Joi.object({
   APP_URL: Joi.string().uri().default('http://localhost:3001'),
   CORS_ORIGIN: Joi.string().allow('', null).default('http://localhost:3000'),
 
-  JWT_SECRET: Joi.when('NODE_ENV', {
+  JWT_ACCESS_SECRET: Joi.when('NODE_ENV', {
     is: 'test',
-    then: Joi.string().min(16).default('test-jwt-secret-please-change'),
+    then: Joi.string().min(16).default('test-access-secret-change-me'),
     otherwise: Joi.string().min(16).required(),
   }),
   JWT_EXPIRES_IN: Joi.string().default('1d'),
-  JWT_ISSUER: Joi.when('NODE_ENV', {
-    is: 'test',
-    then: Joi.string().default('talentflow-api-gateway'),
-    otherwise: Joi.string().required(),
-  }),
-  JWT_AUDIENCE: Joi.when('NODE_ENV', {
-    is: 'test',
-    then: Joi.string().default('talentflow-notification-service'),
-    otherwise: Joi.string().required(),
-  }),
 
   DATABASE_URL: Joi.when('NODE_ENV', {
     is: 'production',

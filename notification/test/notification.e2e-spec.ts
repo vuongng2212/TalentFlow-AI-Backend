@@ -19,15 +19,11 @@ describe('NotificationController (e2e)', () => {
   let jwtService: JwtService;
   let emailService: jest.Mocked<Pick<EmailService, 'sendEmail'>>;
 
-  const jwtSecret = 'test-jwt-secret-please-change';
-  const jwtIssuer = 'talentflow-api-gateway';
-  const jwtAudience = 'talentflow-notification-service';
+  const jwtAccessSecret = 'test-access-secret-change-me';
 
   beforeAll(async () => {
     previousEnv = { ...process.env };
-    process.env.JWT_SECRET = jwtSecret;
-    process.env.JWT_ISSUER = jwtIssuer;
-    process.env.JWT_AUDIENCE = jwtAudience;
+    process.env.JWT_ACCESS_SECRET = jwtAccessSecret;
     process.env.JWT_EXPIRES_IN = '1d';
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -55,11 +51,9 @@ describe('NotificationController (e2e)', () => {
     );
     emailService = moduleFixture.get(EmailService);
     jwtService = new JwtService({
-      secret: jwtSecret,
+      secret: jwtAccessSecret,
       signOptions: {
         algorithm: 'HS256',
-        issuer: jwtIssuer,
-        audience: jwtAudience,
       },
     });
     await app.init();
@@ -67,12 +61,7 @@ describe('NotificationController (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
-    for (const key of [
-      'JWT_SECRET',
-      'JWT_ISSUER',
-      'JWT_AUDIENCE',
-      'JWT_EXPIRES_IN',
-    ]) {
+    for (const key of ['JWT_ACCESS_SECRET', 'JWT_EXPIRES_IN']) {
       const previousValue = previousEnv[key];
 
       if (typeof previousValue === 'undefined') {
@@ -92,11 +81,14 @@ describe('NotificationController (e2e)', () => {
   }
 
   function createValidToken(): string {
-    return jwtService.sign({
-      sub: 'user-123',
-      email: 'user@example.com',
-      role: 'RECRUITER',
-    });
+    return jwtService.sign(
+      {
+        sub: 'user-123',
+        email: 'user@example.com',
+        role: 'RECRUITER',
+      },
+      { expiresIn: '1h' },
+    );
   }
 
   it('GET /api/notifications/:id should return 401 for an invalid bearer token', async () => {
@@ -135,46 +127,26 @@ describe('NotificationController (e2e)', () => {
       });
   });
 
-  it('GET /api/notifications/:id should return 401 when the token audience is invalid', async () => {
+  it('GET /api/notifications/:id should return 401 when the token signature is invalid', async () => {
     const server = app.getHttpServer() as Server;
-    const invalidAudienceToken = jwtService.sign(
+    const wrongSecretJwtService = new JwtService({
+      secret: 'wrong-access-secret-change-me',
+      signOptions: {
+        algorithm: 'HS256',
+      },
+    });
+    const wrongSignatureToken = wrongSecretJwtService.sign(
       {
         sub: 'user-123',
         email: 'user@example.com',
         role: 'RECRUITER',
       },
-      {
-        audience: 'another-service',
-      },
+      { expiresIn: '1h' },
     );
 
     await request(server)
       .get('/api/notifications/user-123')
-      .set('Authorization', `Bearer ${invalidAudienceToken}`)
-      .expect(401)
-      .expect((response: request.Response) => {
-        const body = response.body as unknown as UnauthorizedResponseBody;
-
-        expectUnauthorized(body);
-      });
-  });
-
-  it('GET /api/notifications/:id should return 401 when the token issuer is invalid', async () => {
-    const server = app.getHttpServer() as Server;
-    const invalidIssuerToken = jwtService.sign(
-      {
-        sub: 'user-123',
-        email: 'user@example.com',
-        role: 'RECRUITER',
-      },
-      {
-        issuer: 'another-issuer',
-      },
-    );
-
-    await request(server)
-      .get('/api/notifications/user-123')
-      .set('Authorization', `Bearer ${invalidIssuerToken}`)
+      .set('Authorization', `Bearer ${wrongSignatureToken}`)
       .expect(401)
       .expect((response: request.Response) => {
         const body = response.body as unknown as UnauthorizedResponseBody;
@@ -193,6 +165,7 @@ describe('NotificationController (e2e)', () => {
       },
       {
         algorithm: 'HS512',
+        expiresIn: '1h',
       },
     );
 
