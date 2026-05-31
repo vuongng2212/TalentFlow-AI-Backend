@@ -6,6 +6,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { DefaultEventsMap, Socket } from 'socket.io';
 import { AuthenticatedUser } from './jwt.strategy';
+import { extractSocketToken, toBearerToken } from './ws-token.util';
 
 type SocketDataWithUser = {
   user?: AuthenticatedUser;
@@ -22,7 +23,7 @@ type AuthenticatedSocket = Socket<
 export class WsJwtGuard extends AuthGuard('jwt') {
   getRequest(context: ExecutionContext) {
     const client = this.getClient(context);
-    const token = this.extractToken(client);
+    const token = extractSocketToken(client);
 
     if (!token) {
       throw new UnauthorizedException('Missing WebSocket authentication token');
@@ -63,40 +64,7 @@ export class WsJwtGuard extends AuthGuard('jwt') {
     return context.switchToWs().getClient<AuthenticatedSocket>();
   }
 
-  private extractToken(client: AuthenticatedSocket): string | null {
-    const authToken = this.extractAuthToken(client.handshake.auth);
-    const headerToken = client.handshake.headers?.authorization;
-
-    return this.normalizeToken(authToken) ?? this.normalizeToken(headerToken);
-  }
-
-  private extractAuthToken(auth: unknown): unknown {
-    if (!auth || typeof auth !== 'object') {
-      return undefined;
-    }
-
-    return (auth as { token?: unknown }).token;
-  }
-
-  private normalizeToken(token: unknown): string | null {
-    const value = Array.isArray(token)
-      ? token.find((item): item is string => typeof item === 'string')
-      : token;
-
-    if (typeof value !== 'string') {
-      return null;
-    }
-
-    const normalized = value.replace(/^Bearer\s+/i, '').trim();
-
-    if (!normalized) {
-      return null;
-    }
-
-    return normalized;
-  }
-
   private toBearerToken(token: string): string {
-    return /^Bearer\s+/i.test(token) ? token : `Bearer ${token}`;
+    return toBearerToken(token);
   }
 }
