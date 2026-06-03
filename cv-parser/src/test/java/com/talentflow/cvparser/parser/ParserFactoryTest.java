@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +33,7 @@ class ParserFactoryTest {
 
         when(documentParser.supports("application/pdf")).thenReturn(true);
         when(documentParser.parse(pdfPath)).thenReturn("short");
-        when(ocrParser.extractText(pdfPath)).thenReturn(ocrFuture);
+        when(ocrParser.extractText(eq(pdfPath), anyString())).thenReturn(ocrFuture);
 
         String result = parserFactory.parse(pdfPath);
 

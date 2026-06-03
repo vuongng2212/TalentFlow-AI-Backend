@@ -10,7 +10,6 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
-import org.apache.tika.Tika;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
@@ -101,15 +100,13 @@ public class TesseractOcrImpl {
     }
 
     @Async("ocrExecutor")
-    public CompletableFuture<String> extractText(Path filePath) {
-        log.info("OCR started. file=[{}], thread=[{}]",
-                filePath.getFileName(), Thread.currentThread().getName());
+    public CompletableFuture<String> extractText(Path filePath, String mimeType) {
+        log.info("OCR started. file=[{}], mimeType=[{}], thread=[{}]",
+                filePath.getFileName(), mimeType, Thread.currentThread().getName());
         try {
-            String mimeType = new Tika().detect(filePath.toFile());
             String result = switch (mimeType) {
-                case MIME_PDF                          -> ocrScannedPdf(filePath);
-                case MIME_PNG, MIME_JPEG, MIME_TIFF,
-                     MIME_BMP                          -> ocrImage(filePath);
+                case MIME_PDF                                    -> ocrScannedPdf(filePath);
+                case MIME_PNG, MIME_JPEG, MIME_TIFF, MIME_BMP   -> ocrImage(filePath);
                 default -> {
                     log.warn("OCR does not support MIME [{}]. file=[{}]",
                             mimeType, filePath.getFileName());

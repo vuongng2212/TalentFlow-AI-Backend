@@ -33,7 +33,7 @@ class TesseractOcrImplTest {
             ReflectionTestUtils.setField(ocr, "maxRenderedPixelsPerPage", 20_000_000L);
             ReflectionTestUtils.setField(ocr, "dpi", 100);
 
-            assertThatThrownBy(() -> ocr.extractText(pdfPath))
+            assertThatThrownBy(() -> ocr.extractText(pdfPath, "application/pdf"))
                     .isInstanceOf(ParsingException.class)
                     .satisfies(ex -> assertThat(((ParsingException) ex).getErrorCode()).isEqualTo("PDF_TOO_LONG"));
         } finally {
@@ -53,7 +53,7 @@ class TesseractOcrImplTest {
             ReflectionTestUtils.setField(ocr, "maxRenderedPixelsPerPage", 1_000_000L);
             ReflectionTestUtils.setField(ocr, "dpi", 300);
 
-            assertThatThrownBy(() -> ocr.extractText(pdfPath))
+            assertThatThrownBy(() -> ocr.extractText(pdfPath, "application/pdf"))
                     .isInstanceOf(ParsingException.class)
                     .satisfies(ex -> assertThat(((ParsingException) ex).getErrorCode()).isEqualTo("PDF_PAGE_TOO_LARGE"));
         } finally {
@@ -82,7 +82,7 @@ class TesseractOcrImplTest {
             ReflectionTestUtils.setField(ocr, "maxRenderedPixelsPerPage", 20_000_000L);
             ReflectionTestUtils.setField(ocr, "dpi", 100);
 
-            String text = ocr.extractText(pdfPath).join();
+            String text = ocr.extractText(pdfPath, "application/pdf").join();
 
             assertThat(text).isEqualTo("page-1\npage-2\npage-3");
             assertThat(ocr.invocationCount()).isEqualTo(3);
