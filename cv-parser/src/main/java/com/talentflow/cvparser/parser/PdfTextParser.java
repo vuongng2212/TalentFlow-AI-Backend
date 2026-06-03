@@ -17,6 +17,8 @@ public class PdfTextParser implements DocumentParser {
 
     private static final String SUPPORTED_MIME = "application/pdf";
 
+    private static final ThreadLocal<PDFTextStripper> STRIPPER = ThreadLocal.withInitial(PDFTextStripper::new);
+
     @Value("${app.parser.pdf.max-pages:10}")
     private int maxPages;
 
@@ -35,8 +37,7 @@ public class PdfTextParser implements DocumentParser {
                 ), "PDF_TOO_LONG");
             }
 
-            PDFTextStripper stripper = new PDFTextStripper();
-            String text = stripper.getText(document).trim();
+            String text = STRIPPER.get().getText(document).trim();
 
             log.info("PDF parsed successfully. pages={}, textLength={}, file=[{}]",
                     pageCount, text.length(), filePath);
