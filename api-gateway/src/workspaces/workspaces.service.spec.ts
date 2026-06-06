@@ -7,6 +7,7 @@ import {
 import { WorkspaceMemberRole, WorkspaceMemberStatus } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { WorkspacesService } from './workspaces.service';
 
 type TransactionCallback<TTransaction, TResult = unknown> = (
@@ -60,6 +61,10 @@ describe('WorkspacesService', () => {
     }),
   };
 
+  const mockSubscriptionsService = {
+    hasActiveBusinessEntitlement: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -72,6 +77,10 @@ describe('WorkspacesService', () => {
           provide: ConfigService,
           useValue: mockConfigService,
         },
+        {
+          provide: SubscriptionsService,
+          useValue: mockSubscriptionsService,
+        },
       ],
     }).compile();
 
@@ -81,6 +90,12 @@ describe('WorkspacesService', () => {
   afterEach(() => {
     workspaceMaxActiveMembers = 50;
     jest.clearAllMocks();
+  });
+
+  beforeEach(() => {
+    mockSubscriptionsService.hasActiveBusinessEntitlement.mockResolvedValue(
+      true,
+    );
   });
 
   describe('create', () => {
@@ -149,6 +164,9 @@ describe('WorkspacesService', () => {
         id: 'workspace-1',
         isBusiness: false,
       });
+      mockSubscriptionsService.hasActiveBusinessEntitlement.mockResolvedValue(
+        false,
+      );
 
       await expect(
         service.addMember('workspace-1', 'owner-1', {

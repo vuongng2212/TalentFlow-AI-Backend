@@ -8,6 +8,9 @@ import {
   Prisma,
   PrismaClient,
   Role,
+  BillingPeriod,
+  SubscriptionPlanCode,
+  SubscriptionPlanScope,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -43,6 +46,41 @@ const seedUsers = [
     email: 'seed-interviewer@talentflow.invalid',
     fullName: 'Seed Technical Interviewer',
     role: Role.INTERVIEWER,
+  },
+] as const;
+const seedSubscriptionPlans = [
+  {
+    code: SubscriptionPlanCode.FREE,
+    name: 'Free',
+    scope: SubscriptionPlanScope.PERSONAL,
+    billingPeriod: BillingPeriod.NONE,
+    dailyAiRequestLimit: 5,
+    trialAiRequestLimit: 15,
+    canScoreCv: true,
+    canAnalyzeCvFit: false,
+    canActivateWorkspace: false,
+  },
+  {
+    code: SubscriptionPlanCode.PLUS,
+    name: 'Plus',
+    scope: SubscriptionPlanScope.PERSONAL,
+    billingPeriod: BillingPeriod.MONTHLY,
+    dailyAiRequestLimit: 20,
+    trialAiRequestLimit: null,
+    canScoreCv: true,
+    canAnalyzeCvFit: true,
+    canActivateWorkspace: false,
+  },
+  {
+    code: SubscriptionPlanCode.BUSINESS,
+    name: 'Business',
+    scope: SubscriptionPlanScope.WORKSPACE,
+    billingPeriod: BillingPeriod.MONTHLY,
+    dailyAiRequestLimit: 500,
+    trialAiRequestLimit: null,
+    canScoreCv: true,
+    canAnalyzeCvFit: true,
+    canActivateWorkspace: true,
   },
 ] as const;
 const seedCandidates = [
@@ -216,6 +254,37 @@ const upsertJobByTitleAndCreator = async (input: {
 };
 
 async function main() {
+  const plans = await Promise.all(
+    seedSubscriptionPlans.map((plan) =>
+      prisma.subscriptionPlan.upsert({
+        where: { code: plan.code },
+        update: {
+          name: plan.name,
+          scope: plan.scope,
+          billingPeriod: plan.billingPeriod,
+          dailyAiRequestLimit: plan.dailyAiRequestLimit,
+          trialAiRequestLimit: plan.trialAiRequestLimit,
+          canScoreCv: plan.canScoreCv,
+          canAnalyzeCvFit: plan.canAnalyzeCvFit,
+          canActivateWorkspace: plan.canActivateWorkspace,
+          isActive: true,
+        },
+        create: {
+          code: plan.code,
+          name: plan.name,
+          scope: plan.scope,
+          billingPeriod: plan.billingPeriod,
+          dailyAiRequestLimit: plan.dailyAiRequestLimit,
+          trialAiRequestLimit: plan.trialAiRequestLimit,
+          canScoreCv: plan.canScoreCv,
+          canAnalyzeCvFit: plan.canAnalyzeCvFit,
+          canActivateWorkspace: plan.canActivateWorkspace,
+          isActive: true,
+        },
+      }),
+    ),
+  );
+
   const hashedPassword = await bcrypt.hash(
     getSeedDefaultPassword(),
     SALT_ROUNDS,
@@ -422,6 +491,7 @@ async function main() {
   }
 
   console.log('Seed completed successfully');
+  console.log(`Subscription plans: ${plans.length}`);
   console.log(`Users: ${users.length}`);
   console.log(`Candidates: ${candidates.length}`);
   console.log(`Jobs: ${jobs.length}`);

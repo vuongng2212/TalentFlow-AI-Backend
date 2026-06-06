@@ -10,18 +10,21 @@ datasource db {
 }
 
 model User {
-  id               String            @id @default(uuid())
-  email            String            @unique
-  password         String
-  role             Role              @default(RECRUITER)
-  fullName         String            @map("full_name")
-  createdJobs      Job[]             @relation("JobCreator")
-  interviews       Interview[]       @relation("InterviewInterviewer")
-  workspaceMembers       WorkspaceMember[]
-  invitedWorkspaceMembers WorkspaceMember[] @relation("WorkspaceInvitation")
-  createdAt              DateTime          @default(now()) @map("created_at")
-  updatedAt        DateTime          @updatedAt @map("updated_at")
-  deletedAt        DateTime?         @map("deleted_at")
+  id                              String                  @id @default(uuid())
+  email                           String                  @unique
+  password                        String
+  role                            Role                    @default(RECRUITER)
+  fullName                        String                  @map("full_name")
+  createdJobs                     Job[]                   @relation("JobCreator")
+  interviews                      Interview[]             @relation("InterviewInterviewer")
+  workspaceMembers                WorkspaceMember[]
+  invitedWorkspaceMembers         WorkspaceMember[]       @relation("WorkspaceInvitation")
+  subscriptions                   UserSubscription[]
+  purchasedWorkspaceSubscriptions WorkspaceSubscription[] @relation("WorkspaceSubscriptionPurchaser")
+  aiUsageRecords                  AiUsageRecord[]         @relation("AiUsageActor")
+  createdAt                       DateTime                @default(now()) @map("created_at")
+  updatedAt                       DateTime                @updatedAt @map("updated_at")
+  deletedAt                       DateTime?               @map("deleted_at")
 
   @@map("users")
 }
@@ -50,12 +53,14 @@ model Job {
 }
 
 model Workspace {
-  id          String            @id @default(uuid())
-  name        String
-  isBusiness  Boolean           @default(false) @map("is_business")
-  members     WorkspaceMember[]
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
+  id             String                  @id @default(uuid())
+  name           String
+  isBusiness     Boolean                 @default(false) @map("is_business")
+  members        WorkspaceMember[]
+  subscriptions  WorkspaceSubscription[]
+  aiUsageRecords AiUsageRecord[]
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
 
   @@map("workspaces")
 }
@@ -77,6 +82,86 @@ model WorkspaceMember {
   @@index([workspaceId, status])
   @@index([userId, status])
   @@map("workspace_members")
+}
+
+model SubscriptionPlan {
+  id                     String                  @id @default(uuid())
+  code                   SubscriptionPlanCode    @unique
+  name                   String
+  scope                  SubscriptionPlanScope
+  billingPeriod          BillingPeriod           @map("billing_period")
+  dailyAiRequestLimit    Int                     @map("daily_ai_request_limit")
+  trialAiRequestLimit    Int?                    @map("trial_ai_request_limit")
+  canScoreCv             Boolean                 @default(true) @map("can_score_cv")
+  canAnalyzeCvFit        Boolean                 @default(false) @map("can_analyze_cv_fit")
+  canActivateWorkspace   Boolean                 @default(false) @map("can_activate_workspace")
+  isActive               Boolean                 @default(true) @map("is_active")
+  userSubscriptions      UserSubscription[]
+  workspaceSubscriptions WorkspaceSubscription[]
+  aiUsageRecords         AiUsageRecord[]
+  createdAt              DateTime                @default(now()) @map("created_at")
+  updatedAt              DateTime                @updatedAt @map("updated_at")
+
+  @@map("subscription_plans")
+}
+
+model UserSubscription {
+  id          String             @id @default(uuid())
+  userId      String             @map("user_id")
+  planId      String             @map("plan_id")
+  status      SubscriptionStatus @default(ACTIVE)
+  periodStart DateTime           @default(now()) @map("period_start")
+  periodEnd   DateTime?          @map("period_end")
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan   @relation(fields: [planId], references: [id], onDelete: Restrict)
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@index([userId, status])
+  @@index([planId])
+  @@map("user_subscriptions")
+}
+
+model WorkspaceSubscription {
+  id          String             @id @default(uuid())
+  workspaceId String             @map("workspace_id")
+  purchaserId String             @map("purchaser_id")
+  planId      String             @map("plan_id")
+  status      SubscriptionStatus @default(ACTIVE)
+  periodStart DateTime           @default(now()) @map("period_start")
+  periodEnd   DateTime           @map("period_end")
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  purchaser   User               @relation("WorkspaceSubscriptionPurchaser", fields: [purchaserId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan   @relation(fields: [planId], references: [id], onDelete: Restrict)
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@index([workspaceId, status])
+  @@index([purchaserId])
+  @@index([planId])
+  @@map("workspace_subscriptions")
+}
+
+model AiUsageRecord {
+  id          String             @id @default(uuid())
+  actorId     String             @map("actor_id")
+  contextType AiUsageContextType @map("context_type")
+  workspaceId String?            @map("workspace_id")
+  planId      String             @map("plan_id")
+  action      AiUsageAction
+  usageDate   DateTime           @map("usage_date") @db.Date
+  count       Int                @default(1)
+  decision    AiUsageDecision    @default(ALLOWED)
+  denyReason  String?            @map("deny_reason")
+  actor       User               @relation("AiUsageActor", fields: [actorId], references: [id], onDelete: Cascade)
+  workspace   Workspace?         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan   @relation(fields: [planId], references: [id], onDelete: Restrict)
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  @@index([actorId, contextType, usageDate])
+  @@index([workspaceId, usageDate])
+  @@index([planId])
+  @@map("ai_usage_records")
 }
 
 model Candidate {
@@ -216,4 +301,41 @@ enum WorkspaceMemberStatus {
   ACTIVE
   INVITED
   REMOVED
+}
+
+enum SubscriptionPlanCode {
+  FREE
+  PLUS
+  BUSINESS
+}
+
+enum SubscriptionPlanScope {
+  PERSONAL
+  WORKSPACE
+}
+
+enum BillingPeriod {
+  NONE
+  MONTHLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+enum AiUsageContextType {
+  PERSONAL
+  WORKSPACE
+}
+
+enum AiUsageAction {
+  CV_SCORE
+  CV_FIT_ANALYSIS
+}
+
+enum AiUsageDecision {
+  ALLOWED
+  DENIED
 }

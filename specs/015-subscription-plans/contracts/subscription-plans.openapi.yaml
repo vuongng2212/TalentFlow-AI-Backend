@@ -1,0 +1,242 @@
+openapi: 3.0.3
+info:
+  title: TalentFlow Subscription Plans API
+  version: 0.1.0
+  description: HTTP contract for Free, Plus, and Business subscription entitlement and quota decisions.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+paths:
+  /subscriptions/plans:
+    get:
+      summary: List active subscription plans
+      tags: [Subscriptions]
+      responses:
+        "200":
+          description: Active plan catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanListResponse"
+  /subscriptions/me:
+    get:
+      summary: Get current user's personal subscription and quota status
+      tags: [Subscriptions]
+      responses:
+        "200":
+          description: Current personal subscription status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSubscriptionStatusResponse"
+  /subscriptions/me/plus:
+    post:
+      summary: Activate Plus for the current user
+      tags: [Subscriptions]
+      responses:
+        "201":
+          description: Plus subscription activated for one monthly period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSubscriptionStatusResponse"
+  /workspaces/{workspaceId}/subscription/business:
+    post:
+      summary: Activate Business for a workspace
+      tags: [Workspace Subscriptions]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      responses:
+        "201":
+          description: Business subscription activated for one monthly period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceSubscriptionStatusResponse"
+        "403":
+          description: Caller cannot activate Business for this workspace
+  /workspaces/{workspaceId}/subscription:
+    get:
+      summary: Get workspace Business subscription and quota status
+      tags: [Workspace Subscriptions]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      responses:
+        "200":
+          description: Workspace subscription status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceSubscriptionStatusResponse"
+        "403":
+          description: Caller is not an active workspace member
+  /subscriptions/entitlement/check:
+    post:
+      summary: Check whether an AI action is allowed and optionally consume quota
+      tags: [Entitlements]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EntitlementCheckRequest"
+      responses:
+        "200":
+          description: Entitlement decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EntitlementDecisionResponse"
+        "400":
+          description: Invalid context or action
+        "403":
+          description: Action is not allowed for the resolved plan or role
+        "409":
+          description: Quota exhausted
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    WorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    Plan:
+      type: object
+      required: [code, name, scope, billingPeriod, dailyAiRequestLimit, canScoreCv, canAnalyzeCvFit, canActivateWorkspace]
+      properties:
+        code:
+          type: string
+          enum: [FREE, PLUS, BUSINESS]
+        name:
+          type: string
+          enum: [Free, Plus, Business]
+        scope:
+          type: string
+          enum: [PERSONAL, WORKSPACE]
+        billingPeriod:
+          type: string
+          enum: [NONE, MONTHLY]
+        dailyAiRequestLimit:
+          type: integer
+          minimum: 1
+        trialAiRequestLimit:
+          type: integer
+          nullable: true
+        canScoreCv:
+          type: boolean
+        canAnalyzeCvFit:
+          type: boolean
+        canActivateWorkspace:
+          type: boolean
+    PlanListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Plan"
+    UserSubscriptionStatusResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [effectivePlan, status, remainingDailyQuota]
+          properties:
+            effectivePlan:
+              $ref: "#/components/schemas/Plan"
+            status:
+              type: string
+              enum: [ACTIVE, CANCELLED, EXPIRED]
+            periodEnd:
+              type: string
+              format: date-time
+              nullable: true
+            remainingDailyQuota:
+              type: integer
+              minimum: 0
+            remainingTrialQuota:
+              type: integer
+              minimum: 0
+              nullable: true
+    WorkspaceSubscriptionStatusResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [workspaceId, isBusinessActive, remainingDailyQuota]
+          properties:
+            workspaceId:
+              type: string
+              format: uuid
+            isBusinessActive:
+              type: boolean
+            purchaserId:
+              type: string
+              format: uuid
+              nullable: true
+            periodEnd:
+              type: string
+              format: date-time
+              nullable: true
+            remainingDailyQuota:
+              type: integer
+              minimum: 0
+    EntitlementCheckRequest:
+      type: object
+      required: [contextType, action]
+      properties:
+        contextType:
+          type: string
+          enum: [personal, workspace]
+        workspaceId:
+          type: string
+          format: uuid
+          nullable: true
+        action:
+          type: string
+          enum: [cv_score, cv_fit_analysis]
+        consume:
+          type: boolean
+          default: false
+          description: When true, consume one quota unit if the action is allowed.
+    EntitlementDecisionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [allowed, contextType, resolvedPlan, action, remainingDailyQuota]
+          properties:
+            allowed:
+              type: boolean
+            contextType:
+              type: string
+              enum: [personal, workspace]
+            resolvedPlan:
+              type: string
+              enum: [Free, Plus, Business]
+            action:
+              type: string
+              enum: [cv_score, cv_fit_analysis]
+            remainingDailyQuota:
+              type: integer
+              minimum: 0
+            remainingTrialQuota:
+              type: integer
+              minimum: 0
+              nullable: true
+            reason:
+              type: string
+              nullable: true

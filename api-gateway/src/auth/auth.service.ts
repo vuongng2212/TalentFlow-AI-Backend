@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import { UsersService } from '../users/users.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { RedisService } from '../redis/redis.service';
 import { hashPassword, comparePassword } from '../common/utils/password.util';
 import {
@@ -43,6 +44,7 @@ interface LoginContext {
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
+    private readonly subscriptionsService: SubscriptionsService,
     private readonly redisService: RedisService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
@@ -64,6 +66,7 @@ export class AuthService {
       fullName,
       role,
     );
+    await this.subscriptionsService.ensureDefaultFreeSubscription(user.id);
 
     this.securityAuditService.log({
       eventType: SecurityEventType.SIGNUP,

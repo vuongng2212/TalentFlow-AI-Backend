@@ -7,6 +7,7 @@ import {
 import { WorkspaceMemberRole, WorkspaceMemberStatus } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { AddWorkspaceMemberDto } from './dto/add-workspace-member.dto';
 
@@ -15,6 +16,7 @@ export class WorkspacesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   private get maxActiveMembers(): number {
@@ -57,7 +59,7 @@ export class WorkspacesService {
       throw new NotFoundException(`Workspace with ID ${workspaceId} not found`);
     }
 
-    this.ensureBusinessPlanActive(workspace);
+    await this.ensureBusinessPlanActive(workspace.id);
 
     await this.ensureCanManageMembers(workspaceId, requesterId);
 
@@ -174,10 +176,11 @@ export class WorkspacesService {
     });
   }
 
-  private ensureBusinessPlanActive(workspace: { isBusiness: boolean }) {
-    // Temporary proxy until billing/subscription module is available:
-    // `isBusiness=true` represents active Business entitlement for membership.
-    if (!workspace.isBusiness) {
+  private async ensureBusinessPlanActive(workspaceId: string) {
+    const hasBusiness =
+      await this.subscriptionsService.hasActiveBusinessEntitlement(workspaceId);
+
+    if (!hasBusiness) {
       throw new ForbiddenException(
         'Workspace is not on an active Business plan',
       );

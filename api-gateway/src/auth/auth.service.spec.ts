@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { RedisService } from '../redis/redis.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { ConfigService } from '@nestjs/config';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { Role } from '@prisma/client';
@@ -35,6 +36,10 @@ describe('AuthService', () => {
     ttl: jest.fn(),
   };
 
+  const mockSubscriptionsService = {
+    ensureDefaultFreeSubscription: jest.fn(),
+  };
+
   const mockConfigService = {
     get: jest.fn((key: string) => {
       if (key === 'JWT_ACCESS_SECRET') return 'access-secret';
@@ -54,6 +59,7 @@ describe('AuthService', () => {
       providers: [
         AuthService,
         { provide: UsersService, useValue: mockUsersService },
+        { provide: SubscriptionsService, useValue: mockSubscriptionsService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: RedisService, useValue: mockRedisService },
         { provide: ConfigService, useValue: mockConfigService },
@@ -86,6 +92,9 @@ describe('AuthService', () => {
         ...signupData,
         createdAt: new Date(),
       });
+      mockSubscriptionsService.ensureDefaultFreeSubscription.mockResolvedValue({
+        id: 'subscription-1',
+      });
 
       const result = await service.signup(
         signupData.email,
@@ -101,6 +110,9 @@ describe('AuthService', () => {
         signupData.password,
       );
       expect(mockUsersService.create).toHaveBeenCalled();
+      expect(
+        mockSubscriptionsService.ensureDefaultFreeSubscription,
+      ).toHaveBeenCalledWith('uuid');
       expect(result).toBeDefined();
       expect(mockSecurityAuditService.log).toHaveBeenCalledWith(
         expect.objectContaining({
