@@ -1,5 +1,16 @@
 # TalentFlow AI Backend Constitution
 
+<!--
+Sync Impact Report
+
+- Version change: 1.6.0 -> 1.7.0
+- Modified principles: **Workflow And Quality Gates** (explicit TDD requirement added)
+- Added sections: Sync Impact Report (this comment)
+- Removed sections: none
+- Templates requiring updates: .specify/templates/plan-template.md (⚠ pending), .specify/templates/spec-template.md (⚠ pending), .specify/templates/tasks-template.md (⚠ pending)
+- Follow-up TODOs: Update templates to reference explicit TDD requirement; review CI checks to ensure tests are required before merge.
+-->
+
 ## Project Identity
 
 TalentFlow AI Backend is a polyglot microservices Applicant Tracking System (ATS) backend composed of three primary service boundaries: `api-gateway/` (NestJS/TypeScript) for the primary HTTP API, `cv-parser/` (Spring Boot/Java) for the RabbitMQ-driven document processing worker, and `notification/` (NestJS/TypeScript) for the email and WebSocket delivery runtime.
@@ -45,7 +56,7 @@ Keep structured logging, correlation IDs, health checks, metrics, explicit error
 
 ## Workflow And Quality Gates
 
-- For non-trivial work, plan first, then RED -> GREEN -> REFACTOR for the touched slice where practical, then validate before broadening scope.
+- For non-trivial work, plan first, then follow Test-Driven Development (TDD): developers MUST author failing tests BEFORE implementing behavior (RED), implement code to make the tests pass (GREEN), then refactor (REFACTOR) the touched slice where practical, and validate before broadening scope. Tests written first are a required quality gate for non-trivial changes; exceptions MUST be documented in the plan with justification.
 - Use service-local commands and tests that match the runtime:
   - API Gateway: `cd api-gateway && npm test`, `npm run test:e2e`, `npm run lint`, `npm run build`
   - CV Parser: `cd cv-parser && mvn test` (test files located in `src/test/java/com/talentflow/cvparser/`)
@@ -69,4 +80,4 @@ This constitution overrides lower-level guidance when there is a conflict. Amend
 
 All agents and contributors must check constitution compliance before making implementation decisions. If a requested change would violate a principle, the work must either justify the exception in the plan or revise the constitution first. Keep this file synchronized with the brownfield reality of the repo and review it whenever durable architecture, contract, or workflow rules change.
 
-**Version**: 1.6.0 | **Ratified**: 2026-05-11 | **Last Amended**: 2026-05-11
+**Version**: 1.7.0 | **Ratified**: 2026-05-11 | **Last Amended**: 2026-06-07

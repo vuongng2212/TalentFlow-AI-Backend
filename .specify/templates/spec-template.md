@@ -107,6 +107,8 @@ User stories must be ordered by business priority and independently testable. Ea
 - **Parser**: `mvn test`
 - **Notification**: `npm test`, `npm run test:e2e`, `npm run lint`, `npm run build`
 
+Note: Tests MUST be authored before implementation for non-trivial user stories (TDD). The spec MUST list the minimal tests that will be created and used as the gating criteria for implementation.
+
 ## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes

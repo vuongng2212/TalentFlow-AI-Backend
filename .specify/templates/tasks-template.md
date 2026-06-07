@@ -160,4 +160,5 @@ description: "Task list template for feature implementation"
 - [P] tasks can run in parallel because they touch different files with no dependency.
 - Each user story should be independently completable and testable.
 - Verify tests fail before implementing when tests are part of the feature scope.
+- Verify tests fail before implementing when tests are part of the feature scope. For non-trivial changes, tests MUST be authored and failing before implementation (TDD).
 - Stop at a checkpoint to validate the slice before broadening scope.
