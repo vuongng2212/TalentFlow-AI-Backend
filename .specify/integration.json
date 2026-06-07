@@ -1,12 +1,12 @@
 {
-  "version": "0.8.10",
+  "version": "0.9.5",
   "integration_state_schema": 1,
   "installed_integrations": [
     "claude"
   ],
   "integration_settings": {
     "claude": {
-      "script": "sh",
+      "script": "ps",
       "invoke_separator": "-"
     }
   },
