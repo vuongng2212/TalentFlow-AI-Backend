@@ -97,6 +97,7 @@ describe('ApplicationsService', () => {
     description: 'Looking for a senior dev',
     department: 'Engineering',
     location: 'Remote',
+    workspaceId: 'ws-1',
     employmentType: EmploymentType.FULL_TIME,
     salaryMin: 80000,
     salaryMax: 120000,
@@ -173,7 +174,7 @@ describe('ApplicationsService', () => {
     it('should create an application successfully', async () => {
       // Arrange
       const createDto = { jobId: 'job-1', coverLetter: 'I am interested' };
-      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
+      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(mockCandidate);
       mockPrismaService.application.findFirst.mockResolvedValue(null);
@@ -203,7 +204,7 @@ describe('ApplicationsService', () => {
     it('should throw NotFoundException when job not found', async () => {
       // Arrange
       const createDto = { jobId: 'non-existent-job' };
-      mockPrismaService.job.findFirst.mockResolvedValue(null);
+      mockPrismaService.job.findUnique.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.create('user-1', createDto)).rejects.toThrow(
@@ -214,7 +215,7 @@ describe('ApplicationsService', () => {
     it('should throw NotFoundException when job is soft deleted', async () => {
       // Arrange
       const createDto = { jobId: 'deleted-job' };
-      mockPrismaService.job.findFirst.mockResolvedValue({
+      mockPrismaService.job.findUnique.mockResolvedValue({
         ...mockJob,
         deletedAt: new Date(),
       });
@@ -228,7 +229,7 @@ describe('ApplicationsService', () => {
     it('should throw ForbiddenException when job is not open', async () => {
       // Arrange
       const createDto = { jobId: 'job-1' };
-      mockPrismaService.job.findFirst.mockResolvedValue({
+      mockPrismaService.job.findUnique.mockResolvedValue({
         ...mockJob,
         status: JobStatus.CLOSED,
       });
@@ -242,7 +243,7 @@ describe('ApplicationsService', () => {
     it('should throw NotFoundException when user not found', async () => {
       // Arrange
       const createDto = { jobId: 'job-1' };
-      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
+      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(null);
 
       // Act & Assert
@@ -254,7 +255,7 @@ describe('ApplicationsService', () => {
     it('should create candidate if not exists', async () => {
       // Arrange
       const createDto = { jobId: 'job-1' };
-      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
+      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(null);
       mockPrismaService.candidate.create.mockResolvedValue(mockCandidate);
@@ -289,7 +290,7 @@ describe('ApplicationsService', () => {
     it('should throw ConflictException when already applied', async () => {
       // Arrange
       const createDto = { jobId: 'job-1' };
-      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
+      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(mockCandidate);
       mockPrismaService.application.findFirst.mockResolvedValue(
@@ -312,7 +313,7 @@ describe('ApplicationsService', () => {
     } as Express.Multer.File;
 
     it('should upload CV, create application, and publish queue event', async () => {
-      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
+      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(mockCandidate);
       mockPrismaService.application.findFirst.mockResolvedValue(null);
@@ -365,7 +366,7 @@ describe('ApplicationsService', () => {
     });
 
     it('should throw InternalServerErrorException when upload fails', async () => {
-      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
+      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(mockCandidate);
       mockPrismaService.application.findFirst.mockResolvedValue(null);
@@ -384,7 +385,7 @@ describe('ApplicationsService', () => {
     });
 
     it('should rollback created application and file when queue publish fails', async () => {
-      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
+      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(mockCandidate);
       mockPrismaService.application.findFirst.mockResolvedValue(null);

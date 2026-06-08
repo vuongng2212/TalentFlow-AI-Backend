@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { JobStatus, EmploymentType } from '@prisma/client';
+import { StorageService } from '../src/storage/storage.service';
 
 const extractCookies = (header: string[] | string | undefined): string[] => {
   if (!header) {
@@ -25,7 +26,18 @@ describe('CV Upload (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(StorageService)
+      .useValue({
+        upload: jest.fn().mockResolvedValue({
+          key: 'cvs/test.pdf',
+          url: 'http://localhost:9000/talentflow-cvs/cvs/test.pdf',
+        }),
+        getSignedUrl: jest.fn().mockResolvedValue('http://signed-url'),
+        delete: jest.fn().mockResolvedValue(undefined),
+        getBucketName: jest.fn().mockReturnValue('talentflow-cvs'),
+      })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1', { exclude: ['health', 'ready', 'metrics'] });

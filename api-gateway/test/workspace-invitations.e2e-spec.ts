@@ -15,7 +15,6 @@ describe('Workspace Invitations (e2e)', () => {
   let prisma: PrismaService;
 
   let ownerCookie: string;
-  let ownerId: string;
   let workspaceId: string;
 
   const inviteeEmail = 'invitee@test.com';
@@ -48,21 +47,12 @@ describe('Workspace Invitations (e2e)', () => {
     await prisma.user.deleteMany();
 
     // Signup owner
-    const signupRes = await request(app.getHttpServer())
-      .post('/api/v1/auth/signup')
-      .send({
-        email: 'owner@test.com',
-        password: 'Password123!',
-        fullName: 'Owner',
-        role: 'RECRUITER',
-      });
-
-    ownerId =
-      signupRes.body.user?.id ||
-      signupRes.body.id ||
-      (await prisma.user.findUnique({ where: { email: 'owner@test.com' } }))
-        ?.id ||
-      '';
+    await request(app.getHttpServer()).post('/api/v1/auth/signup').send({
+      email: 'owner@test.com',
+      password: 'Password123!',
+      fullName: 'Owner',
+      role: 'RECRUITER',
+    });
 
     const loginRes = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
@@ -81,7 +71,7 @@ describe('Workspace Invitations (e2e)', () => {
       .set('Cookie', [ownerCookie])
       .send({ name: 'Business Workspace', isBusiness: true });
 
-    workspaceId = createWsRes.body.data?.id || createWsRes.body.id;
+    workspaceId = (createWsRes.body.data?.id || createWsRes.body.id) as string;
   });
 
   afterAll(async () => {
@@ -103,12 +93,7 @@ describe('Workspace Invitations (e2e)', () => {
         .set('Cookie', [ownerCookie])
         .send({ email: inviteeEmail, role: 'RECRUITER' });
 
-      if (res.status !== 201) {
-        console.log('Error creating invitation:', res.body);
-      }
       expect(res.status).toBe(201);
-      console.log('invitation res body:', res.body);
-      // Let's not check message for now, just that the invitation was created
 
       const invitation = await prisma.workspaceInvitation.findFirst({
         where: {
@@ -134,12 +119,11 @@ describe('Workspace Invitations (e2e)', () => {
           role: 'RECRUITER',
         });
 
-      const inviteeId =
-        signupRes.body.user?.id ||
+      const inviteeId = (signupRes.body.user?.id ||
         signupRes.body.id ||
         (await prisma.user.findUnique({ where: { email: inviteeEmail } }))
           ?.id ||
-        '';
+        '') as string;
 
       const loginRes = await request(app.getHttpServer())
         .post('/api/v1/auth/login')

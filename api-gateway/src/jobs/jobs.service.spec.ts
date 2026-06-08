@@ -180,7 +180,10 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
       expect(result).toEqual(mockJob);
       expect(prisma.job.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'job-1', workspaceId: WORKSPACE_ID },
+          where: expect.objectContaining({
+            id: 'job-1',
+            workspaceId: WORKSPACE_ID,
+          }),
         }),
       );
     });

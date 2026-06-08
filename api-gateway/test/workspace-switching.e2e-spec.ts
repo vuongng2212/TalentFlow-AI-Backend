@@ -57,12 +57,11 @@ describe('Workspace Switching (e2e)', () => {
         role: 'RECRUITER',
       });
 
-    userId =
-      signupRes.body.user?.id ||
+    userId = (signupRes.body.user?.id ||
       signupRes.body.id ||
       (await prisma.user.findUnique({ where: { email: 'switcher@test.com' } }))
         ?.id ||
-      '';
+      '') as string;
 
     const loginRes = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
@@ -87,10 +86,7 @@ describe('Workspace Switching (e2e)', () => {
       .set('Cookie', [userCookie])
       .send({ name: 'Business Workspace', isBusiness: true });
 
-    if (resW2.status !== 201) {
-      console.log('resW2 failed:', resW2.body);
-    }
-    workspace2Id = resW2.body.data?.id || resW2.body.id;
+    workspace2Id = (resW2.body.data?.id || resW2.body.id) as string;
   });
 
   afterAll(async () => {
@@ -105,11 +101,14 @@ describe('Workspace Switching (e2e)', () => {
 
   describe('Context Fallback (Default active workspace)', () => {
     beforeAll(async () => {
-      await prisma.user.update({ where: { id: userId }, data: { activeWorkspaceId: workspace1Id } });
+      await prisma.user.update({
+        where: { id: userId },
+        data: { activeWorkspaceId: workspace1Id },
+      });
     });
     it('should use active workspace as fallback when x-workspace-id header is absent', async () => {
       // Create a job without header
-      
+
       const jobRes = await request(app.getHttpServer())
         .post('/api/v1/jobs')
         .set('Cookie', [userCookie])
@@ -121,7 +120,7 @@ describe('Workspace Switching (e2e)', () => {
         })
         .expect(201);
 
-      const jobId = jobRes.body.id;
+      const jobId = jobRes.body.id as string;
       const jobInDb = await prisma.job.findUnique({ where: { id: jobId } });
 
       // Should fall back to workspace1Id
@@ -136,9 +135,6 @@ describe('Workspace Switching (e2e)', () => {
         .set('Cookie', [userCookie])
         .send({ workspaceId: workspace2Id });
 
-      if (res.status !== 200) {
-        console.log(res.body);
-      }
       expect(res.status).toBe(200);
 
       const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -147,7 +143,7 @@ describe('Workspace Switching (e2e)', () => {
 
     it('subsequent requests without header should now use Workspace 2', async () => {
       // Create a job without header
-      
+
       const jobRes = await request(app.getHttpServer())
         .post('/api/v1/jobs')
         .set('Cookie', [userCookie])
@@ -159,7 +155,7 @@ describe('Workspace Switching (e2e)', () => {
         })
         .expect(201);
 
-      const jobId = jobRes.body.id;
+      const jobId = jobRes.body.id as string;
       const jobInDb = await prisma.job.findUnique({ where: { id: jobId } });
 
       // Should fall back to workspace2Id

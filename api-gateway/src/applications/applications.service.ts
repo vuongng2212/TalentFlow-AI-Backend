@@ -10,7 +10,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { QueryApplicationsDto } from './dto/query-applications.dto';
-import { Prisma, ApplicationStatus, ApplicationStage, WorkspaceMemberStatus, WorkspaceMemberRole } from '@prisma/client';
+import {
+  Prisma,
+  ApplicationStatus,
+  ApplicationStage,
+  WorkspaceMemberStatus,
+  WorkspaceMemberRole,
+} from '@prisma/client';
 import { StorageService } from '../storage/storage.service';
 import { QueueService } from '../queue/queue.service';
 import { UploadCvDto } from './dto/upload-cv.dto';

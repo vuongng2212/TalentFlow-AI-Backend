@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-assignment */
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { CandidatesService } from './candidates.service';
@@ -84,12 +85,12 @@ describe('CandidatesService (Workspace-Scoped Isolation)', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             workspaceId: WORKSPACE_ID,
-            OR: expect.arrayContaining([
+            OR: [
               { fullName: { contains: 'alice', mode: 'insensitive' } },
               { email: { contains: 'alice', mode: 'insensitive' } },
-            ] as unknown[]),
-          } as Record<string, unknown>),
-        } as Record<string, unknown>),
+            ],
+          }),
+        }),
       );
     });
   });
