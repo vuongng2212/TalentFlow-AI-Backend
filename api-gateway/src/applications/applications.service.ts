@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { QueryApplicationsDto } from './dto/query-applications.dto';
-import { Prisma, ApplicationStatus, ApplicationStage } from '@prisma/client';
+import { Prisma, ApplicationStatus, ApplicationStage, WorkspaceMemberStatus, WorkspaceMemberRole } from '@prisma/client';
 import { StorageService } from '../storage/storage.service';
 import { QueueService } from '../queue/queue.service';
 import { UploadCvDto } from './dto/upload-cv.dto';
@@ -72,10 +72,9 @@ export class ApplicationsService {
   ): Promise<ApplicationWithRelations> {
     const { jobId, ...data } = createApplicationDto;
 
-    // Check if job exists, is open, and belongs to the current workspace.
-    const workspaceId = this.workspaceContext.getWorkspaceId();
-    const job = await this.prisma.job.findFirst({
-      where: { id: jobId, workspaceId },
+    // Check if job exists globally (candidates apply to the job's workspace).
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
     });
 
     if (!job || job.deletedAt) {
@@ -85,6 +84,8 @@ export class ApplicationsService {
     if (job.status !== 'OPEN') {
       throw new ForbiddenException('Cannot apply to a job that is not open');
     }
+
+    const workspaceId = job.workspaceId;
 
     // Get user to find/create candidate
     const user = await this.prisma.user.findUnique({
@@ -159,9 +160,10 @@ export class ApplicationsService {
     dto: UploadCvDto,
   ): Promise<UploadCvResponseDto> {
     const { jobId, coverLetter } = dto;
-    const workspaceId = this.workspaceContext.getWorkspaceId();
 
-    await this.findOpenJobOrThrow(jobId, workspaceId);
+    const job = await this.findOpenJobOrThrow(jobId);
+    const workspaceId = job.workspaceId;
+
     const candidate = await this.findOrCreateCandidateOrThrow(
       userId,
       workspaceId,
@@ -207,9 +209,9 @@ export class ApplicationsService {
     }
   }
 
-  private async findOpenJobOrThrow(jobId: string, workspaceId: string) {
-    const job = await this.prisma.job.findFirst({
-      where: { id: jobId, workspaceId },
+  private async findOpenJobOrThrow(jobId: string) {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
     });
 
     if (!job || job.deletedAt) {
@@ -469,9 +471,10 @@ export class ApplicationsService {
     userId: string,
     userRole: string,
   ): Promise<ApplicationWithRelations> {
-    const workspaceId = this.workspaceContext.getWorkspaceId();
+    // Find application globally first (candidates apply to recruiter workspaces,
+    // so candidate requests might resolve to a different workspace context).
     const application = await this.prisma.application.findFirst({
-      where: { id, workspaceId },
+      where: { id },
       include: {
         job: {
           include: {
@@ -498,21 +501,25 @@ export class ApplicationsService {
       throw new NotFoundException(`Application with ID ${id} not found`);
     }
 
-    // Check access - need to find user's candidate to check if they're the applicant
+    // Check access:
+    // 1. Is the requesting user the applicant?
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    const candidate = user
-      ? await this.prisma.candidate.findUnique({
-          where: {
-            workspaceId_email: { workspaceId, email: user.email },
-          },
-        })
-      : null;
+    const isApplicant = user && application.candidate.email === user.email;
 
-    const isApplicant = candidate && application.candidateId === candidate.id;
-    const isRecruiter = application.job.createdById === userId;
+    // 2. Is the requesting user an active member of the application's workspace?
+    const membership = await this.prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId: application.workspaceId,
+        userId,
+        status: WorkspaceMemberStatus.ACTIVE,
+      },
+    });
+    const isWorkspaceMember = !!membership;
+
+    // 3. Is the requesting user a system-level admin?
     const isAdmin = userRole === 'ADMIN';
 
-    if (!isApplicant && !isRecruiter && !isAdmin) {
+    if (!isApplicant && !isWorkspaceMember && !isAdmin) {
       throw new ForbiddenException(
         'You do not have permission to view this application',
       );
@@ -528,29 +535,34 @@ export class ApplicationsService {
     updateApplicationDto: UpdateApplicationDto,
   ): Promise<ApplicationWithRelations> {
     const application = await this.findOne(id, userId, userRole);
-    const workspaceId = this.workspaceContext.getWorkspaceId();
 
-    // Check user's candidate status
+    // Check user's roles
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    const candidate = user
-      ? await this.prisma.candidate.findUnique({
-          where: {
-            workspaceId_email: { workspaceId, email: user.email },
-          },
-        })
-      : null;
+    const isApplicant = user && application.candidate.email === user.email;
 
-    // Only recruiter (job owner) or admin can update stage/status/notes
-    const isRecruiter = application.job.createdById === userId;
-    const isApplicant = candidate && application.candidateId === candidate.id;
+    const membership = await this.prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId: application.workspaceId,
+        userId,
+        status: WorkspaceMemberStatus.ACTIVE,
+      },
+    });
+    const isWorkspaceRecruiter =
+      membership &&
+      [
+        WorkspaceMemberRole.OWNER,
+        WorkspaceMemberRole.ADMIN,
+        WorkspaceMemberRole.RECRUITER,
+      ].includes(membership.role);
     const isAdmin = userRole === 'ADMIN';
 
+    // Only recruiter or admin can update stage/status/notes
     if (
       updateApplicationDto.stage ||
       updateApplicationDto.status ||
       updateApplicationDto.notes
     ) {
-      if (!isRecruiter && !isAdmin) {
+      if (!isWorkspaceRecruiter && !isAdmin) {
         throw new ForbiddenException(
           'Only recruiters can update application stage, status and notes',
         );
@@ -558,7 +570,7 @@ export class ApplicationsService {
     }
 
     // Applicants can only update cover letter
-    if (!isRecruiter && !isAdmin && !isApplicant) {
+    if (!isWorkspaceRecruiter && !isAdmin && !isApplicant) {
       throw new ForbiddenException(
         'You do not have permission to update this application',
       );
@@ -602,19 +614,8 @@ export class ApplicationsService {
   async remove(id: string, userId: string, userRole: string): Promise<void> {
     const application = await this.findOne(id, userId, userRole);
 
-    // Check user's candidate status
-    const workspaceId = this.workspaceContext.getWorkspaceId();
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    const candidate = user
-      ? await this.prisma.candidate.findUnique({
-          where: {
-            workspaceId_email: { workspaceId, email: user.email },
-          },
-        })
-      : null;
-
-    // Only applicant or admin can delete
-    const isApplicant = candidate && application.candidateId === candidate.id;
+    const isApplicant = user && application.candidate.email === user.email;
     const isAdmin = userRole === 'ADMIN';
 
     if (!isApplicant && !isAdmin) {

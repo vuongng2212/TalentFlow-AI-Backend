@@ -69,5 +69,5 @@ Primary development happens here.
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan in [specs/016-workspace-multi-tenancy/plan.md](specs/016-workspace-multi-tenancy/plan.md).
+shell commands, and other important information, read the current plan
 <!-- SPECKIT END -->

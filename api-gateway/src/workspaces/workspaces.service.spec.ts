@@ -48,6 +48,7 @@ describe('WorkspacesService', () => {
     },
     user: {
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
     workspaceInvitation: {
       create: jest.fn(),
@@ -109,12 +110,15 @@ describe('WorkspacesService', () => {
 
       mockPrismaService.$transaction.mockImplementation(
         async (callback: TransactionCallback<CreateWorkspaceTransaction>) => {
-          const tx: CreateWorkspaceTransaction = {
+          const tx = {
             workspace: {
               create: jest.fn().mockResolvedValue(workspace),
             },
             workspaceMember: {
               create: jest.fn().mockResolvedValue({ id: 'member-1' }),
+            },
+            user: {
+              update: jest.fn().mockResolvedValue({}),
             },
           };
 
@@ -124,6 +128,7 @@ describe('WorkspacesService', () => {
             data: {
               name: 'Test Workspace',
               isBusiness: true,
+              createdById: 'user-1',
             },
           });
           expect(tx.workspaceMember.create).toHaveBeenCalledWith({

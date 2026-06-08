@@ -81,11 +81,16 @@ describe('AuthService', () => {
       jest
         .spyOn(passwordUtil, 'hashPassword')
         .mockResolvedValue('hashed_password');
-      mockUsersService.create.mockResolvedValue({
-        id: 'uuid',
-        ...signupData,
-        createdAt: new Date(),
-      });
+      mockUsersService.createWithPersonalWorkspace = jest
+        .fn()
+        .mockResolvedValue({
+          user: {
+            id: 'uuid',
+            ...signupData,
+            createdAt: new Date(),
+          },
+          personalWorkspaceId: 'ws-1',
+        });
 
       const result = await service.signup(
         signupData.email,
@@ -100,7 +105,7 @@ describe('AuthService', () => {
       expect(passwordUtil.hashPassword).toHaveBeenCalledWith(
         signupData.password,
       );
-      expect(mockUsersService.create).toHaveBeenCalled();
+      expect(mockUsersService.createWithPersonalWorkspace).toHaveBeenCalled();
       expect(result).toBeDefined();
       expect(mockSecurityAuditService.log).toHaveBeenCalledWith(
         expect.objectContaining({

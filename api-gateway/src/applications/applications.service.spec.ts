@@ -20,6 +20,8 @@ import {
   Role,
 } from '@prisma/client';
 
+import { WorkspaceContextService } from '../common/services/workspace-context.service';
+
 describe('ApplicationsService', () => {
   let service: ApplicationsService;
   let prisma: PrismaService;
@@ -35,15 +37,24 @@ describe('ApplicationsService', () => {
       count: jest.fn(),
     },
     job: {
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
     },
     candidate: {
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
       create: jest.fn(),
     },
+    workspaceMember: {
+      findFirst: jest.fn(),
+    },
+  };
+
+  const mockWorkspaceContextService = {
+    getWorkspaceId: jest.fn().mockReturnValue('ws-1'),
   };
 
   const mockUser = {
@@ -142,11 +153,16 @@ describe('ApplicationsService', () => {
           provide: QueueService,
           useValue: mockQueueService,
         },
+        {
+          provide: WorkspaceContextService,
+          useValue: mockWorkspaceContextService,
+        },
       ],
     }).compile();
 
     service = module.get<ApplicationsService>(ApplicationsService);
     prisma = module.get<PrismaService>(PrismaService);
+    mockPrismaService.workspaceMember.findFirst.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -157,7 +173,7 @@ describe('ApplicationsService', () => {
     it('should create an application successfully', async () => {
       // Arrange
       const createDto = { jobId: 'job-1', coverLetter: 'I am interested' };
-      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
+      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(mockCandidate);
       mockPrismaService.application.findFirst.mockResolvedValue(null);
@@ -187,7 +203,7 @@ describe('ApplicationsService', () => {
     it('should throw NotFoundException when job not found', async () => {
       // Arrange
       const createDto = { jobId: 'non-existent-job' };
-      mockPrismaService.job.findUnique.mockResolvedValue(null);
+      mockPrismaService.job.findFirst.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.create('user-1', createDto)).rejects.toThrow(
@@ -198,7 +214,7 @@ describe('ApplicationsService', () => {
     it('should throw NotFoundException when job is soft deleted', async () => {
       // Arrange
       const createDto = { jobId: 'deleted-job' };
-      mockPrismaService.job.findUnique.mockResolvedValue({
+      mockPrismaService.job.findFirst.mockResolvedValue({
         ...mockJob,
         deletedAt: new Date(),
       });
@@ -212,7 +228,7 @@ describe('ApplicationsService', () => {
     it('should throw ForbiddenException when job is not open', async () => {
       // Arrange
       const createDto = { jobId: 'job-1' };
-      mockPrismaService.job.findUnique.mockResolvedValue({
+      mockPrismaService.job.findFirst.mockResolvedValue({
         ...mockJob,
         status: JobStatus.CLOSED,
       });
@@ -226,7 +242,7 @@ describe('ApplicationsService', () => {
     it('should throw NotFoundException when user not found', async () => {
       // Arrange
       const createDto = { jobId: 'job-1' };
-      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
+      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(null);
 
       // Act & Assert
@@ -238,7 +254,7 @@ describe('ApplicationsService', () => {
     it('should create candidate if not exists', async () => {
       // Arrange
       const createDto = { jobId: 'job-1' };
-      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
+      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(null);
       mockPrismaService.candidate.create.mockResolvedValue(mockCandidate);
@@ -265,6 +281,7 @@ describe('ApplicationsService', () => {
         data: {
           email: mockUser.email,
           fullName: mockUser.fullName,
+          workspaceId: 'ws-1',
         },
       });
     });
@@ -272,7 +289,7 @@ describe('ApplicationsService', () => {
     it('should throw ConflictException when already applied', async () => {
       // Arrange
       const createDto = { jobId: 'job-1' };
-      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
+      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(mockCandidate);
       mockPrismaService.application.findFirst.mockResolvedValue(
@@ -295,7 +312,7 @@ describe('ApplicationsService', () => {
     } as Express.Multer.File;
 
     it('should upload CV, create application, and publish queue event', async () => {
-      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
+      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(mockCandidate);
       mockPrismaService.application.findFirst.mockResolvedValue(null);
@@ -348,7 +365,7 @@ describe('ApplicationsService', () => {
     });
 
     it('should throw InternalServerErrorException when upload fails', async () => {
-      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
+      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(mockCandidate);
       mockPrismaService.application.findFirst.mockResolvedValue(null);
@@ -367,7 +384,7 @@ describe('ApplicationsService', () => {
     });
 
     it('should rollback created application and file when queue publish fails', async () => {
-      mockPrismaService.job.findUnique.mockResolvedValue(mockJob);
+      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(mockCandidate);
       mockPrismaService.application.findFirst.mockResolvedValue(null);
@@ -446,7 +463,7 @@ describe('ApplicationsService', () => {
       expect(prisma.application.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            job: { createdById: 'recruiter-1' },
+            job: { createdById: 'recruiter-1', workspaceId: 'ws-1' },
           }),
         }),
       );
@@ -532,7 +549,7 @@ describe('ApplicationsService', () => {
 
     it('should return application when found by admin', async () => {
       // Arrange
-      mockPrismaService.application.findUnique.mockResolvedValue(
+      mockPrismaService.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations,
       );
       mockPrismaService.user.findUnique.mockResolvedValue(mockRecruiterUser);
@@ -547,7 +564,7 @@ describe('ApplicationsService', () => {
 
     it('should return application when user is the applicant', async () => {
       // Arrange
-      mockPrismaService.application.findUnique.mockResolvedValue(
+      mockPrismaService.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations,
       );
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
@@ -562,11 +579,16 @@ describe('ApplicationsService', () => {
 
     it('should return application when user is the job recruiter', async () => {
       // Arrange
-      mockPrismaService.application.findUnique.mockResolvedValue(
+      mockPrismaService.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations,
       );
       mockPrismaService.user.findUnique.mockResolvedValue(mockRecruiterUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(null);
+      mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
+        id: 'member-1',
+        role: 'RECRUITER',
+        status: 'ACTIVE',
+      });
 
       // Act
       const result = await service.findOne('app-1', 'recruiter-1', 'RECRUITER');
@@ -577,7 +599,7 @@ describe('ApplicationsService', () => {
 
     it('should throw NotFoundException when application not found', async () => {
       // Arrange
-      mockPrismaService.application.findUnique.mockResolvedValue(null);
+      mockPrismaService.application.findFirst.mockResolvedValue(null);
 
       // Act & Assert
       await expect(
@@ -587,7 +609,7 @@ describe('ApplicationsService', () => {
 
     it('should throw NotFoundException when application is soft deleted', async () => {
       // Arrange
-      mockPrismaService.application.findUnique.mockResolvedValue({
+      mockPrismaService.application.findFirst.mockResolvedValue({
         ...mockApplicationWithRelations,
         deletedAt: new Date(),
       });
@@ -600,7 +622,7 @@ describe('ApplicationsService', () => {
 
     it('should throw ForbiddenException when user has no access', async () => {
       // Arrange
-      mockPrismaService.application.findUnique.mockResolvedValue(
+      mockPrismaService.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations,
       );
       mockPrismaService.user.findUnique.mockResolvedValue({
@@ -642,11 +664,16 @@ describe('ApplicationsService', () => {
         status: ApplicationStatus.REVIEWING,
         notes: 'Good candidate',
       };
-      mockPrismaService.application.findUnique.mockResolvedValue(
+      mockPrismaService.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations,
       );
       mockPrismaService.user.findUnique.mockResolvedValue(mockRecruiterUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(null);
+      mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
+        id: 'member-1',
+        role: 'RECRUITER',
+        status: 'ACTIVE',
+      });
       mockPrismaService.application.update.mockResolvedValue({
         ...mockApplication,
         ...updateDto,
@@ -675,11 +702,16 @@ describe('ApplicationsService', () => {
     it('should set reviewedAt when status changes', async () => {
       // Arrange
       const updateDto = { status: ApplicationStatus.SHORTLISTED };
-      mockPrismaService.application.findUnique.mockResolvedValue(
+      mockPrismaService.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations,
       );
       mockPrismaService.user.findUnique.mockResolvedValue(mockRecruiterUser);
       mockPrismaService.candidate.findUnique.mockResolvedValue(null);
+      mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
+        id: 'member-1',
+        role: 'RECRUITER',
+        status: 'ACTIVE',
+      });
       mockPrismaService.application.update.mockResolvedValue({
         ...mockApplication,
         status: ApplicationStatus.SHORTLISTED,
@@ -708,7 +740,7 @@ describe('ApplicationsService', () => {
     it('should throw ForbiddenException when non-recruiter tries to update stage', async () => {
       // Arrange
       const updateDto = { stage: ApplicationStage.INTERVIEW };
-      mockPrismaService.application.findUnique.mockResolvedValue(
+      mockPrismaService.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations,
       );
       mockPrismaService.user.findUnique.mockResolvedValue({
@@ -727,7 +759,7 @@ describe('ApplicationsService', () => {
     it('should allow applicant to update cover letter', async () => {
       // Arrange
       const updateDto = { coverLetter: 'Updated cover letter' };
-      mockPrismaService.application.findUnique.mockResolvedValue(
+      mockPrismaService.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations,
       );
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
@@ -761,7 +793,7 @@ describe('ApplicationsService', () => {
         stage: ApplicationStage.OFFER,
         notes: 'Admin notes',
       };
-      mockPrismaService.application.findUnique.mockResolvedValue(
+      mockPrismaService.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations,
       );
       mockPrismaService.user.findUnique.mockResolvedValue({
@@ -814,7 +846,7 @@ describe('ApplicationsService', () => {
 
     it('should allow applicant to withdraw application', async () => {
       // Arrange
-      mockPrismaService.application.findUnique.mockResolvedValue(
+      mockPrismaService.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations,
       );
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
@@ -840,7 +872,7 @@ describe('ApplicationsService', () => {
 
     it('should allow admin to delete any application', async () => {
       // Arrange
-      mockPrismaService.application.findUnique.mockResolvedValue(
+      mockPrismaService.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations,
       );
       mockPrismaService.user.findUnique.mockResolvedValue({
@@ -864,7 +896,7 @@ describe('ApplicationsService', () => {
 
     it('should throw ForbiddenException when recruiter tries to delete', async () => {
       // Arrange
-      mockPrismaService.application.findUnique.mockResolvedValue(
+      mockPrismaService.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations,
       );
       mockPrismaService.user.findUnique.mockResolvedValue(mockRecruiterUser);
@@ -878,7 +910,7 @@ describe('ApplicationsService', () => {
 
     it('should throw ForbiddenException when non-applicant tries to withdraw', async () => {
       // Arrange
-      mockPrismaService.application.findUnique.mockResolvedValue(
+      mockPrismaService.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations,
       );
       mockPrismaService.user.findUnique.mockResolvedValue({

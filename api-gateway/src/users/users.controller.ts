@@ -53,6 +53,28 @@ export class UsersController {
     return this.usersService.findAll(query);
   }
 
+  @Patch('active-workspace')
+  @ApiOperation({
+    summary: 'Switch the active workspace for the current user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Active workspace updated successfully',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Bad Request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - not an active member of the target workspace',
+  })
+  async switchActiveWorkspace(
+    @CurrentUser() user: UserPayload,
+    @Body() dto: SwitchActiveWorkspaceDto,
+  ) {
+    return this.usersService.switchActiveWorkspace(user.id, dto.workspaceId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a user profile by ID' })
   @ApiParam({
@@ -139,27 +161,5 @@ export class UsersController {
   @ApiResponse({ status: 404, description: 'User not found' })
   async remove(@Param('id') id: string): Promise<void> {
     return this.usersService.softDeleteUser(id);
-  }
-
-  @Patch('active-workspace')
-  @ApiOperation({
-    summary: 'Switch the active workspace for the current user',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Active workspace updated successfully',
-    type: UserResponseDto,
-  })
-  @ApiResponse({ status: 400, description: 'Bad Request' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - not an active member of the target workspace',
-  })
-  async switchActiveWorkspace(
-    @CurrentUser() user: UserPayload,
-    @Body() dto: SwitchActiveWorkspaceDto,
-  ) {
-    return this.usersService.switchActiveWorkspace(user.id, dto.workspaceId);
   }
 }

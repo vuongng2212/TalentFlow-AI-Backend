@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { InterviewsService } from './interviews.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { WorkspaceContextService } from '../common/services/workspace-context.service';
 import { InterviewStatus } from '@prisma/client';
 
 const mockPrismaService = {
@@ -14,11 +15,16 @@ const mockPrismaService = {
     update: jest.fn(),
   },
   application: {
+    findFirst: jest.fn(),
     findUnique: jest.fn(),
   },
   user: {
     findUnique: jest.fn(),
   },
+};
+
+const mockWorkspaceContextService = {
+  getWorkspaceId: jest.fn().mockReturnValue('ws-1'),
 };
 
 describe('InterviewsService', () => {
@@ -30,6 +36,10 @@ describe('InterviewsService', () => {
       providers: [
         InterviewsService,
         { provide: PrismaService, useValue: mockPrismaService },
+        {
+          provide: WorkspaceContextService,
+          useValue: mockWorkspaceContextService,
+        },
       ],
     }).compile();
 
@@ -47,7 +57,10 @@ describe('InterviewsService', () => {
     const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     it('should create an interview', async () => {
-      prisma.application.findUnique.mockResolvedValue({ id: 'app-1' });
+      prisma.application.findFirst.mockResolvedValue({
+        id: 'app-1',
+        workspaceId: 'ws-1',
+      });
       prisma.interview.create.mockResolvedValue({
         id: 'interview-1',
         applicationId: 'app-1',
@@ -64,7 +77,7 @@ describe('InterviewsService', () => {
     });
 
     it('should throw NotFoundException when application not found', async () => {
-      prisma.application.findUnique.mockResolvedValue(null);
+      prisma.application.findFirst.mockResolvedValue(null);
 
       await expect(
         service.create({ applicationId: 'not-exist', scheduledAt: futureDate }),
@@ -72,7 +85,10 @@ describe('InterviewsService', () => {
     });
 
     it('should throw BadRequestException for past date', async () => {
-      prisma.application.findUnique.mockResolvedValue({ id: 'app-1' });
+      prisma.application.findFirst.mockResolvedValue({
+        id: 'app-1',
+        workspaceId: 'ws-1',
+      });
       const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
       await expect(
@@ -81,7 +97,10 @@ describe('InterviewsService', () => {
     });
 
     it('should verify interviewer exists when provided', async () => {
-      prisma.application.findUnique.mockResolvedValue({ id: 'app-1' });
+      prisma.application.findFirst.mockResolvedValue({
+        id: 'app-1',
+        workspaceId: 'ws-1',
+      });
       prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
@@ -129,15 +148,19 @@ describe('InterviewsService', () => {
 
   describe('findOne', () => {
     it('should return interview by ID', async () => {
-      const mockInterview = { id: 'i-1', applicationId: 'app-1' };
-      prisma.interview.findUnique.mockResolvedValue(mockInterview);
+      const mockInterview = {
+        id: 'i-1',
+        applicationId: 'app-1',
+        workspaceId: 'ws-1',
+      };
+      prisma.interview.findFirst.mockResolvedValue(mockInterview);
 
       const result = await service.findOne('i-1');
       expect(result.id).toBe('i-1');
     });
 
     it('should throw NotFoundException when not found', async () => {
-      prisma.interview.findUnique.mockResolvedValue(null);
+      prisma.interview.findFirst.mockResolvedValue(null);
 
       await expect(service.findOne('not-exist')).rejects.toThrow(
         NotFoundException,
@@ -147,7 +170,10 @@ describe('InterviewsService', () => {
 
   describe('update', () => {
     it('should update interview fields', async () => {
-      prisma.interview.findUnique.mockResolvedValue({ id: 'i-1' });
+      prisma.interview.findFirst.mockResolvedValue({
+        id: 'i-1',
+        workspaceId: 'ws-1',
+      });
       prisma.interview.update.mockResolvedValue({
         id: 'i-1',
         notes: 'Updated notes',
@@ -158,7 +184,7 @@ describe('InterviewsService', () => {
     });
 
     it('should throw NotFoundException when not found', async () => {
-      prisma.interview.findUnique.mockResolvedValue(null);
+      prisma.interview.findFirst.mockResolvedValue(null);
 
       await expect(
         service.update('not-exist', { notes: 'test' }),
@@ -168,7 +194,10 @@ describe('InterviewsService', () => {
 
   describe('remove', () => {
     it('should cancel interview by updating status', async () => {
-      prisma.interview.findUnique.mockResolvedValue({ id: 'i-1' });
+      prisma.interview.findFirst.mockResolvedValue({
+        id: 'i-1',
+        workspaceId: 'ws-1',
+      });
       prisma.interview.update.mockResolvedValue({
         id: 'i-1',
         status: 'CANCELLED',
@@ -183,7 +212,7 @@ describe('InterviewsService', () => {
     });
 
     it('should throw NotFoundException when not found', async () => {
-      prisma.interview.findUnique.mockResolvedValue(null);
+      prisma.interview.findFirst.mockResolvedValue(null);
 
       await expect(service.remove('not-exist')).rejects.toThrow(
         NotFoundException,

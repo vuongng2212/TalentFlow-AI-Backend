@@ -60,7 +60,7 @@
 ### Tests for User Story 1
 
 - [x] T009 [P] [US1] Implement unit tests for isolation checks in api-gateway/src/jobs/jobs.service.spec.ts and api-gateway/src/candidates/candidates.service.spec.ts
-- [ ] T010 [P] [US1] Create integration e2e test for multi-tenant isolation in api-gateway/test/jobs-isolation.e2e-spec.ts
+- [x] T010 [P] [US1] Create integration e2e test for multi-tenant isolation in api-gateway/test/jobs-isolation.e2e-spec.ts
 
 ### Implementation for User Story 1
 
@@ -83,7 +83,7 @@
 ### Tests for User Story 2
 
 - [x] T016 [P] [US2] Create unit tests for active workspace switching in api-gateway/src/users/users.service.spec.ts
-- [ ] T017 [P] [US2] Create integration e2e test for context fallback and active workspace patching in api-gateway/test/workspace-switching.e2e-spec.ts
+- [x] T017 [P] [US2] Create integration e2e test for context fallback and active workspace patching in api-gateway/test/workspace-switching.e2e-spec.ts
 
 ### Implementation for User Story 2
 
@@ -105,7 +105,7 @@
 ### Tests for User Story 3
 
 - [x] T022 [P] [US3] Create unit tests for invitation endpoints in api-gateway/src/workspaces/workspaces.service.spec.ts
-- [ ] T023 [P] [US3] Create integration e2e test for invitation acceptance in api-gateway/test/workspace-invitations.e2e-spec.ts
+- [x] T023 [P] [US3] Create integration e2e test for invitation acceptance in api-gateway/test/workspace-invitations.e2e-spec.ts
 
 ### Implementation for User Story 3
 

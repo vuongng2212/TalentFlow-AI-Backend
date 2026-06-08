@@ -7,19 +7,7 @@ import { Role, WorkspaceMemberStatus } from '@prisma/client';
 
 describe('UsersService', () => {
   let service: UsersService;
-      create: jest.Mock;
-      findUnique: jest.Mock;
-      update: jest.Mock;
-    };
-    workspace: {
-      create: jest.Mock;
-    };
-    workspaceMember: {
-      create: jest.Mock;
-      findFirst: jest.Mock;
-    };
-    $transaction: jest.Mock;
-  };
+  let prisma: any;
 
   const mockPrismaService = {
     user: {

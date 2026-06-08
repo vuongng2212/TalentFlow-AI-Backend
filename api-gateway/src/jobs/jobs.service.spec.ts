@@ -25,6 +25,7 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
 
   const mockWorkspaceContext = {
     getWorkspaceId: jest.fn().mockReturnValue(WORKSPACE_ID),
+    getWorkspaceIdOrNull: jest.fn().mockReturnValue(WORKSPACE_ID),
   };
 
   const mockJob = {

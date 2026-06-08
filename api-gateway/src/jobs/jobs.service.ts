@@ -7,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { QueryJobsDto } from './dto/query-jobs.dto';
-import { Job, Prisma, WorkspaceMemberRole } from '@prisma/client';
+import { Job, Prisma, WorkspaceMemberRole, JobStatus } from '@prisma/client';
 import { JobRequirementsDto } from './dto/job-requirements.dto';
 import { WorkspaceContextService } from '../common/services/workspace-context.service';
 
@@ -66,7 +66,7 @@ export class JobsService {
   }
 
   async findAll(query: QueryJobsDto) {
-    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const workspaceId = this.workspaceContext.getWorkspaceIdOrNull();
     const {
       page = 1,
       limit = 10,
@@ -83,9 +83,18 @@ export class JobsService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.JobWhereInput = {
-      workspaceId,
       deletedAt: null,
     };
+
+    if (workspaceId) {
+      where.workspaceId = workspaceId;
+      if (status) {
+        where.status = status;
+      }
+    } else {
+      // Public global search: only allow listing OPEN jobs
+      where.status = JobStatus.OPEN;
+    }
 
     if (search) {
       where.OR = [
@@ -160,9 +169,14 @@ export class JobsService {
   }
 
   async findOne(id: string): Promise<Job> {
-    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const workspaceId = this.workspaceContext.getWorkspaceIdOrNull();
+    const where: Prisma.JobWhereInput = { id, deletedAt: null };
+    if (workspaceId) {
+      where.workspaceId = workspaceId;
+    }
+
     const job = await this.prisma.job.findFirst({
-      where: { id, workspaceId },
+      where,
       include: {
         createdBy: {
           select: {
@@ -180,6 +194,12 @@ export class JobsService {
 
     if (!job || job.deletedAt) {
       // Return 404 to avoid leaking existence across tenants.
+      throw new NotFoundException(`Job with ID ${id} not found`);
+    }
+
+    // Security check: unauthenticated/public queries without a workspace context
+    // must only access OPEN jobs.
+    if (!workspaceId && job.status !== JobStatus.OPEN) {
       throw new NotFoundException(`Job with ID ${id} not found`);
     }
 

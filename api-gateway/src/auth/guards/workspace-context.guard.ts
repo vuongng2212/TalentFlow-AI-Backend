@@ -17,7 +17,7 @@ export const WORKSPACE_CONTEXT_KEY = 'workspaceId';
 export interface RequestWithWorkspace {
   workspaceId?: string;
   user?: {
-    userId: string;
+    id: string;
     email: string;
     role: string;
   };
@@ -39,24 +39,29 @@ export class WorkspaceContextGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    if (isPublic) {
-      return true;
-    }
-
     const request = context.switchToHttp().getRequest<
       RequestWithWorkspace & {
         headers: Record<string, string | string[] | undefined>;
       }
     >();
 
-    if (!request.user?.userId) {
+    const headerValue = this.extractHeader(request);
+
+    if (isPublic) {
+      if (headerValue) {
+        request.workspaceId = headerValue;
+        this.cls.set(WORKSPACE_CONTEXT_KEY, headerValue);
+      }
+      return true;
+    }
+
+    if (!request.user?.id) {
       // JwtAuthGuard should have already populated the user; if not, fail.
       throw new ForbiddenException('Authenticated user context is required');
     }
 
-    const headerValue = this.extractHeader(request);
     const resolvedWorkspaceId = await this.resolveWorkspaceId(
-      request.user.userId,
+      request.user.id,
       headerValue,
     );
 
