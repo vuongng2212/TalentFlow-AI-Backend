@@ -58,7 +58,9 @@ export class AuthService {
 
     const hashedPassword = await hashPassword(password);
 
-    const user = await this.usersService.create(
+    // Atomic provisioning of User + Personal Workspace + Membership +
+    // activeWorkspaceId pointer in a single transaction.
+    const { user } = await this.usersService.createWithPersonalWorkspace(
       email,
       hashedPassword,
       fullName,
@@ -77,6 +79,7 @@ export class AuthService {
       email: user.email,
       fullName: user.fullName,
       role: user.role,
+      activeWorkspaceId: user.activeWorkspaceId,
       createdAt: user.createdAt,
     };
   }

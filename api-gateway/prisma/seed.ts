@@ -8,6 +8,8 @@ import {
   Prisma,
   PrismaClient,
   Role,
+  WorkspaceMemberRole,
+  WorkspaceMemberStatus,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -157,6 +159,7 @@ const seededJobSelect = {
   id: true,
   title: true,
   createdById: true,
+  workspaceId: true,
 } satisfies Prisma.JobSelect;
 
 const upsertJobByTitleAndCreator = async (input: {
@@ -170,12 +173,14 @@ const upsertJobByTitleAndCreator = async (input: {
   salaryMax: number;
   status: JobStatus;
   createdById: string;
+  workspaceId: string;
 }) => {
   const existing = await prisma.job.findFirst({
     select: { id: true },
     where: {
       title: input.title,
       createdById: input.createdById,
+      workspaceId: input.workspaceId,
       deletedAt: null,
     },
   });
@@ -210,6 +215,7 @@ const upsertJobByTitleAndCreator = async (input: {
       salaryMax: input.salaryMax,
       status: input.status,
       createdById: input.createdById,
+      workspaceId: input.workspaceId,
     },
     select: seededJobSelect,
   });
@@ -221,32 +227,79 @@ async function main() {
     SALT_ROUNDS,
   );
 
+  // Seed users and atomically provision a Personal Workspace for each.
   const users = await Promise.all(
-    seedUsers.map((user) =>
-      prisma.user.upsert({
+    seedUsers.map(async (user) => {
+      const existing = await prisma.user.findUnique({
         where: { email: user.email },
-        update: {
-          fullName: user.fullName,
-          role: user.role,
-          password: hashedPassword,
-          deletedAt: null,
-        },
-        create: {
-          email: user.email,
-          fullName: user.fullName,
-          role: user.role,
-          password: hashedPassword,
-        },
-      }),
-    ),
+      });
+
+      if (existing) {
+        return prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            fullName: user.fullName,
+            role: user.role,
+            password: hashedPassword,
+            deletedAt: null,
+          },
+        });
+      }
+
+      return prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            email: user.email,
+            fullName: user.fullName,
+            role: user.role,
+            password: hashedPassword,
+          },
+        });
+
+        const personalWorkspace = await tx.workspace.create({
+          data: {
+            name: `${user.fullName} - Personal Workspace`,
+            isBusiness: false,
+            createdById: created.id,
+          },
+        });
+
+        await tx.workspaceMember.create({
+          data: {
+            workspaceId: personalWorkspace.id,
+            userId: created.id,
+            role: WorkspaceMemberRole.OWNER,
+            status: WorkspaceMemberStatus.ACTIVE,
+            invitedById: created.id,
+          },
+        });
+
+        return tx.user.update({
+          where: { id: created.id },
+          data: { activeWorkspaceId: personalWorkspace.id },
+        });
+      });
+    }),
   );
 
   const userByEmail = new Map(users.map((user) => [user.email, user]));
 
+  // Candidates live inside the recruiter's personal workspace.
+  const recruiter = userByEmail.get('seed-recruiter@talentflow.invalid');
+  if (!recruiter || !recruiter.activeWorkspaceId) {
+    throw new Error('Seed recruiter must have an active workspace');
+  }
+  const recruiterWorkspaceId = recruiter.activeWorkspaceId;
+
   const candidates = await Promise.all(
     seedCandidates.map((candidate) =>
       prisma.candidate.upsert({
-        where: { email: candidate.email },
+        where: {
+          workspaceId_email: {
+            workspaceId: recruiterWorkspaceId,
+            email: candidate.email,
+          },
+        },
         update: {
           fullName: candidate.fullName,
           phone: candidate.phone,
@@ -261,6 +314,7 @@ async function main() {
           linkedinUrl: candidate.linkedinUrl,
           resumeUrl: candidate.resumeUrl,
           resumeText: candidate.resumeText,
+          workspaceId: recruiterWorkspaceId,
         },
       }),
     ),
@@ -278,6 +332,10 @@ async function main() {
         throw new Error(`Missing seeded creator: ${job.createdByEmail}`);
       }
 
+      if (!creator.activeWorkspaceId) {
+        throw new Error(`Creator ${creator.email} has no active workspace`);
+      }
+
       return upsertJobByTitleAndCreator({
         title: job.title,
         description: job.description,
@@ -289,6 +347,7 @@ async function main() {
         salaryMax: job.salaryMax,
         status: job.status,
         createdById: creator.id,
+        workspaceId: creator.activeWorkspaceId,
       });
     }),
   );
@@ -329,6 +388,7 @@ async function main() {
           stage: application.stage,
           status: application.status,
           notes: application.notes,
+          workspaceId: job.workspaceId,
         },
       });
     }),
@@ -408,6 +468,7 @@ async function main() {
       await prisma.interview.create({
         data: {
           applicationId: app.id,
+          workspaceId: app.workspaceId,
           scheduledAt: interview.scheduledAt,
           duration: interview.duration,
           type: interview.type,

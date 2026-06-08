@@ -159,11 +159,21 @@ describe('Jobs (e2e)', () => {
       outsiderCookies.find((c) => c.startsWith('access_token')) ?? '';
 
     // Create test jobs for filter tests
+    const recruiterRecord = await prisma.user.findUnique({
+      where: { id: recruiterId },
+      select: { activeWorkspaceId: true },
+    });
+    if (!recruiterRecord?.activeWorkspaceId) {
+      throw new Error('Recruiter must have an active workspace for e2e test');
+    }
+    const workspaceId = recruiterRecord.activeWorkspaceId;
+
     for (const job of testJobs) {
       await prisma.job.create({
         data: {
           ...job,
           createdById: recruiterId,
+          workspaceId,
         },
       });
     }

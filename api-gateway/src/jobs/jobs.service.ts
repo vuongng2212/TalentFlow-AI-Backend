@@ -7,12 +7,22 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { QueryJobsDto } from './dto/query-jobs.dto';
-import { Job, Prisma } from '@prisma/client';
+import { Job, Prisma, WorkspaceMemberRole } from '@prisma/client';
 import { JobRequirementsDto } from './dto/job-requirements.dto';
+import { WorkspaceContextService } from '../common/services/workspace-context.service';
+
+const WRITE_ROLES: WorkspaceMemberRole[] = [
+  WorkspaceMemberRole.OWNER,
+  WorkspaceMemberRole.ADMIN,
+  WorkspaceMemberRole.RECRUITER,
+];
 
 @Injectable()
 export class JobsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly workspaceContext: WorkspaceContextService,
+  ) {}
 
   private toRequirementsJson(
     requirements?: JobRequirementsDto,
@@ -30,6 +40,7 @@ export class JobsService {
   }
 
   async create(createdById: string, createJobDto: CreateJobDto): Promise<Job> {
+    const workspaceId = this.workspaceContext.getWorkspaceId();
     const { requirements, ...jobData } = createJobDto;
 
     return this.prisma.job.create({
@@ -39,6 +50,7 @@ export class JobsService {
           ? { requirements: this.toRequirementsJson(requirements) }
           : {}),
         createdById,
+        workspaceId,
       },
       include: {
         createdBy: {
@@ -54,6 +66,7 @@ export class JobsService {
   }
 
   async findAll(query: QueryJobsDto) {
+    const workspaceId = this.workspaceContext.getWorkspaceId();
     const {
       page = 1,
       limit = 10,
@@ -70,6 +83,7 @@ export class JobsService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.JobWhereInput = {
+      workspaceId,
       deletedAt: null,
     };
 
@@ -146,8 +160,9 @@ export class JobsService {
   }
 
   async findOne(id: string): Promise<Job> {
-    const job = await this.prisma.job.findUnique({
-      where: { id },
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const job = await this.prisma.job.findFirst({
+      where: { id, workspaceId },
       include: {
         createdBy: {
           select: {
@@ -164,6 +179,7 @@ export class JobsService {
     });
 
     if (!job || job.deletedAt) {
+      // Return 404 to avoid leaking existence across tenants.
       throw new NotFoundException(`Job with ID ${id} not found`);
     }
 
@@ -176,15 +192,9 @@ export class JobsService {
     userRole: string,
     updateJobDto: UpdateJobDto,
   ): Promise<Job> {
-    const job = await this.findOne(id);
+    this.assertCanMutate(userRole);
+    await this.findOne(id);
     const { requirements, ...jobData } = updateJobDto;
-
-    // Check ownership (only user who created or admin can update)
-    if (job.createdById !== userId && userRole !== 'ADMIN') {
-      throw new ForbiddenException(
-        'You do not have permission to update this job',
-      );
-    }
 
     return this.prisma.job.update({
       where: { id },
@@ -207,18 +217,33 @@ export class JobsService {
   }
 
   async remove(id: string, userId: string, userRole: string): Promise<void> {
-    const job = await this.findOne(id);
-
-    // Check ownership (only user who created or admin can delete)
-    if (job.createdById !== userId && userRole !== 'ADMIN') {
-      throw new ForbiddenException(
-        'You do not have permission to delete this job',
-      );
-    }
+    this.assertCanMutate(userRole);
+    await this.findOne(id);
 
     await this.prisma.job.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
+  }
+
+  /**
+   * Workspace-scoped authorization check. The previous behavior used
+   * `createdById`-based ownership; we now rely on workspace-scoped
+   * RBAC: only OWNER, ADMIN, or RECRUITER can mutate resources, and
+   * any user with a system-level ADMIN role can also bypass.
+   */
+  private assertCanMutate(userRole: string): void {
+    if (userRole === 'ADMIN') {
+      return;
+    }
+    // The WorkspaceRolesGuard is responsible for ensuring the user
+    // has the right workspace role; this helper exists for tests
+    // and direct service usage where a workspace role is passed
+    // through the request lifecycle.
+    if (!WRITE_ROLES.includes(userRole as WorkspaceMemberRole)) {
+      throw new ForbiddenException(
+        'You do not have permission to mutate resources in this workspace',
+      );
+    }
   }
 }

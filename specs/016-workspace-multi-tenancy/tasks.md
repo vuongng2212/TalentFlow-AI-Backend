@@ -31,9 +31,9 @@
 
 **Purpose**: Confirm runtime ownership, lock the contract surface, and create only the files required for the feature slice.
 
-- [ ] T001 Review current database fields and mappings in api-gateway/prisma/schema.prisma
-- [ ] T002 [P] Update api-headers and rabbitmq-events contracts in specs/016-workspace-multi-tenancy/contracts/api-headers.md and specs/016-workspace-multi-tenancy/contracts/rabbitmq-events.md
-- [ ] T003 [P] Add environment variables config validation in api-gateway/src/common/config/config.schema.ts
+- [x] T001 Review current database fields and mappings in api-gateway/prisma/schema.prisma
+- [x] T002 [P] Update api-headers and rabbitmq-events contracts in specs/016-workspace-multi-tenancy/contracts/api-headers.md and specs/016-workspace-multi-tenancy/contracts/rabbitmq-events.md
+- [x] T003 [P] Add environment variables config validation in api-gateway/src/common/config/config.schema.ts
 
 ---
 
@@ -41,11 +41,11 @@
 
 **Purpose**: Build the shared prerequisites that block all user stories for this feature.
 
-- [ ] T004 Update Prisma schema model definitions in api-gateway/prisma/schema.prisma
-- [ ] T005 Generate Prisma client and create a custom SQL migration script in api-gateway/prisma/migrations/
-- [ ] T006 [P] Create the workspace context guard to resolve request workspace in api-gateway/src/auth/guards/workspace-context.guard.ts
-- [ ] T007 [P] Create the workspace roles guard and roles decorator in api-gateway/src/auth/guards/workspace-roles.guard.ts and api-gateway/src/auth/decorators/workspace-roles.decorator.ts
-- [ ] T008 Register workspace guards globally in api-gateway/src/app.module.ts
+- [x] T004 Update Prisma schema model definitions in api-gateway/prisma/schema.prisma
+- [x] T005 Generate Prisma client and create a custom SQL migration script in api-gateway/prisma/migrations/
+- [x] T006 [P] Create the workspace context guard to resolve request workspace in api-gateway/src/auth/guards/workspace-context.guard.ts
+- [x] T007 [P] Create the workspace roles guard and roles decorator in api-gateway/src/auth/guards/workspace-roles.guard.ts and api-gateway/src/auth/decorators/workspace-roles.decorator.ts
+- [x] T008 Register workspace guards globally in api-gateway/src/app.module.ts
 
 **Checkpoint**: The service boundary is ready and user story work can begin.
 
@@ -59,16 +59,16 @@
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] Implement unit tests for isolation checks in api-gateway/src/jobs/jobs.service.spec.ts and api-gateway/src/candidates/candidates.service.spec.ts
+- [x] T009 [P] [US1] Implement unit tests for isolation checks in api-gateway/src/jobs/jobs.service.spec.ts and api-gateway/src/candidates/candidates.service.spec.ts
 - [ ] T010 [P] [US1] Create integration e2e test for multi-tenant isolation in api-gateway/test/jobs-isolation.e2e-spec.ts
 
 ### Implementation for User Story 1
 
-- [ ] T011 [P] [US1] Create workspace context helper service in api-gateway/src/common/services/workspace-context.service.ts
-- [ ] T012 [US1] Refactor JobsService to query by workspace context in api-gateway/src/jobs/jobs.service.ts
-- [ ] T013 [US1] Refactor CandidatesService to query and enforce uniqueness by workspace in api-gateway/src/candidates/candidates.service.ts
-- [ ] T014 [US1] Refactor applications, interviews, and email-templates services to query by workspace in api-gateway/src/applications/applications.service.ts, api-gateway/src/interviews/interviews.service.ts, and api-gateway/src/email-templates/email-templates.service.ts
-- [ ] T015 [US1] Update controllers to accept header and document via Swagger in api-gateway/src/jobs/jobs.controller.ts, api-gateway/src/candidates/candidates.controller.ts, api-gateway/src/applications/applications.controller.ts, and api-gateway/src/interviews/interviews.controller.ts
+- [x] T011 [P] [US1] Create workspace context helper service in api-gateway/src/common/services/workspace-context.service.ts
+- [x] T012 [US1] Refactor JobsService to query by workspace context in api-gateway/src/jobs/jobs.service.ts
+- [x] T013 [US1] Refactor CandidatesService to query and enforce uniqueness by workspace in api-gateway/src/candidates/candidates.service.ts
+- [x] T014 [US1] Refactor applications, interviews, and email-templates services to query by workspace in api-gateway/src/applications/applications.service.ts, api-gateway/src/interviews/interviews.service.ts, and api-gateway/src/email-templates/email-templates.service.ts
+- [x] T015 [US1] Update controllers to accept header and document via Swagger in api-gateway/src/jobs/jobs.controller.ts, api-gateway/src/candidates/candidates.controller.ts, api-gateway/src/applications/applications.controller.ts, and api-gateway/src/interviews/interviews.controller.ts
 
 **Checkpoint**: User Story 1 should now be fully functional and independently testable.
 
@@ -82,15 +82,15 @@
 
 ### Tests for User Story 2
 
-- [ ] T016 [P] [US2] Create unit tests for active workspace switching in api-gateway/src/users/users.service.spec.ts
+- [x] T016 [P] [US2] Create unit tests for active workspace switching in api-gateway/src/users/users.service.spec.ts
 - [ ] T017 [P] [US2] Create integration e2e test for context fallback and active workspace patching in api-gateway/test/workspace-switching.e2e-spec.ts
 
 ### Implementation for User Story 2
 
-- [ ] T018 [P] [US2] Create switch workspace DTO in api-gateway/src/users/dto/switch-workspace.dto.ts
-- [ ] T019 [US2] Implement active workspace switching in api-gateway/src/users/users.service.ts
-- [ ] T020 [US2] Expose active workspace patch endpoint in api-gateway/src/users/users.controller.ts
-- [ ] T021 [US2] Modify UsersService creation flow to atomically provision a default Personal Workspace during signup inside a database transaction in api-gateway/src/users/users.service.ts
+- [x] T018 [P] [US2] Create switch workspace DTO in api-gateway/src/users/dto/switch-workspace.dto.ts
+- [x] T019 [US2] Implement active workspace switching in api-gateway/src/users/users.service.ts
+- [x] T020 [US2] Expose active workspace patch endpoint in api-gateway/src/users/users.controller.ts
+- [x] T021 [US2] Modify UsersService creation flow to atomically provision a default Personal Workspace during signup inside a database transaction in api-gateway/src/users/users.service.ts
 
 **Checkpoint**: User Stories 1 and 2 should both work independently.
 
@@ -104,19 +104,19 @@
 
 ### Tests for User Story 3
 
-- [ ] T022 [P] [US3] Create unit tests for invitation endpoints in api-gateway/src/workspaces/workspaces.service.spec.ts
+- [x] T022 [P] [US3] Create unit tests for invitation endpoints in api-gateway/src/workspaces/workspaces.service.spec.ts
 - [ ] T023 [P] [US3] Create integration e2e test for invitation acceptance in api-gateway/test/workspace-invitations.e2e-spec.ts
 
 ### Implementation for User Story 3
 
-- [ ] T024 [P] [US3] Create invitation DTO and event interface in api-gateway/src/workspaces/dto/create-invitation.dto.ts and api-gateway/src/queue/interfaces/workspace-member-invited-event.interface.ts
-- [ ] T025 [US3] Implement invitation generation and acceptance in api-gateway/src/workspaces/workspaces.service.ts
-- [ ] T026 [US3] Expose workspace invitation routes in api-gateway/src/workspaces/workspaces.controller.ts
-- [ ] T027 [US3] Add the RabbitMQ event publishing logic for workspace invitations in api-gateway/src/queue/queue.service.ts
-- [ ] T028 [US3] Implement RabbitMQ event consumer for workspace invitation email dispatch in notification/src/rabbitmq/notification.consumer.ts
-- [ ] T029 [P] [US3] Define workspace invitation DTO in notification/src/rabbitmq/dtos/workspace-member-invited.dto.ts
-- [ ] T030 [P] [US3] Define workspace invitation email template in notification/src/email/templates/workspace-invitation.hbs
-- [ ] T031 [US3] Implement workspace invitation email sending in notification/src/notification/notification.service.ts
+- [x] T024 [P] [US3] Create invitation DTO and event interface in api-gateway/src/workspaces/dto/create-invitation.dto.ts and api-gateway/src/queue/interfaces/workspace-member-invited-event.interface.ts
+- [x] T025 [US3] Implement invitation generation and acceptance in api-gateway/src/workspaces/workspaces.service.ts
+- [x] T026 [US3] Expose workspace invitation routes in api-gateway/src/workspaces/workspaces.controller.ts
+- [x] T027 [US3] Add the RabbitMQ event publishing logic for workspace invitations in api-gateway/src/queue/queue.service.ts
+- [x] T028 [US3] Implement RabbitMQ event consumer for workspace invitation email dispatch in notification/src/rabbitmq/notification.consumer.ts
+- [x] T029 [P] [US3] Define workspace invitation DTO in notification/src/rabbitmq/dtos/workspace-member-invited.dto.ts
+- [x] T030 [P] [US3] Define workspace invitation email template in notification/src/email/templates/workspace-invitation.hbs
+- [x] T031 [US3] Implement workspace invitation email sending in notification/src/notification/notification.service.ts
 
 **Checkpoint**: All prioritized user stories should now be independently functional.
 
@@ -126,10 +126,10 @@
 
 **Purpose**: Work that touches multiple stories or service boundaries.
 
-- [ ] T032 [P] Update local verification steps in specs/016-workspace-multi-tenancy/quickstart.md
-- [ ] T033 [P] Run code quality and formatting checks across api-gateway/ and notification/
-- [ ] T034 [P] Execute full unit and e2e test suites in api-gateway/ and notification/
-- [ ] T035 Verify production builds compile cleanly in api-gateway/ and notification/
+- [x] T032 [P] Update local verification steps in specs/016-workspace-multi-tenancy/quickstart.md
+- [x] T033 [P] Run code quality and formatting checks across api-gateway/ and notification/
+- [x] T034 [P] Execute full unit and e2e test suites in api-gateway/ and notification/
+- [x] T035 Verify production builds compile cleanly in api-gateway/ and notification/
 
 ### Real Commands To Use
 

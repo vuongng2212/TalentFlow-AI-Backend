@@ -16,6 +16,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { JobsService } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
@@ -35,6 +36,11 @@ interface UserPayload {
 }
 
 @ApiTags('Jobs')
+@ApiHeader({
+  name: 'x-workspace-id',
+  required: false,
+  description: 'Active workspace ID for resource isolation',
+})
 @Controller('jobs')
 export class JobsController {
   constructor(private readonly jobsService: JobsService) {}

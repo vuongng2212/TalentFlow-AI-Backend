@@ -14,6 +14,7 @@ import { ApplicationCreatedDto } from './dtos/application-created.dto';
 import { CvFailedDto } from './dtos/cv-failed.dto';
 import { CvParsedDto } from './dtos/cv-parsed.dto';
 import { NotificationSendDto } from './dtos/notification-send.dto';
+import { WorkspaceMemberInvitedDto } from './dtos/workspace-member-invited.dto';
 import { RabbitmqService } from './rabbitmq.service';
 
 @Injectable()
@@ -147,6 +148,14 @@ export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
       case ROUTING_KEYS.CV_FAILED: {
         const validated = await this.validatePayload(data, CvFailedDto);
         await this.notificationService.handleCvFailed(validated);
+        break;
+      }
+      case ROUTING_KEYS.WORKSPACE_MEMBER_INVITED: {
+        const validated = await this.validatePayload(
+          data,
+          WorkspaceMemberInvitedDto,
+        );
+        await this.notificationService.handleWorkspaceMemberInvited(validated);
         break;
       }
       default:
