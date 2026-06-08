@@ -5,7 +5,11 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Role } from '@prisma/client';
+import {
+  Role,
+  WorkspaceMemberRole,
+  WorkspaceMemberStatus,
+} from '@prisma/client';
 import { QueryUsersDto } from './dto/query-users.dto';
 import type { PaginatedResult } from '../common/dto/pagination.dto';
 import type { User } from '@prisma/client';
@@ -17,6 +21,60 @@ export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Atomically provisions a default Personal Workspace and active
+   * OWNER membership for a freshly created user, then sets
+   * `activeWorkspaceId`. This is wrapped in a single transaction
+   * so partial failures do not leave orphan users or workspace-less
+   * accounts.
+   */
+  async createWithPersonalWorkspace(
+    email: string,
+    password: string,
+    fullName: string,
+    role: Role,
+  ): Promise<{ user: User; personalWorkspaceId: string }> {
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          password,
+          fullName,
+          role,
+        },
+      });
+
+      const personalWorkspace = await tx.workspace.create({
+        data: {
+          name: `${fullName} - Personal Workspace`,
+          isBusiness: false,
+          createdById: user.id,
+        },
+      });
+
+      await tx.workspaceMember.create({
+        data: {
+          workspaceId: personalWorkspace.id,
+          userId: user.id,
+          role: WorkspaceMemberRole.OWNER,
+          status: WorkspaceMemberStatus.ACTIVE,
+          invitedById: user.id,
+        },
+      });
+
+      const updatedUser = await tx.user.update({
+        where: { id: user.id },
+        data: { activeWorkspaceId: personalWorkspace.id },
+      });
+
+      this.logger.log(
+        `Provisioned personal workspace ${personalWorkspace.id} for new user ${user.id}`,
+      );
+
+      return { user: updatedUser, personalWorkspaceId: personalWorkspace.id };
+    });
+  }
 
   async create(email: string, password: string, fullName: string, role: Role) {
     return this.prisma.user.create({
@@ -39,6 +97,51 @@ export class UsersService {
     return this.prisma.user.findUnique({
       where: { id },
     });
+  }
+
+  /**
+   * Switches the user's active workspace. Throws ForbiddenException
+   * if the user is not an active member of the target workspace.
+   */
+  async switchActiveWorkspace(
+    userId: string,
+    workspaceId: string,
+  ): Promise<SafeUser> {
+    const membership = await this.prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        userId,
+        status: WorkspaceMemberStatus.ACTIVE,
+      },
+      select: { id: true },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException(
+        'You are not an active member of the target workspace',
+      );
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { activeWorkspaceId: workspaceId },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        activeWorkspaceId: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
+      },
+    });
+
+    this.logger.log(
+      `User ${userId} switched active workspace to ${workspaceId}`,
+    );
+
+    return updated as SafeUser;
   }
 
   async findAll(query: QueryUsersDto): Promise<PaginatedResult<SafeUser>> {

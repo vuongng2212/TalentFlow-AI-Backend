@@ -14,6 +14,9 @@ export const ROUTING_KEYS = {
 
   // Direct Notification
   NOTIFICATION_SEND: 'notification.send',
+
+  // Workspace Multi-Tenancy
+  WORKSPACE_MEMBER_INVITED: 'workspace.member.invited',
 };
 
 export const BINDING_KEYS = [
@@ -21,4 +24,5 @@ export const BINDING_KEYS = [
   ROUTING_KEYS.CV_PARSED,
   ROUTING_KEYS.CV_FAILED,
   ROUTING_KEYS.NOTIFICATION_SEND,
+  ROUTING_KEYS.WORKSPACE_MEMBER_INVITED,
 ];

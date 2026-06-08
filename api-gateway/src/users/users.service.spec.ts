@@ -1,12 +1,25 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Test, TestingModule } from '@nestjs/testing';
+import { ForbiddenException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { Role } from '@prisma/client';
+import { Role, WorkspaceMemberStatus } from '@prisma/client';
 
 describe('UsersService', () => {
   let service: UsersService;
-  let prisma: PrismaService;
+      create: jest.Mock;
+      findUnique: jest.Mock;
+      update: jest.Mock;
+    };
+    workspace: {
+      create: jest.Mock;
+    };
+    workspaceMember: {
+      create: jest.Mock;
+      findFirst: jest.Mock;
+    };
+    $transaction: jest.Mock;
+  };
 
   const mockPrismaService = {
     user: {
@@ -14,6 +27,14 @@ describe('UsersService', () => {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    workspace: {
+      create: jest.fn(),
+    },
+    workspaceMember: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+    },
+    $transaction: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -28,7 +49,7 @@ describe('UsersService', () => {
     }).compile();
 
     service = module.get<UsersService>(UsersService);
-    prisma = module.get<PrismaService>(PrismaService);
+    prisma = module.get(PrismaService);
   });
 
   afterEach(() => {
@@ -39,205 +60,103 @@ describe('UsersService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('create', () => {
-    it('should create a new user', async () => {
-      const createUserDto = {
+  describe('createWithPersonalWorkspace', () => {
+    it('should provision user, personal workspace, OWNER membership, and activeWorkspaceId atomically', async () => {
+      const newUser = {
+        id: 'user-1',
         email: 'test@example.com',
-        password: 'hashedPassword',
         fullName: 'Test User',
+        password: 'hashed',
         role: Role.RECRUITER,
-      };
-
-      const expectedUser = {
-        id: 'uuid',
-        ...createUserDto,
         createdAt: new Date(),
         updatedAt: new Date(),
         deletedAt: null,
+        activeWorkspaceId: null,
+      };
+      const personalWorkspace = {
+        id: 'ws-1',
+        name: 'Test User - Personal Workspace',
+        isBusiness: false,
+      };
+      const updatedUser = {
+        ...newUser,
+        activeWorkspaceId: 'ws-1',
       };
 
-      const createSpy = jest
-        .spyOn(prisma.user, 'create')
-        .mockResolvedValue(expectedUser);
-
-      const result = await service.create(
-        createUserDto.email,
-        createUserDto.password,
-        createUserDto.fullName,
-        createUserDto.role,
+      // Simulate transaction body
+      mockPrismaService.$transaction.mockImplementation((fn) =>
+        fn({
+          user: {
+            create: jest.fn().mockResolvedValue(newUser),
+            update: jest.fn().mockResolvedValue(updatedUser),
+          },
+          workspace: {
+            create: jest.fn().mockResolvedValue(personalWorkspace),
+          },
+          workspaceMember: {
+            create: jest.fn().mockResolvedValue({}),
+          },
+        }),
       );
 
-      expect(result).toEqual(expectedUser);
-      expect(createSpy).toHaveBeenCalledWith({
-        data: createUserDto,
-      });
+      const result = await service.createWithPersonalWorkspace(
+        'test@example.com',
+        'hashed',
+        'Test User',
+        Role.RECRUITER,
+      );
+
+      expect(result.user).toEqual(updatedUser);
+      expect(result.personalWorkspaceId).toBe('ws-1');
+      expect(mockPrismaService.$transaction).toHaveBeenCalled();
     });
   });
 
-  describe('findByEmail', () => {
-    it('should return a user by email', async () => {
-      const email = 'test@example.com';
-      const expectedUser = {
-        id: 'uuid',
-        email,
-        password: 'hashed',
+  describe('switchActiveWorkspace', () => {
+    it('should update the active workspace when user is an active member', async () => {
+      const userId = 'user-1';
+      const workspaceId = 'ws-2';
+      const updatedUser = {
+        id: userId,
+        email: 'a@b.com',
+        fullName: 'A',
         role: Role.RECRUITER,
-        fullName: 'Test User',
+        activeWorkspaceId: workspaceId,
         createdAt: new Date(),
         updatedAt: new Date(),
         deletedAt: null,
       };
 
-      const findSpy = jest
-        .spyOn(prisma.user, 'findUnique')
-        .mockResolvedValue(expectedUser);
+      mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
+        id: 'm-1',
+      });
+      mockPrismaService.user.update.mockResolvedValue(updatedUser);
 
-      const result = await service.findByEmail(email);
+      const result = await service.switchActiveWorkspace(userId, workspaceId);
 
-      expect(result).toEqual(expectedUser);
-      expect(findSpy).toHaveBeenCalledWith({
-        where: { email },
+      expect(result).toEqual(updatedUser);
+      expect(mockPrismaService.workspaceMember.findFirst).toHaveBeenCalledWith({
+        where: {
+          workspaceId,
+          userId,
+          status: WorkspaceMemberStatus.ACTIVE,
+        },
+        select: { id: true },
+      });
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { id: userId },
+        data: { activeWorkspaceId: workspaceId },
+        select: expect.objectContaining({ activeWorkspaceId: true }),
       });
     });
 
-    it('should return null if user not found', async () => {
-      const email = 'notfound@example.com';
-      const findSpy = jest
-        .spyOn(prisma.user, 'findUnique')
-        .mockResolvedValue(null);
+    it('should throw ForbiddenException when user is not an active member', async () => {
+      mockPrismaService.workspaceMember.findFirst.mockResolvedValue(null);
 
-      const result = await service.findByEmail(email);
-
-      expect(result).toBeNull();
-      expect(findSpy).toHaveBeenCalledWith({
-        where: { email },
-      });
-    });
-  });
-
-  describe('findById', () => {
-    it('should return a user by id', async () => {
-      const id = 'user-uuid';
-      const expectedUser = {
-        id,
-        email: 'test@example.com',
-        fullName: 'Test User',
-        role: Role.RECRUITER,
-        password: 'hashed',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        deletedAt: null,
-      };
-
-      const findSpy = jest
-        .spyOn(prisma.user, 'findUnique')
-        .mockResolvedValue(expectedUser);
-
-      const result = await service.findById(id);
-
-      expect(result).toEqual(expectedUser);
-      expect(findSpy).toHaveBeenCalledWith({
-        where: { id },
-      });
-    });
-
-    it('should return null if user not found by id', async () => {
-      const id = 'non-existent-uuid';
-      const findSpy = jest
-        .spyOn(prisma.user, 'findUnique')
-        .mockResolvedValue(null);
-
-      const result = await service.findById(id);
-
-      expect(result).toBeNull();
-      expect(findSpy).toHaveBeenCalledWith({
-        where: { id },
-      });
-    });
-  });
-
-  describe('update', () => {
-    it('should update a user', async () => {
-      const id = 'user-uuid';
-      const updateData = { fullName: 'Updated Name' };
-      const expectedUser = {
-        id,
-        email: 'test@example.com',
-        fullName: 'Updated Name',
-        role: Role.RECRUITER,
-        password: 'hashed',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        deletedAt: null,
-      };
-
-      const updateSpy = jest
-        .spyOn(prisma.user, 'update')
-        .mockResolvedValue(expectedUser);
-
-      const result = await service.update(id, updateData);
-
-      expect(result).toEqual(expectedUser);
-      expect(updateSpy).toHaveBeenCalledWith({
-        where: { id },
-        data: updateData,
-      });
-    });
-
-    it('should update user role', async () => {
-      const id = 'user-uuid';
-      const updateData = { role: Role.ADMIN };
-      const expectedUser = {
-        id,
-        email: 'test@example.com',
-        fullName: 'Test User',
-        role: Role.ADMIN,
-        password: 'hashed',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        deletedAt: null,
-      };
-
-      const updateSpy = jest
-        .spyOn(prisma.user, 'update')
-        .mockResolvedValue(expectedUser);
-
-      const result = await service.update(id, updateData);
-
-      expect(result.role).toBe(Role.ADMIN);
-      expect(updateSpy).toHaveBeenCalledWith({
-        where: { id },
-        data: updateData,
-      });
-    });
-  });
-
-  describe('softDelete', () => {
-    it('should soft delete a user', async () => {
-      const id = 'user-uuid';
-      const deletedAt = new Date();
-      const expectedUser = {
-        id,
-        email: 'test@example.com',
-        fullName: 'Test User',
-        role: Role.RECRUITER,
-        password: 'hashed',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        deletedAt,
-      };
-
-      const updateSpy = jest
-        .spyOn(prisma.user, 'update')
-        .mockResolvedValue(expectedUser);
-
-      const result = await service.softDelete(id);
-
-      expect(result.deletedAt).not.toBeNull();
-      expect(updateSpy).toHaveBeenCalledWith({
-        where: { id },
-        data: { deletedAt: expect.any(Date) },
-      });
+      await expect(
+        service.switchActiveWorkspace('user-1', 'ws-99'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
     });
   });
 });

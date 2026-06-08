@@ -17,11 +17,13 @@ import { UploadCvDto } from './dto/upload-cv.dto';
 import { UploadCvResponseDto } from './dto/upload-cv-response.dto';
 import { generateCvFileKey } from '../common/utils/file-key.util';
 import { sanitizeError } from '../common/utils/sanitize.util';
+import { WorkspaceContextService } from '../common/services/workspace-context.service';
 
 interface ApplicationWithRelations {
   id: string;
   jobId: string;
   candidateId: string;
+  workspaceId: string;
   stage: ApplicationStage;
   status: ApplicationStatus;
   cvFileKey: string | null;
@@ -61,6 +63,7 @@ export class ApplicationsService {
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     private readonly queueService: QueueService,
+    private readonly workspaceContext: WorkspaceContextService,
   ) {}
 
   async create(
@@ -69,9 +72,10 @@ export class ApplicationsService {
   ): Promise<ApplicationWithRelations> {
     const { jobId, ...data } = createApplicationDto;
 
-    // Check if job exists and is open
-    const job = await this.prisma.job.findUnique({
-      where: { id: jobId },
+    // Check if job exists, is open, and belongs to the current workspace.
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const job = await this.prisma.job.findFirst({
+      where: { id: jobId, workspaceId },
     });
 
     if (!job || job.deletedAt) {
@@ -91,17 +95,20 @@ export class ApplicationsService {
       throw new NotFoundException('User not found');
     }
 
-    // Find or create candidate by email
+    // Find or create candidate by email within the workspace.
     let candidate = await this.prisma.candidate.findUnique({
-      where: { email: user.email },
+      where: {
+        workspaceId_email: { workspaceId, email: user.email },
+      },
     });
 
     if (!candidate) {
-      // Auto-create candidate from user data
+      // Auto-create candidate from user data within the workspace.
       candidate = await this.prisma.candidate.create({
         data: {
           email: user.email,
           fullName: user.fullName,
+          workspaceId,
         },
       });
     }
@@ -124,6 +131,7 @@ export class ApplicationsService {
         ...data,
         jobId,
         candidateId: candidate.id,
+        workspaceId,
       },
       include: {
         job: {
@@ -151,9 +159,13 @@ export class ApplicationsService {
     dto: UploadCvDto,
   ): Promise<UploadCvResponseDto> {
     const { jobId, coverLetter } = dto;
+    const workspaceId = this.workspaceContext.getWorkspaceId();
 
-    await this.findOpenJobOrThrow(jobId);
-    const candidate = await this.findOrCreateCandidateOrThrow(userId);
+    await this.findOpenJobOrThrow(jobId, workspaceId);
+    const candidate = await this.findOrCreateCandidateOrThrow(
+      userId,
+      workspaceId,
+    );
     await this.ensureNoDuplicateApplication(jobId, candidate.id);
 
     const { fileKey, uploadUrl } = await this.uploadCvOrThrow(file);
@@ -165,6 +177,7 @@ export class ApplicationsService {
         data: {
           jobId,
           candidateId: candidate.id,
+          workspaceId,
           coverLetter,
           cvFileKey: fileKey,
           cvFileUrl: uploadUrl,
@@ -194,9 +207,9 @@ export class ApplicationsService {
     }
   }
 
-  private async findOpenJobOrThrow(jobId: string) {
-    const job = await this.prisma.job.findUnique({
-      where: { id: jobId },
+  private async findOpenJobOrThrow(jobId: string, workspaceId: string) {
+    const job = await this.prisma.job.findFirst({
+      where: { id: jobId, workspaceId },
     });
 
     if (!job || job.deletedAt) {
@@ -210,7 +223,10 @@ export class ApplicationsService {
     return job;
   }
 
-  private async findOrCreateCandidateOrThrow(userId: string) {
+  private async findOrCreateCandidateOrThrow(
+    userId: string,
+    workspaceId: string,
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -220,7 +236,9 @@ export class ApplicationsService {
     }
 
     const candidate = await this.prisma.candidate.findUnique({
-      where: { email: user.email },
+      where: {
+        workspaceId_email: { workspaceId, email: user.email },
+      },
     });
 
     if (candidate) {
@@ -231,6 +249,7 @@ export class ApplicationsService {
       data: {
         email: user.email,
         fullName: user.fullName,
+        workspaceId,
       },
     });
   }
@@ -333,6 +352,7 @@ export class ApplicationsService {
   }
 
   async findAll(userId: string, userRole: string, query: QueryApplicationsDto) {
+    const workspaceId = this.workspaceContext.getWorkspaceId();
     const {
       page = 1,
       limit = 10,
@@ -346,22 +366,25 @@ export class ApplicationsService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.ApplicationWhereInput = {
+      workspaceId,
       deletedAt: null,
     };
 
-    // Role-based filtering
+    // Role-based filtering within the current workspace
     if (userRole === 'RECRUITER') {
-      // Recruiters see applications for their jobs
+      // Recruiters see applications for their jobs within the workspace
       where.job = {
+        workspaceId,
         createdById: userId,
       };
     } else if (userRole === 'INTERVIEWER') {
-      // Interviewers see applications they're assigned to (future feature)
-      // For now, find candidate by user email and show their applications
+      // Interviewers see applications they're assigned to
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (user) {
         const candidate = await this.prisma.candidate.findUnique({
-          where: { email: user.email },
+          where: {
+            workspaceId_email: { workspaceId, email: user.email },
+          },
         });
         if (candidate) {
           where.candidateId = candidate.id;
@@ -372,7 +395,9 @@ export class ApplicationsService {
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (user) {
         const candidate = await this.prisma.candidate.findUnique({
-          where: { email: user.email },
+          where: {
+            workspaceId_email: { workspaceId, email: user.email },
+          },
         });
         if (candidate) {
           where.candidateId = candidate.id;
@@ -380,7 +405,7 @@ export class ApplicationsService {
       }
     }
 
-    // Admin can see all, so no filter for ADMIN role
+    // Admin can see all (still within the workspace)
 
     if (jobId) {
       where.jobId = jobId;
@@ -444,8 +469,9 @@ export class ApplicationsService {
     userId: string,
     userRole: string,
   ): Promise<ApplicationWithRelations> {
-    const application = await this.prisma.application.findUnique({
-      where: { id },
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const application = await this.prisma.application.findFirst({
+      where: { id, workspaceId },
       include: {
         job: {
           include: {
@@ -475,7 +501,11 @@ export class ApplicationsService {
     // Check access - need to find user's candidate to check if they're the applicant
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const candidate = user
-      ? await this.prisma.candidate.findUnique({ where: { email: user.email } })
+      ? await this.prisma.candidate.findUnique({
+          where: {
+            workspaceId_email: { workspaceId, email: user.email },
+          },
+        })
       : null;
 
     const isApplicant = candidate && application.candidateId === candidate.id;
@@ -498,11 +528,16 @@ export class ApplicationsService {
     updateApplicationDto: UpdateApplicationDto,
   ): Promise<ApplicationWithRelations> {
     const application = await this.findOne(id, userId, userRole);
+    const workspaceId = this.workspaceContext.getWorkspaceId();
 
     // Check user's candidate status
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const candidate = user
-      ? await this.prisma.candidate.findUnique({ where: { email: user.email } })
+      ? await this.prisma.candidate.findUnique({
+          where: {
+            workspaceId_email: { workspaceId, email: user.email },
+          },
+        })
       : null;
 
     // Only recruiter (job owner) or admin can update stage/status/notes
@@ -568,9 +603,14 @@ export class ApplicationsService {
     const application = await this.findOne(id, userId, userRole);
 
     // Check user's candidate status
+    const workspaceId = this.workspaceContext.getWorkspaceId();
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const candidate = user
-      ? await this.prisma.candidate.findUnique({ where: { email: user.email } })
+      ? await this.prisma.candidate.findUnique({
+          where: {
+            workspaceId_email: { workspaceId, email: user.email },
+          },
+        })
       : null;
 
     // Only applicant or admin can delete

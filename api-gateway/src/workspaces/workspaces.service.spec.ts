@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   NotFoundException,
@@ -7,6 +8,7 @@ import {
 import { WorkspaceMemberRole, WorkspaceMemberStatus } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { QueueService } from '../queue/queue.service';
 import { WorkspacesService } from './workspaces.service';
 
 type TransactionCallback<TTransaction, TResult = unknown> = (
@@ -42,9 +44,15 @@ describe('WorkspacesService', () => {
     workspaceMember: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      upsert: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
+    },
+    workspaceInvitation: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      delete: jest.fn(),
     },
   };
 
@@ -60,6 +68,10 @@ describe('WorkspacesService', () => {
     }),
   };
 
+  const mockQueueService = {
+    publishWorkspaceMemberInvited: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -71,6 +83,10 @@ describe('WorkspacesService', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: QueueService,
+          useValue: mockQueueService,
         },
       ],
     }).compile();
@@ -443,6 +459,180 @@ describe('WorkspacesService', () => {
       await expect(
         service.ensureActiveMembership('workspace-1', 'user-1'),
       ).resolves.toBe(false);
+    });
+  });
+
+  describe('createInvitation', () => {
+    it('should throw NotFoundException when workspace not found', async () => {
+      mockPrismaService.workspace.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.createInvitation('workspace-1', 'owner-1', {
+          email: 'invitee@test.com',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException when workspace is not business', async () => {
+      mockPrismaService.workspace.findUnique.mockResolvedValue({
+        id: 'workspace-1',
+        name: 'Personal',
+        isBusiness: false,
+      });
+
+      await expect(
+        service.createInvitation('workspace-1', 'owner-1', {
+          email: 'invitee@test.com',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw ForbiddenException when requester is not owner/admin', async () => {
+      mockPrismaService.workspace.findUnique.mockResolvedValue({
+        id: 'workspace-1',
+        name: 'Biz',
+        isBusiness: true,
+      });
+      mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
+        role: WorkspaceMemberRole.RECRUITER,
+      });
+
+      await expect(
+        service.createInvitation('workspace-1', 'recruiter-1', {
+          email: 'invitee@test.com',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should create invitation, upsert INVITED membership, and publish event when user exists', async () => {
+      const workspace = {
+        id: 'workspace-1',
+        name: 'Biz',
+        isBusiness: true,
+      };
+      mockPrismaService.workspace.findUnique.mockResolvedValue(workspace);
+      mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
+        role: WorkspaceMemberRole.OWNER,
+      });
+      const existingUser = { id: 'user-invitee' };
+      mockPrismaService.user.findUnique.mockResolvedValue(existingUser);
+      mockPrismaService.workspaceMember.upsert.mockResolvedValue({});
+      const createdInvitation = {
+        id: 'inv-1',
+        email: 'invitee@test.com',
+        workspaceId: 'workspace-1',
+        token: 'tok',
+      };
+      mockPrismaService.workspaceInvitation.create.mockResolvedValue(
+        createdInvitation,
+      );
+
+      const result = await service.createInvitation('workspace-1', 'owner-1', {
+        email: 'invitee@test.com',
+        role: WorkspaceMemberRole.RECRUITER,
+      });
+
+      expect(result).toEqual(createdInvitation);
+      expect(mockPrismaService.workspaceInvitation.create).toHaveBeenCalled();
+      expect(
+        mockQueueService.publishWorkspaceMemberInvited,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'invitee@test.com',
+          workspaceName: 'Biz',
+          inviteUrl: expect.stringContaining('token='),
+        }),
+      );
+    });
+  });
+
+  describe('acceptInvitation', () => {
+    it('should throw BadRequestException when token missing', async () => {
+      await expect(service.acceptInvitation('user-1', '')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw NotFoundException when token invalid', async () => {
+      mockPrismaService.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            workspaceInvitation: {
+              findUnique: jest.fn().mockResolvedValue(null),
+            },
+          };
+          return callback(tx);
+        },
+      );
+
+      await expect(
+        service.acceptInvitation('user-1', 'invalid-token'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException when token expired', async () => {
+      mockPrismaService.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            workspaceInvitation: {
+              findUnique: jest.fn().mockResolvedValue({
+                id: 'inv-1',
+                email: 'a@b.com',
+                workspaceId: 'ws-1',
+                role: WorkspaceMemberRole.RECRUITER,
+                invitedById: 'owner-1',
+                expiresAt: new Date(Date.now() - 1000),
+                workspace: { id: 'ws-1', name: 'X' },
+              }),
+            },
+          };
+          return callback(tx);
+        },
+      );
+
+      await expect(
+        service.acceptInvitation('user-1', 'expired-token'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should accept invitation, transition to ACTIVE, and update activeWorkspaceId', async () => {
+      const future = new Date(Date.now() + 1000 * 60 * 60);
+      mockPrismaService.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            workspaceInvitation: {
+              findUnique: jest.fn().mockResolvedValue({
+                id: 'inv-1',
+                email: 'a@b.com',
+                workspaceId: 'ws-1',
+                role: WorkspaceMemberRole.RECRUITER,
+                invitedById: 'owner-1',
+                expiresAt: future,
+                workspace: { id: 'ws-1', name: 'X' },
+              }),
+              delete: jest.fn().mockResolvedValue({}),
+            },
+            user: {
+              findUnique: jest
+                .fn()
+                .mockResolvedValue({ id: 'user-1', email: 'a@b.com' }),
+              update: jest.fn().mockResolvedValue({}),
+            },
+            workspaceMember: {
+              upsert: jest.fn().mockResolvedValue({}),
+            },
+          };
+          return callback(tx);
+        },
+      );
+
+      const result = await service.acceptInvitation('user-1', 'valid-token');
+
+      expect(result).toEqual({
+        workspaceId: 'ws-1',
+        workspaceName: 'X',
+        role: WorkspaceMemberRole.RECRUITER,
+      });
     });
   });
 });

@@ -20,5 +20,8 @@ export const ROUTING_KEY_APPLICATION_CREATED = 'application.created';
 // Routing keys - Notification events
 export const ROUTING_KEY_NOTIFICATION_SEND = 'notification.send';
 
+// Routing keys - Workspace events
+export const ROUTING_KEY_WORKSPACE_MEMBER_INVITED = 'workspace.member.invited';
+
 /** @deprecated Use TALENTFLOW_EVENTS_EXCHANGE instead */
 export const CV_EVENTS_EXCHANGE = TALENTFLOW_EVENTS_EXCHANGE;
