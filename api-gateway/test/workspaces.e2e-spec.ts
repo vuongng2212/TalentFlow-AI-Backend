@@ -224,4 +224,57 @@ describe('Workspaces (e2e)', () => {
         .expect(404);
     });
   });
+
+  describe('DELETE /api/v1/workspaces/:id/members/:userId', () => {
+    it('should reject non-owner/admin from removing member', async () => {
+      const targetUser = await prisma.user.findUnique({
+        where: { email: 'workspace-owner@test.com' },
+      });
+      await request(app.getHttpServer())
+        .delete(`/api/v1/workspaces/${workspaceId}/members/${targetUser?.id}`)
+        .set('Cookie', [outsiderCookie])
+        .expect(403);
+    });
+
+    it('should reject when attempting to remove the owner', async () => {
+      const ownerUser = await prisma.user.findUnique({
+        where: { email: 'workspace-owner@test.com' },
+      });
+      await request(app.getHttpServer())
+        .delete(`/api/v1/workspaces/${workspaceId}/members/${ownerUser?.id}`)
+        .set('Cookie', [memberCookie])
+        .expect(403);
+    });
+
+    it('should allow owner to remove member', async () => {
+      const targetUser = await prisma.user.findUnique({
+        where: { email: 'workspace-member@test.com' },
+      });
+      await request(app.getHttpServer())
+        .delete(`/api/v1/workspaces/${workspaceId}/members/${targetUser?.id}`)
+        .set('Cookie', [ownerCookie])
+        .expect(204);
+
+      // Verify soft delete status is REMOVED
+      const membership = await prisma.workspaceMember.findUnique({
+        where: {
+          workspaceId_userId: {
+            workspaceId,
+            userId: targetUser?.id ?? '',
+          },
+        },
+      });
+      expect(membership?.status).toBe('REMOVED');
+    });
+
+    it('should return 404 if member does not exist or already removed', async () => {
+      const targetUser = await prisma.user.findUnique({
+        where: { email: 'workspace-member@test.com' },
+      });
+      await request(app.getHttpServer())
+        .delete(`/api/v1/workspaces/${workspaceId}/members/${targetUser?.id}`)
+        .set('Cookie', [ownerCookie])
+        .expect(404);
+    });
+  });
 });

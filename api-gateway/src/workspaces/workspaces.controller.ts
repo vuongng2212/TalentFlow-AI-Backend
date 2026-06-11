@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Delete,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -105,5 +106,27 @@ export class WorkspacesController {
     @Body() dto: AcceptInvitationDto,
   ) {
     return this.workspacesService.acceptInvitation(user.id, dto.token);
+  }
+
+  @Delete(':id/members/:userId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove a member from the workspace' })
+  @ApiResponse({ status: 204, description: 'Member removed successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - not owner/admin or trying to remove owner',
+  })
+  @ApiResponse({ status: 404, description: 'Member not found' })
+  removeMember(
+    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @Param('userId', new ParseUUIDPipe()) targetUserId: string,
+    @CurrentUser() user: UserPayload,
+  ): Promise<void> {
+    return this.workspacesService.removeMember(
+      workspaceId,
+      user.id,
+      targetUserId,
+    );
   }
 }
