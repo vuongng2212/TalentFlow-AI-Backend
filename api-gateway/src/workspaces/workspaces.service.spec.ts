@@ -547,7 +547,7 @@ describe('WorkspacesService', () => {
         expect.objectContaining({
           email: 'invitee@test.com',
           workspaceName: 'Biz',
-          inviteUrl: expect.stringContaining('token=') as unknown as string,
+          inviteUrl: expect.stringContaining('token='),
         }),
       );
     });
