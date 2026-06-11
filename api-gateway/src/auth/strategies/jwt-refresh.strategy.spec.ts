@@ -66,6 +66,7 @@ describe('JwtRefreshStrategy', () => {
 
       expect(result).toEqual({
         id: payload.sub,
+        userId: payload.sub,
         email: payload.email,
         tokenId: payload.tokenId,
       });

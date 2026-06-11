@@ -141,7 +141,7 @@ export class UsersService {
       `User ${userId} switched active workspace to ${workspaceId}`,
     );
 
-    return updated as SafeUser;
+    return updated;
   }
 
   async findAll(query: QueryUsersDto): Promise<PaginatedResult<SafeUser>> {

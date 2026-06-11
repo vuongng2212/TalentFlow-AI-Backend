@@ -51,7 +51,7 @@ const seededJobTitles = [
 ] as const;
 
 const runSeed = () => {
-  execSync('pnpm db:seed', {
+  execSync('npm run db:seed', {
     cwd: process.cwd(),
     stdio: 'inherit',
     env: {
