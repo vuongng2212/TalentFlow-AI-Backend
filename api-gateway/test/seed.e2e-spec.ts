@@ -11,8 +11,8 @@ const assertSafeTestDatabase = () => {
   }
 
   const databaseUrl = process.env.DATABASE_URL ?? '';
-  let hostname = '';
-  let dbName = '';
+  let hostname: string;
+  let dbName: string;
 
   try {
     const url = new URL(databaseUrl);
