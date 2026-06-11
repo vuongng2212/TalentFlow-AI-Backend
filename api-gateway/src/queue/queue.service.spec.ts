@@ -242,7 +242,6 @@ describe('QueueService', () => {
 
     const errorListener = mockConnection.on.mock.calls.find(
       ([event]: [string]) => event === 'error',
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     )?.[1] as ((err: Error) => void) | undefined;
 
     expect(errorListener).toBeDefined();
@@ -260,7 +259,6 @@ describe('QueueService', () => {
 
     const closeListener = mockConnection.on.mock.calls.find(
       ([event]: [string]) => event === 'close',
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     )?.[1] as (() => void) | undefined;
 
     expect(closeListener).toBeDefined();

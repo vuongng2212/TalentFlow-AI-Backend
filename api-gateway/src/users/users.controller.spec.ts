@@ -7,7 +7,6 @@ import { Role } from '@prisma/client';
 import { QueryUsersDto } from './dto/query-users.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { UserResponseDto } from './dto/user-response.dto';
 
 describe('UsersController', () => {
   let controller: UsersController;
