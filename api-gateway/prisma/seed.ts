@@ -5,7 +5,6 @@ import {
   InterviewStatus,
   InterviewType,
   JobStatus,
-  Prisma,
   PrismaClient,
   Role,
   WorkspaceMemberRole,
@@ -22,472 +21,436 @@ if (process.env.NODE_ENV === 'production') {
 
 const getSeedDefaultPassword = (): string => {
   const seedPassword = process.env.SEED_DEFAULT_PASSWORD;
-
   if (!seedPassword) {
     throw new Error('Missing required env: SEED_DEFAULT_PASSWORD');
   }
-
   return seedPassword;
 };
 
-const seedUsers = [
-  {
-    email: 'seed-admin@talentflow.invalid',
-    fullName: 'Seed System Admin',
-    role: Role.ADMIN,
-  },
-  {
-    email: 'seed-recruiter@talentflow.invalid',
-    fullName: 'Seed Lead Recruiter',
-    role: Role.RECRUITER,
-  },
-  {
-    email: 'seed-interviewer@talentflow.invalid',
-    fullName: 'Seed Technical Interviewer',
-    role: Role.INTERVIEWER,
-  },
-] as const;
-const seedCandidates = [
-  {
-    email: 'seed-alice.candidate@talentflow.invalid',
-    fullName: 'Seed Alice Nguyen',
-    phone: '+84901111222',
-    linkedinUrl: 'https://linkedin.com/in/seed-alice-nguyen',
-    resumeUrl: 'https://minio.local/talentflow-cvs/seed-alice-nguyen.pdf',
-    resumeText:
-      'Seed backend engineer with 4 years experience in Node.js and PostgreSQL.',
-  },
-  {
-    email: 'seed-bob.candidate@talentflow.invalid',
-    fullName: 'Seed Bob Tran',
-    phone: '+84903333444',
-    linkedinUrl: 'https://linkedin.com/in/seed-bob-tran',
-    resumeUrl: 'https://minio.local/talentflow-cvs/seed-bob-tran.pdf',
-    resumeText:
-      'Seed frontend engineer focused on React, TypeScript, and accessibility.',
-  },
-  {
-    email: 'seed-charlie.candidate@talentflow.invalid',
-    fullName: 'Seed Charlie Le',
-    phone: '+84905555666',
-    linkedinUrl: 'https://linkedin.com/in/seed-charlie-le',
-    resumeUrl: 'https://minio.local/talentflow-cvs/seed-charlie-le.pdf',
-    resumeText:
-      'Seed DevOps engineer experienced with Docker, CI/CD, and cloud infrastructure.',
-  },
-] as const;
+async function main() {
+  const defaultPassword = getSeedDefaultPassword();
+  const hashedPassword = await bcrypt.hash(defaultPassword, SALT_ROUNDS);
 
-const seedJobs = [
-  {
-    title: 'Senior Backend Engineer',
-    description:
-      'Build scalable backend services for ATS workflows and hiring automation.',
-    requirements: [
-      '3+ years experience with Node.js or NestJS',
-      'Strong SQL and data modeling skills',
-      'Experience with message queues and distributed systems',
-    ],
-    department: 'Engineering',
-    location: 'Ho Chi Minh City',
-    employmentType: EmploymentType.FULL_TIME,
-    salaryMin: 2500,
-    salaryMax: 4000,
-    status: JobStatus.OPEN,
-    createdByEmail: 'seed-recruiter@talentflow.invalid',
-  },
-  {
-    title: 'Frontend Engineer',
-    description:
-      'Develop modern, responsive interfaces for recruiters and hiring managers.',
-    requirements: [
-      'Strong React and TypeScript knowledge',
-      'Experience with state management and testing',
-      'Understanding of REST APIs and UX principles',
-    ],
-    department: 'Engineering',
-    location: 'Da Nang',
-    employmentType: EmploymentType.FULL_TIME,
-    salaryMin: 1800,
-    salaryMax: 3000,
-    status: JobStatus.OPEN,
-    createdByEmail: 'seed-recruiter@talentflow.invalid',
-  },
-  {
-    title: 'DevOps Engineer',
-    description:
-      'Maintain infrastructure, observability, and deployment pipelines.',
-    requirements: [
-      'Hands-on with Docker and Kubernetes',
-      'Experience with CI/CD and IaC',
-      'Strong Linux and networking fundamentals',
-    ],
-    department: 'Platform',
-    location: 'Remote',
-    employmentType: EmploymentType.CONTRACT,
-    salaryMin: 2200,
-    salaryMax: 3500,
-    status: JobStatus.DRAFT,
-    createdByEmail: 'seed-admin@talentflow.invalid',
-  },
-] as const;
+  console.log('Clearing existing data...');
+  await prisma.interview.deleteMany();
+  await prisma.application.deleteMany();
+  await prisma.candidate.deleteMany();
+  await prisma.job.deleteMany();
+  await prisma.emailTemplate.deleteMany();
+  await prisma.workspaceInvitation.deleteMany();
+  await prisma.workspaceMember.deleteMany();
+  
+  // Clear user activeWorkspaceId first to avoid foreign key violations when deleting workspaces
+  await prisma.user.updateMany({
+    data: { activeWorkspaceId: null },
+  });
+  await prisma.workspace.deleteMany();
+  await prisma.user.deleteMany();
 
-const seedApplications = [
-  {
-    jobTitle: 'Senior Backend Engineer',
-    candidateEmail: 'seed-alice.candidate@talentflow.invalid',
-    stage: ApplicationStage.SCREENING,
-    status: ApplicationStatus.REVIEWING,
-    notes: 'Strong backend fundamentals and good communication.',
-  },
-  {
-    jobTitle: 'Frontend Engineer',
-    candidateEmail: 'seed-bob.candidate@talentflow.invalid',
-    stage: ApplicationStage.INTERVIEW,
-    status: ApplicationStatus.INTERVIEW_SCHEDULED,
-    notes: 'Portfolio quality is strong. Proceed to technical interview.',
-  },
-  {
-    jobTitle: 'DevOps Engineer',
-    candidateEmail: 'seed-charlie.candidate@talentflow.invalid',
-    stage: ApplicationStage.APPLIED,
-    status: ApplicationStatus.SUBMITTED,
-    notes: 'Initial application submitted and awaiting review.',
-  },
-] as const;
-
-const seededJobSelect = {
-  id: true,
-  title: true,
-  createdById: true,
-  workspaceId: true,
-} satisfies Prisma.JobSelect;
-
-const upsertJobByTitleAndCreator = async (input: {
-  title: string;
-  description: string;
-  requirements: readonly string[];
-  department: string;
-  location: string;
-  employmentType: EmploymentType;
-  salaryMin: number;
-  salaryMax: number;
-  status: JobStatus;
-  createdById: string;
-  workspaceId: string;
-}) => {
-  const existing = await prisma.job.findFirst({
-    select: { id: true },
-    where: {
-      title: input.title,
-      createdById: input.createdById,
-      workspaceId: input.workspaceId,
-      deletedAt: null,
+  console.log('Seeding Users and their Personal Workspaces...');
+  // 1. Seed Core Users
+  const userAdmin = await prisma.user.create({
+    data: {
+      email: 'seed-admin@talentflow.invalid',
+      fullName: 'Seed System Admin',
+      role: Role.ADMIN,
+      password: hashedPassword,
     },
   });
 
-  if (existing) {
-    return prisma.job.update({
-      where: { id: existing.id },
+  const userRecruiter = await prisma.user.create({
+    data: {
+      email: 'seed-recruiter@talentflow.invalid',
+      fullName: 'Seed Lead Recruiter',
+      role: Role.RECRUITER,
+      password: hashedPassword,
+    },
+  });
+
+  const userInterviewer = await prisma.user.create({
+    data: {
+      email: 'seed-interviewer@talentflow.invalid',
+      fullName: 'Seed Technical Interviewer',
+      role: Role.INTERVIEWER,
+      password: hashedPassword,
+    },
+  });
+
+  // Invited Recruiter (user account created but in INVITED membership status)
+  const userInvitedRecruiter = await prisma.user.create({
+    data: {
+      email: 'invited-recruiter@talentflow.invalid',
+      fullName: 'Invited Recruiter',
+      role: Role.RECRUITER,
+      password: hashedPassword,
+    },
+  });
+
+  // Provision Personal Workspaces
+  const users = [userAdmin, userRecruiter, userInterviewer, userInvitedRecruiter];
+  for (const user of users) {
+    const personalWorkspace = await prisma.workspace.create({
       data: {
-        description: input.description,
-        requirements: input.requirements,
-        department: input.department,
-        location: input.location,
-        employmentType: input.employmentType,
-        salaryMin: input.salaryMin,
-        salaryMax: input.salaryMax,
-        status: input.status,
-        deletedAt: null,
+        name: `${user.fullName} - Personal Workspace`,
+        isBusiness: false,
+        createdById: user.id,
       },
-      select: seededJobSelect,
+    });
+
+    await prisma.workspaceMember.create({
+      data: {
+        workspaceId: personalWorkspace.id,
+        userId: user.id,
+        role: WorkspaceMemberRole.OWNER,
+        status: WorkspaceMemberStatus.ACTIVE,
+        invitedById: user.id,
+      },
+    });
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { activeWorkspaceId: personalWorkspace.id },
     });
   }
 
-  return prisma.job.create({
+  console.log('Seeding Business Workspace...');
+  // 2. Seed Business Workspace (Tenant)
+  const businessWorkspace = await prisma.workspace.create({
     data: {
-      title: input.title,
-      description: input.description,
-      requirements: input.requirements,
-      department: input.department,
-      location: input.location,
-      employmentType: input.employmentType,
-      salaryMin: input.salaryMin,
-      salaryMax: input.salaryMax,
-      status: input.status,
-      createdById: input.createdById,
-      workspaceId: input.workspaceId,
-    },
-    select: seededJobSelect,
-  });
-};
-
-async function main() {
-  const hashedPassword = await bcrypt.hash(
-    getSeedDefaultPassword(),
-    SALT_ROUNDS,
-  );
-
-  // Seed users and atomically provision a Personal Workspace for each.
-  const users = await Promise.all(
-    seedUsers.map(async (user) => {
-      const existing = await prisma.user.findUnique({
-        where: { email: user.email },
-      });
-
-      if (existing) {
-        return prisma.user.update({
-          where: { id: existing.id },
-          data: {
-            fullName: user.fullName,
-            role: user.role,
-            password: hashedPassword,
-            deletedAt: null,
-          },
-        });
-      }
-
-      return prisma.$transaction(async (tx) => {
-        const created = await tx.user.create({
-          data: {
-            email: user.email,
-            fullName: user.fullName,
-            role: user.role,
-            password: hashedPassword,
-          },
-        });
-
-        const personalWorkspace = await tx.workspace.create({
-          data: {
-            name: `${user.fullName} - Personal Workspace`,
-            isBusiness: false,
-            createdById: created.id,
-          },
-        });
-
-        await tx.workspaceMember.create({
-          data: {
-            workspaceId: personalWorkspace.id,
-            userId: created.id,
-            role: WorkspaceMemberRole.OWNER,
-            status: WorkspaceMemberStatus.ACTIVE,
-            invitedById: created.id,
-          },
-        });
-
-        return tx.user.update({
-          where: { id: created.id },
-          data: { activeWorkspaceId: personalWorkspace.id },
-        });
-      });
-    }),
-  );
-
-  const userByEmail = new Map(users.map((user) => [user.email, user]));
-
-  // Candidates live inside the recruiter's personal workspace.
-  const recruiter = userByEmail.get('seed-recruiter@talentflow.invalid');
-  if (!recruiter || !recruiter.activeWorkspaceId) {
-    throw new Error('Seed recruiter must have an active workspace');
-  }
-  const recruiterWorkspaceId = recruiter.activeWorkspaceId;
-
-  const candidates = await Promise.all(
-    seedCandidates.map((candidate) =>
-      prisma.candidate.upsert({
-        where: {
-          workspaceId_email: {
-            workspaceId: recruiterWorkspaceId,
-            email: candidate.email,
-          },
-        },
-        update: {
-          fullName: candidate.fullName,
-          phone: candidate.phone,
-          linkedinUrl: candidate.linkedinUrl,
-          resumeUrl: candidate.resumeUrl,
-          resumeText: candidate.resumeText,
-        },
-        create: {
-          email: candidate.email,
-          fullName: candidate.fullName,
-          phone: candidate.phone,
-          linkedinUrl: candidate.linkedinUrl,
-          resumeUrl: candidate.resumeUrl,
-          resumeText: candidate.resumeText,
-          workspaceId: recruiterWorkspaceId,
-        },
-      }),
-    ),
-  );
-
-  const candidateByEmail = new Map(
-    candidates.map((candidate) => [candidate.email, candidate]),
-  );
-
-  const jobs = await Promise.all(
-    seedJobs.map(async (job) => {
-      const creator = userByEmail.get(job.createdByEmail);
-
-      if (!creator) {
-        throw new Error(`Missing seeded creator: ${job.createdByEmail}`);
-      }
-
-      if (!creator.activeWorkspaceId) {
-        throw new Error(`Creator ${creator.email} has no active workspace`);
-      }
-
-      return upsertJobByTitleAndCreator({
-        title: job.title,
-        description: job.description,
-        requirements: job.requirements,
-        department: job.department,
-        location: job.location,
-        employmentType: job.employmentType,
-        salaryMin: job.salaryMin,
-        salaryMax: job.salaryMax,
-        status: job.status,
-        createdById: creator.id,
-        workspaceId: creator.activeWorkspaceId,
-      });
-    }),
-  );
-
-  const jobByTitle = new Map(jobs.map((job) => [job.title, job]));
-
-  await Promise.all(
-    seedApplications.map(async (application) => {
-      const job = jobByTitle.get(application.jobTitle);
-      const candidate = candidateByEmail.get(application.candidateEmail);
-
-      if (!job) {
-        throw new Error(`Missing seeded job: ${application.jobTitle}`);
-      }
-
-      if (!candidate) {
-        throw new Error(
-          `Missing seeded candidate: ${application.candidateEmail}`,
-        );
-      }
-
-      await prisma.application.upsert({
-        where: {
-          jobId_candidateId: {
-            jobId: job.id,
-            candidateId: candidate.id,
-          },
-        },
-        update: {
-          stage: application.stage,
-          status: application.status,
-          notes: application.notes,
-          deletedAt: null,
-        },
-        create: {
-          jobId: job.id,
-          candidateId: candidate.id,
-          stage: application.stage,
-          status: application.status,
-          notes: application.notes,
-          workspaceId: job.workspaceId,
-        },
-      });
-    }),
-  );
-
-  // ── Seed Interviews ──────────────────────────────────────
-  // Fetch created applications so we can link interviews
-  const allApplications = await prisma.application.findMany({
-    where: {
-      job: { title: { in: seedJobs.map((j) => j.title) } },
-    },
-    include: {
-      job: { select: { title: true } },
-      candidate: { select: { email: true } },
+      name: 'Acme Corp - Tech Recruitment',
+      isBusiness: true,
+      createdById: userAdmin.id,
     },
   });
 
-  const interviewer = userByEmail.get('seed-interviewer@talentflow.invalid');
+  // 3. Seed Workspace Memberships for Business Workspace
+  // Owner: Admin
+  await prisma.workspaceMember.create({
+    data: {
+      workspaceId: businessWorkspace.id,
+      userId: userAdmin.id,
+      role: WorkspaceMemberRole.OWNER,
+      status: WorkspaceMemberStatus.ACTIVE,
+      invitedById: userAdmin.id,
+    },
+  });
 
-  const seedInterviews = [
-    {
-      jobTitle: 'Frontend Engineer',
-      candidateEmail: 'seed-bob.candidate@talentflow.invalid',
+  // Admin Member: Recruiter
+  await prisma.workspaceMember.create({
+    data: {
+      workspaceId: businessWorkspace.id,
+      userId: userRecruiter.id,
+      role: WorkspaceMemberRole.ADMIN,
+      status: WorkspaceMemberStatus.ACTIVE,
+      invitedById: userAdmin.id,
+    },
+  });
+
+  // Recruiter Member: Interviewer
+  await prisma.workspaceMember.create({
+    data: {
+      workspaceId: businessWorkspace.id,
+      userId: userInterviewer.id,
+      role: WorkspaceMemberRole.RECRUITER,
+      status: WorkspaceMemberStatus.ACTIVE,
+      invitedById: userAdmin.id,
+    },
+  });
+
+  // Invited Member: Invited Recruiter
+  await prisma.workspaceMember.create({
+    data: {
+      workspaceId: businessWorkspace.id,
+      userId: userInvitedRecruiter.id,
+      role: WorkspaceMemberRole.RECRUITER,
+      status: WorkspaceMemberStatus.INVITED,
+      invitedById: userAdmin.id,
+    },
+  });
+
+  // Set active workspaces to Business Workspace for active test users
+  await prisma.user.update({
+    where: { id: userAdmin.id },
+    data: { activeWorkspaceId: businessWorkspace.id },
+  });
+
+  await prisma.user.update({
+    where: { id: userRecruiter.id },
+    data: { activeWorkspaceId: businessWorkspace.id },
+  });
+
+  await prisma.user.update({
+    where: { id: userInterviewer.id },
+    data: { activeWorkspaceId: businessWorkspace.id },
+  });
+
+  console.log('Seeding Workspace Invitation...');
+  // 4. Seed Workspace Invitation
+  await prisma.workspaceInvitation.create({
+    data: {
+      email: 'invited-recruiter@talentflow.invalid',
+      workspaceId: businessWorkspace.id,
+      token: 'invite-token-uuid-12345-acme',
+      role: WorkspaceMemberRole.RECRUITER,
+      invitedById: userAdmin.id,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+    },
+  });
+
+  console.log('Seeding Email Templates...');
+  // 5. Seed Email Templates
+  await prisma.emailTemplate.create({
+    data: {
+      name: 'interview-invitation',
+      subject: 'Interview invitation for {{candidateName}}',
+      body: 'Hi {{candidateName}},\n\nWe would like to invite you for an interview for the position of {{jobTitle}}.\n\nBest regards,\n{{companyName}}',
+      workspaceId: businessWorkspace.id,
+    },
+  });
+
+  await prisma.emailTemplate.create({
+    data: {
+      name: 'rejection-email',
+      subject: 'Application Update - TalentFlow',
+      body: 'Dear {{candidateName}},\n\nThank you for your interest in the {{jobTitle}} position at Acme Corp. Unfortunately, we decided to move forward with other candidates.\n\nBest regards,\n{{companyName}}',
+      workspaceId: businessWorkspace.id,
+    },
+  });
+
+  console.log('Seeding Jobs...');
+  // 6. Seed Jobs inside the Business Workspace
+  const jobBackend = await prisma.job.create({
+    data: {
+      title: 'Senior Backend Engineer',
+      description: 'Build scalable backend services for ATS workflows and hiring automation.',
+      requirements: [
+        '3+ years experience with Node.js or NestJS',
+        'Strong SQL and data modeling skills',
+        'Experience with message queues and distributed systems',
+      ],
+      department: 'Engineering',
+      location: 'Ho Chi Minh City',
+      employmentType: EmploymentType.FULL_TIME,
+      salaryMin: 2500,
+      salaryMax: 4000,
+      status: JobStatus.OPEN,
+      workspaceId: businessWorkspace.id,
+      createdById: userRecruiter.id,
+    },
+  });
+
+  const jobFrontend = await prisma.job.create({
+    data: {
+      title: 'Frontend Engineer',
+      description: 'Develop modern, responsive interfaces for recruiters and hiring managers.',
+      requirements: [
+        'Strong React and TypeScript knowledge',
+        'Experience with state management and testing',
+        'Understanding of REST APIs and UX principles',
+      ],
+      department: 'Engineering',
+      location: 'Da Nang',
+      employmentType: EmploymentType.FULL_TIME,
+      salaryMin: 1800,
+      salaryMax: 3000,
+      status: JobStatus.OPEN,
+      workspaceId: businessWorkspace.id,
+      createdById: userRecruiter.id,
+    },
+  });
+
+  const jobDevOps = await prisma.job.create({
+    data: {
+      title: 'DevOps Engineer',
+      description: 'Maintain infrastructure, observability, and deployment pipelines.',
+      requirements: [
+        'Hands-on with Docker and Kubernetes',
+        'Experience with CI/CD and IaC',
+        'Strong Linux and networking fundamentals',
+      ],
+      department: 'Platform',
+      location: 'Remote',
+      employmentType: EmploymentType.CONTRACT,
+      salaryMin: 2200,
+      salaryMax: 3500,
+      status: JobStatus.OPEN,
+      workspaceId: businessWorkspace.id,
+      createdById: userAdmin.id,
+    },
+  });
+
+  const jobProductManager = await prisma.job.create({
+    data: {
+      title: 'Product Manager',
+      description: 'Define product vision and collaborate with engineering team.',
+      requirements: [
+        'Product management experience in B2B SaaS',
+        'Strong roadmap execution and analytical skills',
+      ],
+      department: 'Product',
+      location: 'Ho Chi Minh City',
+      employmentType: EmploymentType.FULL_TIME,
+      salaryMin: 3000,
+      salaryMax: 5000,
+      status: JobStatus.DRAFT,
+      workspaceId: businessWorkspace.id,
+      createdById: userRecruiter.id,
+    },
+  });
+
+  console.log('Seeding Candidates...');
+  // 7. Seed Candidates inside the Business Workspace
+  const candidateAlice = await prisma.candidate.create({
+    data: {
+      email: 'seed-alice.candidate@talentflow.invalid',
+      fullName: 'Seed Alice Nguyen',
+      phone: '+84901111222',
+      linkedinUrl: 'https://linkedin.com/in/seed-alice-nguyen',
+      resumeUrl: 'https://minio.local/talentflow-cvs/seed-alice-nguyen.pdf',
+      resumeText: 'Seed backend engineer with 4 years experience in Node.js and PostgreSQL.',
+      workspaceId: businessWorkspace.id,
+    },
+  });
+
+  const candidateBob = await prisma.candidate.create({
+    data: {
+      email: 'seed-bob.candidate@talentflow.invalid',
+      fullName: 'Seed Bob Tran',
+      phone: '+84903333444',
+      linkedinUrl: 'https://linkedin.com/in/seed-bob-tran',
+      resumeUrl: 'https://minio.local/talentflow-cvs/seed-bob-tran.pdf',
+      resumeText: 'Seed frontend engineer focused on React, TypeScript, and accessibility.',
+      workspaceId: businessWorkspace.id,
+    },
+  });
+
+  const candidateCharlie = await prisma.candidate.create({
+    data: {
+      email: 'seed-charlie.candidate@talentflow.invalid',
+      fullName: 'Seed Charlie Le',
+      phone: '+84905555666',
+      linkedinUrl: 'https://linkedin.com/in/seed-charlie-le',
+      resumeUrl: 'https://minio.local/talentflow-cvs/seed-charlie-le.pdf',
+      resumeText: 'Seed DevOps engineer experienced with Docker, CI/CD, and cloud infrastructure.',
+      workspaceId: businessWorkspace.id,
+    },
+  });
+
+  const candidateDavid = await prisma.candidate.create({
+    data: {
+      email: 'seed-david.candidate@talentflow.invalid',
+      fullName: 'Seed David Pham',
+      phone: '+84907777888',
+      linkedinUrl: 'https://linkedin.com/in/seed-david-pham',
+      resumeUrl: 'https://minio.local/talentflow-cvs/seed-david-pham.pdf',
+      resumeText: 'Experienced PM with strong track record in SaaS.',
+      workspaceId: businessWorkspace.id,
+    },
+  });
+
+  console.log('Seeding Applications...');
+  // 8. Seed Applications inside the Business Workspace
+  const appAlice = await prisma.application.create({
+    data: {
+      jobId: jobBackend.id,
+      candidateId: candidateAlice.id,
+      workspaceId: businessWorkspace.id,
+      stage: ApplicationStage.SCREENING,
+      status: ApplicationStatus.REVIEWING,
+      notes: 'Strong backend fundamentals and good communication.',
+      appliedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  const appBob = await prisma.application.create({
+    data: {
+      jobId: jobFrontend.id,
+      candidateId: candidateBob.id,
+      workspaceId: businessWorkspace.id,
+      stage: ApplicationStage.INTERVIEW,
+      status: ApplicationStatus.INTERVIEW_SCHEDULED,
+      notes: 'Portfolio quality is strong. Proceed to technical interview.',
+      appliedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  const appCharlie = await prisma.application.create({
+    data: {
+      jobId: jobDevOps.id,
+      candidateId: candidateCharlie.id,
+      workspaceId: businessWorkspace.id,
+      stage: ApplicationStage.OFFER,
+      status: ApplicationStatus.ACCEPTED,
+      notes: 'Initial application submitted and awaiting review.',
+      appliedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  const appDavid = await prisma.application.create({
+    data: {
+      jobId: jobBackend.id,
+      candidateId: candidateDavid.id,
+      workspaceId: businessWorkspace.id,
+      stage: ApplicationStage.REJECTED,
+      status: ApplicationStatus.REJECTED,
+      notes: 'Lacks required backend experience.',
+      appliedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  console.log('Seeding Interviews...');
+  // 9. Seed Interviews inside the Business Workspace
+  await prisma.interview.create({
+    data: {
+      applicationId: appBob.id,
+      workspaceId: businessWorkspace.id,
       scheduledAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
       duration: 60,
       type: InterviewType.VIDEO,
       location: 'https://meet.google.com/seed-bob-interview',
       notes: 'Technical interview: React, TypeScript, state management',
       status: InterviewStatus.SCHEDULED,
+      interviewerId: userInterviewer.id,
     },
-    {
-      jobTitle: 'Senior Backend Engineer',
-      candidateEmail: 'seed-alice.candidate@talentflow.invalid',
+  });
+
+  await prisma.interview.create({
+    data: {
+      applicationId: appAlice.id,
+      workspaceId: businessWorkspace.id,
       scheduledAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
       duration: 45,
       type: InterviewType.PHONE,
-      location: null,
+      location: '+84901111222',
       notes: 'Phone screening: discuss experience and expectations',
       status: InterviewStatus.SCHEDULED,
+      interviewerId: userRecruiter.id,
     },
-    {
-      jobTitle: 'Senior Backend Engineer',
-      candidateEmail: 'seed-alice.candidate@talentflow.invalid',
+  });
+
+  await prisma.interview.create({
+    data: {
+      applicationId: appAlice.id,
+      workspaceId: businessWorkspace.id,
       scheduledAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
       duration: 90,
-      type: InterviewType.TECHNICAL,
+      type: InterviewType.VIDEO,
       location: 'https://zoom.us/j/seed-alice-technical',
       notes: 'Completed system design round. Candidate performed well.',
       status: InterviewStatus.COMPLETED,
+      interviewerId: userInterviewer.id,
     },
-  ] as const;
+  });
 
-  let interviewCount = 0;
-  for (const interview of seedInterviews) {
-    const app = allApplications.find(
-      (a) =>
-        a.job.title === interview.jobTitle &&
-        a.candidate.email === interview.candidateEmail,
-    );
-
-    if (!app) {
-      console.warn(
-        `Skipping interview seed: no application for ${interview.candidateEmail} → ${interview.jobTitle}`,
-      );
-      continue;
-    }
-
-    // Check if interview already exists for this application at this time
-    const existing = await prisma.interview.findFirst({
-      where: {
-        applicationId: app.id,
-        scheduledAt: interview.scheduledAt,
-      },
-    });
-
-    if (!existing) {
-      await prisma.interview.create({
-        data: {
-          applicationId: app.id,
-          workspaceId: app.workspaceId,
-          scheduledAt: interview.scheduledAt,
-          duration: interview.duration,
-          type: interview.type,
-          location: interview.location,
-          notes: interview.notes,
-          status: interview.status,
-          interviewerId: interviewer?.id ?? null,
-        },
-      });
-      interviewCount++;
-    }
-  }
-
-  console.log('Seed completed successfully');
-  console.log(`Users: ${users.length}`);
-  console.log(`Candidates: ${candidates.length}`);
-  console.log(`Jobs: ${jobs.length}`);
-  console.log(`Applications: ${seedApplications.length}`);
-  console.log(`Interviews: ${interviewCount}`);
+  console.log('Seed completed successfully!');
+  console.log(`- Workspaces: ${await prisma.workspace.count()}`);
+  console.log(`- Workspace Member: ${await prisma.workspaceMember.count()}`);
+  console.log(`- Workspace Invitation: ${await prisma.workspaceInvitation.count()}`);
+  console.log(`- Email Templates: ${await prisma.emailTemplate.count()}`);
+  console.log(`- Jobs: ${await prisma.job.count()}`);
+  console.log(`- Candidates: ${await prisma.candidate.count()}`);
+  console.log(`- Applications: ${await prisma.application.count()}`);
+  console.log(`- Interviews: ${await prisma.interview.count()}`);
 }
 
 main()

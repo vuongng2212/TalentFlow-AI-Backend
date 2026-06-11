@@ -240,6 +240,7 @@ describe('Jobs (e2e)', () => {
     it('should get all jobs with pagination', async () => {
       const response = await request(app.getHttpServer())
         .get('/api/v1/jobs')
+        .set('Cookie', [recruiterCookie])
         .query({ page: 1, limit: 10 })
         .expect(200);
 
@@ -254,6 +255,7 @@ describe('Jobs (e2e)', () => {
     it('should filter jobs by status', async () => {
       const response = await request(app.getHttpServer())
         .get('/api/v1/jobs')
+        .set('Cookie', [recruiterCookie])
         .query({ status: JobStatus.OPEN })
         .expect(200);
 
@@ -268,6 +270,7 @@ describe('Jobs (e2e)', () => {
       it('should filter jobs by salaryMin (jobs with salaryMax >= salaryMin)', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({ salaryMin: 100000 })
           .expect(200);
 
@@ -282,6 +285,7 @@ describe('Jobs (e2e)', () => {
       it('should filter jobs by salaryMax (jobs with salaryMin <= salaryMax)', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({ salaryMax: 50000 })
           .expect(200);
 
@@ -296,6 +300,7 @@ describe('Jobs (e2e)', () => {
       it('should filter jobs by salary range (overlap)', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({ salaryMin: 80000, salaryMax: 130000 })
           .expect(200);
 
@@ -313,6 +318,7 @@ describe('Jobs (e2e)', () => {
       it('should return no jobs when salary range has no overlap', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({ salaryMin: 200000, salaryMax: 300000 })
           .expect(200);
 
@@ -325,6 +331,7 @@ describe('Jobs (e2e)', () => {
       it('should filter jobs by single skill', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({ skills: 'typescript' })
           .expect(200);
 
@@ -340,6 +347,7 @@ describe('Jobs (e2e)', () => {
       it('should filter jobs by multiple skills (comma-separated)', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({ skills: 'nestjs,postgresql' })
           .expect(200);
 
@@ -356,6 +364,7 @@ describe('Jobs (e2e)', () => {
       it('should return no jobs when skill does not exist', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({ skills: 'cobol' })
           .expect(200);
 
@@ -367,6 +376,7 @@ describe('Jobs (e2e)', () => {
       it('should search jobs by title', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({ search: 'Developer' })
           .expect(200);
 
@@ -383,6 +393,7 @@ describe('Jobs (e2e)', () => {
       it('should search jobs by description', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({ search: 'infrastructure' })
           .expect(200);
 
@@ -401,6 +412,7 @@ describe('Jobs (e2e)', () => {
       it('should sort jobs by salaryMin ascending', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({ sortBy: 'salaryMin', sortOrder: 'asc', status: 'OPEN' })
           .expect(200);
 
@@ -419,6 +431,7 @@ describe('Jobs (e2e)', () => {
       it('should sort jobs by salaryMin descending', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({ sortBy: 'salaryMin', sortOrder: 'desc', status: 'OPEN' })
           .expect(200);
 
@@ -437,6 +450,7 @@ describe('Jobs (e2e)', () => {
       it('should sort jobs by title', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({ sortBy: 'title', sortOrder: 'asc', status: 'OPEN' })
           .expect(200);
 
@@ -455,6 +469,7 @@ describe('Jobs (e2e)', () => {
       it('should combine status and salary filters', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({
             status: JobStatus.OPEN,
             salaryMin: 50000,
@@ -473,6 +488,7 @@ describe('Jobs (e2e)', () => {
       it('should combine employmentType and salary filters', async () => {
         const response = await request(app.getHttpServer())
           .get('/api/v1/jobs')
+          .set('Cookie', [recruiterCookie])
           .query({
             employmentType: EmploymentType.FULL_TIME,
             salaryMin: 80000,
@@ -492,6 +508,7 @@ describe('Jobs (e2e)', () => {
     it('should get a job by id', async () => {
       const response = await request(app.getHttpServer())
         .get(`/api/v1/jobs/${jobId}`)
+        .set('Cookie', [recruiterCookie])
         .expect(200);
 
       expect(response.body.id).toBe(jobId);
@@ -500,6 +517,7 @@ describe('Jobs (e2e)', () => {
     it('should return 404 for non-existent job', async () => {
       await request(app.getHttpServer())
         .get('/api/v1/jobs/00000000-0000-0000-0000-000000000000')
+        .set('Cookie', [recruiterCookie])
         .expect(404);
     });
   });

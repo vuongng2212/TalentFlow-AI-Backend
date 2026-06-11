@@ -32,3 +32,8 @@
 - If a feature touches storage metadata, update the runtime contract and any validation around file keys, buckets, or MIME type checks.
 - If a feature touches persistence, update the owning Prisma schema and follow the service's migration path.
 - If a feature touches documentation, update only the active SDD artifacts and runtime guidance, not frozen legacy sources.
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->

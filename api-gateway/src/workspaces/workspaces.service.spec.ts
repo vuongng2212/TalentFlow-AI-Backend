@@ -22,6 +22,9 @@ type CreateWorkspaceTransaction = {
   workspaceMember: {
     create: jest.Mock;
   };
+  user: {
+    update: jest.Mock;
+  };
 };
 
 type WorkspaceMemberTransaction = {
@@ -116,6 +119,9 @@ describe('WorkspacesService', () => {
             workspaceMember: {
               create: jest.fn().mockResolvedValue({ id: 'member-1' }),
             },
+            user: {
+              update: jest.fn().mockResolvedValue(workspace),
+            },
           };
 
           const result = await callback(tx);
@@ -124,6 +130,7 @@ describe('WorkspacesService', () => {
             data: {
               name: 'Test Workspace',
               isBusiness: true,
+              createdById: 'user-1',
             },
           });
           expect(tx.workspaceMember.create).toHaveBeenCalledWith({

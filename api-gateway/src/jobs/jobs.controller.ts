@@ -26,7 +26,6 @@ import { JobResponseDto } from './dto/job-response.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
-import { Public } from '../auth/decorators/public.decorator';
 
 interface UserPayload {
   id: string;
@@ -68,7 +67,8 @@ export class JobsController {
   }
 
   @Get()
-  @Public()
+  @ApiBearerAuth('access-token')
+  @Roles(Role.RECRUITER, Role.ADMIN)
   @ApiOperation({ summary: 'Get all jobs with pagination and filters' })
   @ApiResponse({ status: 200, description: 'Return paginated jobs list' })
   async findAll(@Query() query: QueryJobsDto) {
@@ -76,7 +76,8 @@ export class JobsController {
   }
 
   @Get(':id')
-  @Public()
+  @ApiBearerAuth('access-token')
+  @Roles(Role.RECRUITER, Role.ADMIN)
   @ApiOperation({ summary: 'Get a job by ID' })
   @ApiParam({
     name: 'id',

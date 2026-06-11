@@ -275,4 +275,5 @@ enum WorkspaceMemberStatus {
   ACTIVE
   INVITED
   REMOVED
+  EXPIRED
 }

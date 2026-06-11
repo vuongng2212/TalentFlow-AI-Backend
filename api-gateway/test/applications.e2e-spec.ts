@@ -22,6 +22,7 @@ describe('Applications (e2e)', () => {
   let recruiterCookie: string;
   let jobId: string;
   let applicationId: string;
+  let recruiterWorkspaceId: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -94,12 +95,31 @@ describe('Applications (e2e)', () => {
 
     const recruiter = await prisma.user.findUnique({
       where: { email: 'apps-recruiter@test.com' },
+      select: { id: true, activeWorkspaceId: true },
+    });
+
+    if (!recruiter || !recruiter.activeWorkspaceId) {
+      throw new Error('Recruiter not found or has no active workspace');
+    }
+    recruiterWorkspaceId = recruiter.activeWorkspaceId;
+
+    const applicantRecord = await prisma.user.findUnique({
+      where: { email: 'apps-applicant@test.com' },
       select: { id: true },
     });
 
-    if (!recruiter) {
-      throw new Error('Recruiter not found');
+    if (!applicantRecord) {
+      throw new Error('Applicant user not found');
     }
+
+    await prisma.workspaceMember.create({
+      data: {
+        workspaceId: recruiterWorkspaceId,
+        userId: applicantRecord.id,
+        role: 'RECRUITER',
+        status: 'ACTIVE',
+      },
+    });
 
     // Create a test job
     const jobResponse = await request(app.getHttpServer())
@@ -128,6 +148,7 @@ describe('Applications (e2e)', () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/applications')
         .set('Cookie', [applicantCookie])
+        .set('x-workspace-id', recruiterWorkspaceId)
         .send({
           jobId,
           coverLetter: 'I am interested in this position',
@@ -148,6 +169,7 @@ describe('Applications (e2e)', () => {
       await request(app.getHttpServer())
         .post('/api/v1/applications')
         .set('Cookie', [applicantCookie])
+        .set('x-workspace-id', recruiterWorkspaceId)
         .send({ jobId })
         .expect(409);
     });
@@ -158,6 +180,7 @@ describe('Applications (e2e)', () => {
       const response = await request(app.getHttpServer())
         .get('/api/v1/applications')
         .set('Cookie', [applicantCookie])
+        .set('x-workspace-id', recruiterWorkspaceId)
         .expect(200);
 
       expect(response.body.data).toBeInstanceOf(Array);
@@ -167,6 +190,7 @@ describe('Applications (e2e)', () => {
       const response = await request(app.getHttpServer())
         .get('/api/v1/applications')
         .set('Cookie', [recruiterCookie])
+        .set('x-workspace-id', recruiterWorkspaceId)
         .expect(200);
 
       expect(response.body.data).toBeInstanceOf(Array);
@@ -178,6 +202,7 @@ describe('Applications (e2e)', () => {
       const response = await request(app.getHttpServer())
         .put(`/api/v1/applications/${applicationId}`)
         .set('Cookie', [recruiterCookie])
+        .set('x-workspace-id', recruiterWorkspaceId)
         .send({
           status: ApplicationStatus.REVIEWING,
           notes: 'Good candidate',
@@ -194,6 +219,7 @@ describe('Applications (e2e)', () => {
       await request(app.getHttpServer())
         .delete(`/api/v1/applications/${applicationId}`)
         .set('Cookie', [applicantCookie])
+        .set('x-workspace-id', recruiterWorkspaceId)
         .expect(204);
 
       const application = await prisma.application.findUnique({

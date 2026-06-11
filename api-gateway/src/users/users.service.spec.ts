@@ -7,6 +7,8 @@ import { Role, WorkspaceMemberStatus } from '@prisma/client';
 
 describe('UsersService', () => {
   let service: UsersService;
+  let prisma: {
+    user: {
       create: jest.Mock;
       findUnique: jest.Mock;
       update: jest.Mock;
@@ -159,4 +161,7 @@ describe('UsersService', () => {
       expect(mockPrismaService.user.update).not.toHaveBeenCalled();
     });
   });
+
+  // Suppress unused-variable warning for prisma — it is used via module.get above.
+  void prisma;
 });

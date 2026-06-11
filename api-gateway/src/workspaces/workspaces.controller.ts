@@ -104,6 +104,6 @@ export class WorkspacesController {
     @CurrentUser() user: UserPayload,
     @Body() dto: AcceptInvitationDto,
   ) {
-    return this.workspacesService.acceptInvitation(user.id, dto.token ?? '');
+    return this.workspacesService.acceptInvitation(user.id, dto.token);
   }
 }

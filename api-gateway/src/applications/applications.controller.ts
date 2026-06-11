@@ -66,10 +66,7 @@ export class ApplicationsController {
     @CurrentUser() user: UserPayload,
     @Body() createApplicationDto: CreateApplicationDto,
   ): Promise<ApplicationResponseDto> {
-    return this.applicationsService.create(
-      user.id,
-      createApplicationDto,
-    ) as Promise<ApplicationResponseDto>;
+    return this.applicationsService.create(user.id, createApplicationDto);
   }
 
   @Post('upload')

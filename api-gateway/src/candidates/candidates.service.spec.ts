@@ -88,8 +88,8 @@ describe('CandidatesService (Workspace-Scoped Isolation)', () => {
               { fullName: { contains: 'alice', mode: 'insensitive' } },
               { email: { contains: 'alice', mode: 'insensitive' } },
             ] as unknown[]),
-          } as Record<string, unknown>),
-        } as Record<string, unknown>),
+          }),
+        }),
       );
     });
   });
