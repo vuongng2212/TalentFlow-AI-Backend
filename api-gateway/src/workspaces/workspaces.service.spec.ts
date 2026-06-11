@@ -547,7 +547,7 @@ describe('WorkspacesService', () => {
         expect.objectContaining({
           email: 'invitee@test.com',
           workspaceName: 'Biz',
-          inviteUrl: expect.stringContaining('token='),
+          inviteUrl: expect.stringContaining('token=') as unknown as string,
         }),
       );
     });
@@ -640,6 +640,84 @@ describe('WorkspacesService', () => {
         workspaceName: 'X',
         role: WorkspaceMemberRole.RECRUITER,
       });
+    });
+  });
+
+  describe('removeMember', () => {
+    it('should throw ForbiddenException if requester is not OWNER or ADMIN', async () => {
+      mockPrismaService.workspaceMember.findFirst.mockResolvedValueOnce({
+        role: WorkspaceMemberRole.VIEWER,
+      });
+
+      await expect(
+        service.removeMember('ws-1', 'requester-1', 'target-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if target member is not found or not active', async () => {
+      mockPrismaService.workspaceMember.findFirst
+        .mockResolvedValueOnce({ role: WorkspaceMemberRole.ADMIN })
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        service.removeMember('ws-1', 'requester-1', 'target-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException if trying to remove the owner', async () => {
+      mockPrismaService.workspaceMember.findFirst
+        .mockResolvedValueOnce({ role: WorkspaceMemberRole.ADMIN })
+        .mockResolvedValueOnce({ role: WorkspaceMemberRole.OWNER });
+
+      await expect(
+        service.removeMember('ws-1', 'requester-1', 'target-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should successfully remove member and reset activeWorkspaceId if it matches', async () => {
+      mockPrismaService.workspaceMember.findFirst
+        .mockResolvedValueOnce({ role: WorkspaceMemberRole.ADMIN })
+        .mockResolvedValueOnce({ role: WorkspaceMemberRole.RECRUITER });
+
+      mockPrismaService.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            workspaceMember: {
+              update: jest.fn().mockResolvedValue({}),
+              findFirst: jest.fn().mockResolvedValue(null),
+            },
+            user: {
+              findUnique: jest
+                .fn()
+                .mockResolvedValue({ activeWorkspaceId: 'ws-1' }),
+              update: jest.fn().mockResolvedValue({}),
+            },
+          };
+          const result = await callback(tx);
+          expect(tx.workspaceMember.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+              where: {
+                workspaceId_userId: {
+                  workspaceId: 'ws-1',
+                  userId: 'target-1',
+                },
+              },
+              data: {
+                status: WorkspaceMemberStatus.REMOVED,
+              },
+            }),
+          );
+          expect(tx.user.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+              where: { id: 'target-1' },
+              data: { activeWorkspaceId: null },
+            }),
+          );
+          return result;
+        },
+      );
+
+      await service.removeMember('ws-1', 'requester-1', 'target-1');
     });
   });
 });

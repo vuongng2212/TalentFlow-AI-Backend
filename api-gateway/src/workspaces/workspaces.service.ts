@@ -438,4 +438,72 @@ export class WorkspacesService {
 
     return Boolean(membership);
   }
+
+  async removeMember(
+    workspaceId: string,
+    requesterId: string,
+    targetUserId: string,
+  ): Promise<void> {
+    await this.ensureCanManageMembers(workspaceId, requesterId);
+
+    const targetMembership = await this.prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        userId: targetUserId,
+        status: WorkspaceMemberStatus.ACTIVE,
+      },
+      select: {
+        role: true,
+      },
+    });
+
+    if (!targetMembership) {
+      throw new NotFoundException('Member not found or already removed');
+    }
+
+    if (targetMembership.role === WorkspaceMemberRole.OWNER) {
+      throw new ForbiddenException('Cannot remove the workspace owner');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.workspaceMember.update({
+        where: {
+          workspaceId_userId: {
+            workspaceId,
+            userId: targetUserId,
+          },
+        },
+        data: {
+          status: WorkspaceMemberStatus.REMOVED,
+        },
+      });
+
+      const user = await tx.user.findUnique({
+        where: { id: targetUserId },
+        select: { activeWorkspaceId: true },
+      });
+
+      if (user?.activeWorkspaceId === workspaceId) {
+        const otherActive = await tx.workspaceMember.findFirst({
+          where: {
+            userId: targetUserId,
+            status: WorkspaceMemberStatus.ACTIVE,
+          },
+          orderBy: { createdAt: 'asc' },
+          select: { workspaceId: true },
+        });
+
+        await tx.user.update({
+          where: { id: targetUserId },
+          data: {
+            activeWorkspaceId: otherActive?.workspaceId ?? null,
+          },
+        });
+      }
+    });
+
+    this.logger.log(
+      `User ${requesterId} removed user ${targetUserId} from workspace ${workspaceId}`,
+    );
+  }
 }
