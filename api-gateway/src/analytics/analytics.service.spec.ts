@@ -1,24 +1,14 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { AnalyticsService } from './analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspaceContextService } from '../common/services/workspace-context.service';
+import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { PrismaClient } from '@prisma/client';
 
 const MOCK_WORKSPACE_ID = 'ws-test-1';
-
-const mockPrismaService = {
-  job: {
-    count: jest.fn(),
-    findMany: jest.fn(),
-  },
-  candidate: {
-    count: jest.fn(),
-  },
-  application: {
-    count: jest.fn(),
-    groupBy: jest.fn(),
-    findMany: jest.fn(),
-  },
-};
 
 const mockWorkspaceContextService = {
   getWorkspaceId: jest.fn().mockReturnValue(MOCK_WORKSPACE_ID),
@@ -26,13 +16,13 @@ const mockWorkspaceContextService = {
 
 describe('AnalyticsService', () => {
   let service: AnalyticsService;
-  let prisma: typeof mockPrismaService;
+  let prisma: DeepMockProxy<PrismaClient>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AnalyticsService,
-        { provide: PrismaService, useValue: mockPrismaService },
+        { provide: PrismaService, useValue: mockDeep<PrismaClient>() },
         {
           provide: WorkspaceContextService,
           useValue: mockWorkspaceContextService,
@@ -95,7 +85,7 @@ describe('AnalyticsService', () => {
         { stage: 'APPLIED', _count: { id: 20 } },
         { stage: 'SCREENING', _count: { id: 10 } },
         { stage: 'HIRED', _count: { id: 3 } },
-      ]);
+      ] as any);
 
       const result = await service.getPipeline();
 
@@ -147,7 +137,7 @@ describe('AnalyticsService', () => {
           _count: { applications: 5 },
         },
       ];
-      prisma.job.findMany.mockResolvedValue(mockJobs);
+      prisma.job.findMany.mockResolvedValue(mockJobs as any);
 
       const result = await service.getTopJobs(5);
 

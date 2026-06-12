@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { AnalyticsController } from './analytics.controller';
 import { AnalyticsService } from './analytics.service';
@@ -51,7 +52,7 @@ describe('AnalyticsController', () => {
       const result = await controller.getOverview();
 
       expect(result).toEqual(expectedResult);
-      expect(service.getOverview).toHaveBeenCalled();
+      expect(jest.mocked(service.getOverview)).toHaveBeenCalled();
     });
   });
 
@@ -67,7 +68,7 @@ describe('AnalyticsController', () => {
       const result = await controller.getPipeline();
 
       expect(result).toEqual(expectedResult);
-      expect(service.getPipeline).toHaveBeenCalled();
+      expect(jest.mocked(service.getPipeline)).toHaveBeenCalled();
     });
   });
 
@@ -81,7 +82,7 @@ describe('AnalyticsController', () => {
       const result = await controller.getTrends(query);
 
       expect(result).toEqual(expectedResult);
-      expect(service.getTrends).toHaveBeenCalledWith(30);
+      expect(jest.mocked(service.getTrends)).toHaveBeenCalledWith(30);
     });
 
     it('should return application trends with specific days', async () => {
@@ -93,7 +94,7 @@ describe('AnalyticsController', () => {
       const result = await controller.getTrends(query);
 
       expect(result).toEqual(expectedResult);
-      expect(service.getTrends).toHaveBeenCalledWith(14);
+      expect(jest.mocked(service.getTrends)).toHaveBeenCalledWith(14);
     });
   });
 
@@ -109,7 +110,7 @@ describe('AnalyticsController', () => {
       const result = await controller.getTopJobs(query);
 
       expect(result).toEqual(expectedResult);
-      expect(service.getTopJobs).toHaveBeenCalledWith(5);
+      expect(jest.mocked(service.getTopJobs)).toHaveBeenCalledWith(5);
     });
 
     it('should return top jobs with specific limit', async () => {
@@ -123,7 +124,7 @@ describe('AnalyticsController', () => {
       const result = await controller.getTopJobs(query);
 
       expect(result).toEqual(expectedResult);
-      expect(service.getTopJobs).toHaveBeenCalledWith(10);
+      expect(jest.mocked(service.getTopJobs)).toHaveBeenCalledWith(10);
     });
   });
 });

@@ -1,21 +1,15 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { CandidatesService } from './candidates.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspaceContextService } from '../common/services/workspace-context.service';
+import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { PrismaClient } from '@prisma/client';
 
 const WORKSPACE_ID = 'workspace-1';
-
-const mockPrismaService = {
-  candidate: {
-    findMany: jest.fn(),
-    findFirst: jest.fn(),
-    findUnique: jest.fn(),
-    count: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-  },
-};
 
 const mockWorkspaceContext = {
   getWorkspaceId: jest.fn().mockReturnValue(WORKSPACE_ID),
@@ -23,13 +17,13 @@ const mockWorkspaceContext = {
 
 describe('CandidatesService (Workspace-Scoped Isolation)', () => {
   let service: CandidatesService;
-  let prisma: typeof mockPrismaService;
+  let prisma: DeepMockProxy<PrismaClient>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CandidatesService,
-        { provide: PrismaService, useValue: mockPrismaService },
+        { provide: PrismaService, useValue: mockDeep<PrismaClient>() },
         { provide: WorkspaceContextService, useValue: mockWorkspaceContext },
       ],
     }).compile();
@@ -55,7 +49,7 @@ describe('CandidatesService (Workspace-Scoped Isolation)', () => {
           _count: { applications: 2 },
         },
       ];
-      prisma.candidate.findMany.mockResolvedValue(mockCandidates);
+      prisma.candidate.findMany.mockResolvedValue(mockCandidates as any);
       prisma.candidate.count.mockResolvedValue(1);
 
       const result = await service.findAll({ page: 1, limit: 10 });
@@ -102,7 +96,7 @@ describe('CandidatesService (Workspace-Scoped Isolation)', () => {
         workspaceId: WORKSPACE_ID,
         applications: [],
       };
-      prisma.candidate.findFirst.mockResolvedValue(mockCandidate);
+      prisma.candidate.findFirst.mockResolvedValue(mockCandidate as any);
 
       const result = await service.findOne('1');
       expect(result).toEqual(mockCandidate);
@@ -127,8 +121,8 @@ describe('CandidatesService (Workspace-Scoped Isolation)', () => {
       const existing = { id: '1', fullName: 'Alice' };
       const updated = { id: '1', fullName: 'Alice Updated' };
 
-      prisma.candidate.findFirst.mockResolvedValue(existing);
-      prisma.candidate.update.mockResolvedValue(updated);
+      prisma.candidate.findFirst.mockResolvedValue(existing as any);
+      prisma.candidate.update.mockResolvedValue(updated as any);
 
       const result = await service.update('1', { fullName: 'Alice Updated' });
       expect(result.fullName).toBe('Alice Updated');
@@ -148,8 +142,8 @@ describe('CandidatesService (Workspace-Scoped Isolation)', () => {
 
   describe('remove - workspace isolation', () => {
     it('should delete candidate within the current workspace', async () => {
-      prisma.candidate.findFirst.mockResolvedValue({ id: '1' });
-      prisma.candidate.delete.mockResolvedValue({ id: '1' });
+      prisma.candidate.findFirst.mockResolvedValue({ id: '1' } as any);
+      prisma.candidate.delete.mockResolvedValue({ id: '1' } as any);
 
       await service.remove('1');
       expect(prisma.candidate.findFirst).toHaveBeenCalledWith({

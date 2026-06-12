@@ -1,9 +1,13 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { InterviewsService } from './interviews.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspaceContextService } from '../common/services/workspace-context.service';
-import { InterviewStatus } from '@prisma/client';
+import { InterviewStatus, PrismaClient } from '@prisma/client';
+import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 
 const MOCK_WORKSPACE_ID = 'ws-test-1';
 
@@ -11,33 +15,15 @@ const mockWorkspaceContextService = {
   getWorkspaceId: jest.fn().mockReturnValue(MOCK_WORKSPACE_ID),
 };
 
-const mockPrismaService = {
-  interview: {
-    create: jest.fn(),
-    findMany: jest.fn(),
-    findUnique: jest.fn(),
-    findFirst: jest.fn(),
-    count: jest.fn(),
-    update: jest.fn(),
-  },
-  application: {
-    findUnique: jest.fn(),
-    findFirst: jest.fn(),
-  },
-  user: {
-    findUnique: jest.fn(),
-  },
-};
-
 describe('InterviewsService', () => {
   let service: InterviewsService;
-  let prisma: typeof mockPrismaService;
+  let prisma: DeepMockProxy<PrismaClient>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         InterviewsService,
-        { provide: PrismaService, useValue: mockPrismaService },
+        { provide: PrismaService, useValue: mockDeep<PrismaClient>() },
         {
           provide: WorkspaceContextService,
           useValue: mockWorkspaceContextService,
@@ -59,12 +45,12 @@ describe('InterviewsService', () => {
     const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     it('should create an interview', async () => {
-      prisma.application.findFirst.mockResolvedValue({ id: 'app-1' });
+      prisma.application.findFirst.mockResolvedValue({ id: 'app-1' } as any);
       prisma.interview.create.mockResolvedValue({
         id: 'interview-1',
         applicationId: 'app-1',
         scheduledAt: new Date(futureDate),
-      });
+      } as any);
 
       const result = await service.create({
         applicationId: 'app-1',
@@ -84,7 +70,7 @@ describe('InterviewsService', () => {
     });
 
     it('should throw BadRequestException for past date', async () => {
-      prisma.application.findFirst.mockResolvedValue({ id: 'app-1' });
+      prisma.application.findFirst.mockResolvedValue({ id: 'app-1' } as any);
       const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
       await expect(
@@ -93,7 +79,7 @@ describe('InterviewsService', () => {
     });
 
     it('should verify interviewer exists when provided', async () => {
-      prisma.application.findFirst.mockResolvedValue({ id: 'app-1' });
+      prisma.application.findFirst.mockResolvedValue({ id: 'app-1' } as any);
       prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
@@ -109,7 +95,7 @@ describe('InterviewsService', () => {
   describe('findAll', () => {
     it('should return paginated interviews', async () => {
       const mockInterviews = [{ id: 'i-1' }];
-      prisma.interview.findMany.mockResolvedValue(mockInterviews);
+      prisma.interview.findMany.mockResolvedValue(mockInterviews as any);
       prisma.interview.count.mockResolvedValue(1);
 
       const result = await service.findAll({ page: 1, limit: 10 });
@@ -142,7 +128,7 @@ describe('InterviewsService', () => {
   describe('findOne', () => {
     it('should return interview by ID', async () => {
       const mockInterview = { id: 'i-1', applicationId: 'app-1' };
-      prisma.interview.findFirst.mockResolvedValue(mockInterview);
+      prisma.interview.findFirst.mockResolvedValue(mockInterview as any);
 
       const result = await service.findOne('i-1');
       expect(result.id).toBe('i-1');
@@ -159,11 +145,11 @@ describe('InterviewsService', () => {
 
   describe('update', () => {
     it('should update interview fields', async () => {
-      prisma.interview.findFirst.mockResolvedValue({ id: 'i-1' });
+      prisma.interview.findFirst.mockResolvedValue({ id: 'i-1' } as any);
       prisma.interview.update.mockResolvedValue({
         id: 'i-1',
         notes: 'Updated notes',
-      });
+      } as any);
 
       const result = await service.update('i-1', { notes: 'Updated notes' });
       expect(result.notes).toBe('Updated notes');
@@ -180,11 +166,11 @@ describe('InterviewsService', () => {
 
   describe('remove', () => {
     it('should cancel interview by updating status', async () => {
-      prisma.interview.findFirst.mockResolvedValue({ id: 'i-1' });
+      prisma.interview.findFirst.mockResolvedValue({ id: 'i-1' } as any);
       prisma.interview.update.mockResolvedValue({
         id: 'i-1',
         status: 'CANCELLED',
-      });
+      } as any);
 
       await service.remove('i-1');
 

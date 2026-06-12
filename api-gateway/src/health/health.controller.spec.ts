@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { HealthController } from './health.controller';
 import {
@@ -76,7 +77,7 @@ describe('HealthController', () => {
       const result = await controller.check();
 
       expect(result).toEqual(mockResult);
-      expect(healthCheckService.check).toHaveBeenCalled();
+      expect(jest.mocked(healthCheckService.check)).toHaveBeenCalled();
     });
 
     it('should call memory health indicators', async () => {
@@ -91,14 +92,12 @@ describe('HealthController', () => {
 
       await controller.check();
 
-      expect(mockMemoryHealthIndicator.checkHeap).toHaveBeenCalledWith(
-        'memory_heap',
-        1000 * 1024 * 1024,
-      );
-      expect(mockMemoryHealthIndicator.checkRSS).toHaveBeenCalledWith(
-        'memory_rss',
-        1000 * 1024 * 1024,
-      );
+      expect(
+        jest.mocked(mockMemoryHealthIndicator.checkHeap),
+      ).toHaveBeenCalledWith('memory_heap', 1000 * 1024 * 1024);
+      expect(
+        jest.mocked(mockMemoryHealthIndicator.checkRSS),
+      ).toHaveBeenCalledWith('memory_rss', 1000 * 1024 * 1024);
     });
   });
 
@@ -131,7 +130,7 @@ describe('HealthController', () => {
       const result = await controller.readiness();
 
       expect(result).toEqual(mockResult);
-      expect(healthCheckService.check).toHaveBeenCalled();
+      expect(jest.mocked(healthCheckService.check)).toHaveBeenCalled();
     });
 
     it('should include database, redis, and queue health checks', async () => {
@@ -154,11 +153,15 @@ describe('HealthController', () => {
 
       await controller.readiness();
 
-      expect(mockMemoryHealthIndicator.checkHeap).toHaveBeenCalled();
-      expect(mockMemoryHealthIndicator.checkRSS).toHaveBeenCalled();
-      expect(mockPrismaService.$queryRaw).toHaveBeenCalled();
-      expect(mockRedisService.ping).toHaveBeenCalled();
-      expect(mockQueueService.isHealthy).toHaveBeenCalled();
+      expect(
+        jest.mocked(mockMemoryHealthIndicator.checkHeap),
+      ).toHaveBeenCalled();
+      expect(
+        jest.mocked(mockMemoryHealthIndicator.checkRSS),
+      ).toHaveBeenCalled();
+      expect(jest.mocked(mockPrismaService.$queryRaw)).toHaveBeenCalled();
+      expect(jest.mocked(mockRedisService.ping)).toHaveBeenCalled();
+      expect(jest.mocked(mockQueueService.isHealthy)).toHaveBeenCalled();
     });
 
     it('should propagate readiness failures from dependency indicators', async () => {
@@ -176,7 +179,7 @@ describe('HealthController', () => {
       mockRedisService.ping.mockResolvedValue('PONG');
       mockQueueService.isHealthy.mockResolvedValue(true);
 
-      await expect(controller.readiness()).rejects.toThrow(
+      await expect(jest.mocked(controller.readiness())).rejects.toThrow(
         'Prisma check failed',
       );
     });
@@ -194,7 +197,7 @@ describe('HealthController', () => {
       mockRedisService.ping.mockResolvedValue('NOT_PONG');
       mockQueueService.isHealthy.mockResolvedValue(true);
 
-      await expect(controller.readiness()).rejects.toThrow(
+      await expect(jest.mocked(controller.readiness())).rejects.toThrow(
         'Redis check failed',
       );
     });
@@ -212,7 +215,7 @@ describe('HealthController', () => {
       mockRedisService.ping.mockResolvedValue('PONG');
       mockQueueService.isHealthy.mockResolvedValue(false);
 
-      await expect(controller.readiness()).rejects.toThrow(
+      await expect(jest.mocked(controller.readiness())).rejects.toThrow(
         'RabbitMQ check failed',
       );
     });

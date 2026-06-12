@@ -59,14 +59,17 @@ describe('RedisService', () => {
       const result = await service.set('key', 'value');
 
       expect(result).toBe('OK');
-      expect(mockRedisClient.set).toHaveBeenCalledWith('key', 'value');
+      expect(jest.mocked(mockRedisClient.set)).toHaveBeenCalledWith(
+        'key',
+        'value',
+      );
     });
 
     it('should set a value with TTL', async () => {
       const result = await service.set('key', 'value', 3600);
 
       expect(result).toBe('OK');
-      expect(mockRedisClient.set).toHaveBeenCalledWith(
+      expect(jest.mocked(mockRedisClient.set)).toHaveBeenCalledWith(
         'key',
         'value',
         'EX',
@@ -80,7 +83,7 @@ describe('RedisService', () => {
       const result = await service.get('key');
 
       expect(result).toBe('test-value');
-      expect(mockRedisClient.get).toHaveBeenCalledWith('key');
+      expect(jest.mocked(mockRedisClient.get)).toHaveBeenCalledWith('key');
     });
 
     it('should return null for non-existent key', async () => {
@@ -97,7 +100,7 @@ describe('RedisService', () => {
       const result = await service.del('key');
 
       expect(result).toBe(1);
-      expect(mockRedisClient.del).toHaveBeenCalledWith('key');
+      expect(jest.mocked(mockRedisClient.del)).toHaveBeenCalledWith('key');
     });
   });
 
@@ -106,7 +109,7 @@ describe('RedisService', () => {
       const result = await service.exists('key');
 
       expect(result).toBe(1);
-      expect(mockRedisClient.exists).toHaveBeenCalledWith('key');
+      expect(jest.mocked(mockRedisClient.exists)).toHaveBeenCalledWith('key');
     });
 
     it('should return 0 for non-existent key', async () => {
@@ -123,7 +126,7 @@ describe('RedisService', () => {
       const result = await service.ping();
 
       expect(result).toBe('PONG');
-      expect(mockRedisClient.ping).toHaveBeenCalled();
+      expect(jest.mocked(mockRedisClient.ping)).toHaveBeenCalled();
     });
   });
 
@@ -131,7 +134,7 @@ describe('RedisService', () => {
     it('should quit redis connection', async () => {
       await service.onModuleDestroy();
 
-      expect(mockRedisClient.quit).toHaveBeenCalled();
+      expect(jest.mocked(mockRedisClient.quit)).toHaveBeenCalled();
     });
   });
 
@@ -148,7 +151,7 @@ describe('RedisService', () => {
       const result = await service.incr('counter');
 
       expect(result).toBe(1);
-      expect(mockRedisClient.incr).toHaveBeenCalledWith('counter');
+      expect(jest.mocked(mockRedisClient.incr)).toHaveBeenCalledWith('counter');
     });
 
     it('should return incremented value', async () => {
@@ -165,7 +168,10 @@ describe('RedisService', () => {
       const result = await service.expire('key', 3600);
 
       expect(result).toBe(1);
-      expect(mockRedisClient.expire).toHaveBeenCalledWith('key', 3600);
+      expect(jest.mocked(mockRedisClient.expire)).toHaveBeenCalledWith(
+        'key',
+        3600,
+      );
     });
 
     it('should return 0 if key does not exist', async () => {
@@ -182,7 +188,7 @@ describe('RedisService', () => {
       const result = await service.ttl('key');
 
       expect(result).toBe(3600);
-      expect(mockRedisClient.ttl).toHaveBeenCalledWith('key');
+      expect(jest.mocked(mockRedisClient.ttl)).toHaveBeenCalledWith('key');
     });
 
     it('should return -1 if key has no expiration', async () => {

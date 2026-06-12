@@ -1,28 +1,22 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { EmailTemplatesService } from './email-templates.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspaceContextService } from '../common/services/workspace-context.service';
+import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { PrismaClient } from '@prisma/client';
 
 describe('EmailTemplatesService', () => {
   let service: EmailTemplatesService;
-  let prisma: jest.Mocked<PrismaService>;
-  let workspaceContext: jest.Mocked<WorkspaceContextService>;
+  let prisma: DeepMockProxy<PrismaClient>;
+  let workspaceContext: WorkspaceContextService;
 
   const mockWorkspaceId = 'ws-123';
 
   beforeEach(async () => {
-    const prismaMock = {
-      emailTemplate: {
-        create: jest.fn(),
-        findMany: jest.fn(),
-        count: jest.fn(),
-        findFirst: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-      },
-    };
-
     const workspaceContextMock = {
       getWorkspaceId: jest.fn().mockReturnValue(mockWorkspaceId),
     };
@@ -30,7 +24,7 @@ describe('EmailTemplatesService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmailTemplatesService,
-        { provide: PrismaService, useValue: prismaMock },
+        { provide: PrismaService, useValue: mockDeep<PrismaClient>() },
         { provide: WorkspaceContextService, useValue: workspaceContextMock },
       ],
     }).compile();
@@ -57,9 +51,7 @@ describe('EmailTemplatesService', () => {
         workspaceId: mockWorkspaceId,
       };
 
-      (prisma.emailTemplate.create as jest.Mock).mockResolvedValue(
-        expectedTemplate,
-      );
+      prisma.emailTemplate.create.mockResolvedValue(expectedTemplate as any);
 
       const result = await service.create(dto);
 
@@ -77,8 +69,8 @@ describe('EmailTemplatesService', () => {
   describe('findAll', () => {
     it('should return paginated templates with no filters', async () => {
       const templates = [{ id: 'tpl-1' }, { id: 'tpl-2' }];
-      (prisma.emailTemplate.findMany as jest.Mock).mockResolvedValue(templates);
-      (prisma.emailTemplate.count as jest.Mock).mockResolvedValue(2);
+      prisma.emailTemplate.findMany.mockResolvedValue(templates as any);
+      prisma.emailTemplate.count.mockResolvedValue(2);
 
       const result = await service.findAll({});
 
@@ -96,8 +88,8 @@ describe('EmailTemplatesService', () => {
     });
 
     it('should apply search filters', async () => {
-      (prisma.emailTemplate.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.emailTemplate.count as jest.Mock).mockResolvedValue(0);
+      prisma.emailTemplate.findMany.mockResolvedValue([]);
+      prisma.emailTemplate.count.mockResolvedValue(0);
 
       await service.findAll({ search: 'welcome', page: 2, limit: 5 });
 
@@ -119,7 +111,7 @@ describe('EmailTemplatesService', () => {
   describe('findOne', () => {
     it('should return a template if found', async () => {
       const template = { id: 'tpl-1' };
-      (prisma.emailTemplate.findFirst as jest.Mock).mockResolvedValue(template);
+      prisma.emailTemplate.findFirst.mockResolvedValue(template as any);
 
       const result = await service.findOne('tpl-1');
 
@@ -131,7 +123,7 @@ describe('EmailTemplatesService', () => {
     });
 
     it('should throw NotFoundException if template not found', async () => {
-      (prisma.emailTemplate.findFirst as jest.Mock).mockResolvedValue(null);
+      prisma.emailTemplate.findFirst.mockResolvedValue(null);
 
       await expect(service.findOne('tpl-1')).rejects.toThrow(NotFoundException);
     });
@@ -144,12 +136,8 @@ describe('EmailTemplatesService', () => {
       const updatedTemplate = { ...existingTemplate, ...dto };
 
       // Mock findOne (which uses prisma.emailTemplate.findFirst)
-      (prisma.emailTemplate.findFirst as jest.Mock).mockResolvedValue(
-        existingTemplate,
-      );
-      (prisma.emailTemplate.update as jest.Mock).mockResolvedValue(
-        updatedTemplate,
-      );
+      prisma.emailTemplate.findFirst.mockResolvedValue(existingTemplate as any);
+      prisma.emailTemplate.update.mockResolvedValue(updatedTemplate as any);
 
       const result = await service.update('tpl-1', dto);
 
@@ -168,12 +156,8 @@ describe('EmailTemplatesService', () => {
     it('should delete an existing template', async () => {
       const existingTemplate = { id: 'tpl-1' };
 
-      (prisma.emailTemplate.findFirst as jest.Mock).mockResolvedValue(
-        existingTemplate,
-      );
-      (prisma.emailTemplate.delete as jest.Mock).mockResolvedValue(
-        existingTemplate,
-      );
+      prisma.emailTemplate.findFirst.mockResolvedValue(existingTemplate as any);
+      prisma.emailTemplate.delete.mockResolvedValue(existingTemplate as any);
 
       await service.remove('tpl-1');
 

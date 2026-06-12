@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { CallHandler, ExecutionContext, Logger } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
 import { RequestLoggerInterceptor } from './request-logger.interceptor';
@@ -72,7 +73,7 @@ describe('RequestLoggerInterceptor', () => {
 
       interceptor.intercept(mockContext, mockCallHandler).subscribe({
         next: () => {
-          expect(Logger.prototype.log).toHaveBeenCalled();
+          expect(jest.mocked(Logger.prototype.log)).toHaveBeenCalled();
           done();
         },
         error: done.fail,
@@ -86,7 +87,7 @@ describe('RequestLoggerInterceptor', () => {
 
       interceptor.intercept(mockContext, mockCallHandler).subscribe({
         next: () => {
-          expect(mockResponse.setHeader).toHaveBeenCalledWith(
+          expect(jest.mocked(mockResponse.setHeader)).toHaveBeenCalledWith(
             'x-request-id',
             expect.any(String),
           );
@@ -104,7 +105,7 @@ describe('RequestLoggerInterceptor', () => {
 
       interceptor.intercept(mockContext, mockCallHandler).subscribe({
         next: () => {
-          expect(mockResponse.setHeader).toHaveBeenCalledWith(
+          expect(jest.mocked(mockResponse.setHeader)).toHaveBeenCalledWith(
             'x-request-id',
             customId,
           );
@@ -121,7 +122,7 @@ describe('RequestLoggerInterceptor', () => {
 
       interceptor.intercept(mockContext, mockCallHandler).subscribe({
         error: () => {
-          expect(Logger.prototype.error).toHaveBeenCalled();
+          expect(jest.mocked(Logger.prototype.error)).toHaveBeenCalled();
           done();
         },
       });
@@ -133,7 +134,7 @@ describe('RequestLoggerInterceptor', () => {
 
       interceptor.intercept(mockContext, mockCallHandler).subscribe({
         next: () => {
-          expect(Logger.prototype.log).toHaveBeenCalled();
+          expect(jest.mocked(Logger.prototype.log)).toHaveBeenCalled();
           done();
         },
         error: done.fail,
@@ -147,7 +148,7 @@ describe('RequestLoggerInterceptor', () => {
 
       interceptor.intercept(mockContext, mockCallHandler).subscribe({
         next: () => {
-          expect(mockResponse.setHeader).toHaveBeenCalledWith(
+          expect(jest.mocked(mockResponse.setHeader)).toHaveBeenCalledWith(
             'x-request-id',
             expect.stringMatching(
               /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
@@ -185,7 +186,7 @@ describe('RequestLoggerInterceptor', () => {
 
       interceptor.intercept(mockContext, mockCallHandler).subscribe({
         next: () => {
-          expect(mockResponse.setHeader).toHaveBeenCalledWith(
+          expect(jest.mocked(mockResponse.setHeader)).toHaveBeenCalledWith(
             'x-request-id',
             'array-id-1',
           );
@@ -222,7 +223,7 @@ describe('RequestLoggerInterceptor', () => {
 
       interceptor.intercept(mockContext, mockCallHandler).subscribe({
         next: () => {
-          expect(mockResponse.setHeader).toHaveBeenCalledWith(
+          expect(jest.mocked(mockResponse.setHeader)).toHaveBeenCalledWith(
             'x-request-id',
             'express-request-id',
           );

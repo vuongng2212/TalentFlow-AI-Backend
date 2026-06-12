@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { PrismaService } from './prisma.service';
 
 // Mock PrismaClient
@@ -25,7 +26,7 @@ describe('PrismaService', () => {
     it('should connect to database', async () => {
       await service.onModuleInit();
 
-      expect(service.$connect).toHaveBeenCalled();
+      expect(jest.mocked(service.$connect)).toHaveBeenCalled();
     });
   });
 
@@ -33,7 +34,7 @@ describe('PrismaService', () => {
     it('should disconnect from database', async () => {
       await service.onModuleDestroy();
 
-      expect(service.$disconnect).toHaveBeenCalled();
+      expect(jest.mocked(service.$disconnect)).toHaveBeenCalled();
     });
   });
 });

@@ -26,8 +26,12 @@ describe('appConfigSchema', () => {
     };
 
     expect(error).toBeUndefined();
-    expect(value.JWT_ACCESS_SECRET).toBe('test-access-secret-change-me');
-    expect(value.JWT_REFRESH_SECRET).toBe('test-refresh-secret-change-me');
+    expect(jest.mocked(value.JWT_ACCESS_SECRET)).toBe(
+      'test-access-secret-change-me',
+    );
+    expect(jest.mocked(value.JWT_REFRESH_SECRET)).toBe(
+      'test-refresh-secret-change-me',
+    );
   });
 
   it('should pass in development when JWT secrets are provided', () => {
@@ -53,9 +57,9 @@ describe('appConfigSchema', () => {
     };
 
     expect(error).toBeUndefined();
-    expect(value.RABBITMQ_HEARTBEAT_SEC).toBe(30);
-    expect(value.RABBITMQ_RECONNECT_INITIAL_DELAY_MS).toBe(1000);
-    expect(value.RABBITMQ_RECONNECT_MAX_DELAY_MS).toBe(30000);
+    expect(jest.mocked(value.RABBITMQ_HEARTBEAT_SEC)).toBe(30);
+    expect(jest.mocked(value.RABBITMQ_RECONNECT_INITIAL_DELAY_MS)).toBe(1000);
+    expect(jest.mocked(value.RABBITMQ_RECONNECT_MAX_DELAY_MS)).toBe(30000);
   });
 
   it('should require amqps protocol for RabbitMQ in production', () => {

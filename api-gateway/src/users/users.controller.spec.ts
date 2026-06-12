@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
@@ -71,7 +72,7 @@ describe('UsersController', () => {
       const result = await controller.findAll(queryDto);
 
       expect(result).toEqual(expectedResult);
-      expect(service.findAll).toHaveBeenCalledWith(queryDto);
+      expect(jest.mocked(service.findAll)).toHaveBeenCalledWith(queryDto);
     });
   });
 
@@ -82,7 +83,7 @@ describe('UsersController', () => {
       const result = await controller.findOne('1');
 
       expect(result).toEqual(mockUser);
-      expect(service.findOneProfile).toHaveBeenCalledWith('1');
+      expect(jest.mocked(service.findOneProfile)).toHaveBeenCalledWith('1');
     });
   });
 
@@ -100,7 +101,7 @@ describe('UsersController', () => {
       );
 
       expect(result).toEqual(expectedResult);
-      expect(service.updateProfile).toHaveBeenCalledWith(
+      expect(jest.mocked(service.updateProfile)).toHaveBeenCalledWith(
         '1',
         mockUserPayload.id,
         mockUserPayload.role,
@@ -119,7 +120,10 @@ describe('UsersController', () => {
       const result = await controller.updateRole('1', updateRoleDto);
 
       expect(result).toEqual(expectedResult);
-      expect(service.updateRole).toHaveBeenCalledWith('1', Role.RECRUITER);
+      expect(jest.mocked(service.updateRole)).toHaveBeenCalledWith(
+        '1',
+        Role.RECRUITER,
+      );
     });
   });
 
@@ -129,7 +133,7 @@ describe('UsersController', () => {
 
       await controller.remove('1');
 
-      expect(service.softDeleteUser).toHaveBeenCalledWith('1');
+      expect(jest.mocked(service.softDeleteUser)).toHaveBeenCalledWith('1');
     });
   });
 });

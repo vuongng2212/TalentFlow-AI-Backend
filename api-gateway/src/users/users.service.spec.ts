@@ -1,46 +1,16 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { Role, WorkspaceMemberStatus } from '@prisma/client';
+import { Role, WorkspaceMemberStatus, PrismaClient } from '@prisma/client';
+import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 
 describe('UsersService', () => {
   let service: UsersService;
-  let prisma: {
-    user: {
-      create: jest.Mock;
-      findUnique: jest.Mock;
-      findMany: jest.Mock;
-      count: jest.Mock;
-      update: jest.Mock;
-    };
-    workspace: {
-      create: jest.Mock;
-    };
-    workspaceMember: {
-      create: jest.Mock;
-      findFirst: jest.Mock;
-    };
-    $transaction: jest.Mock;
-  };
-
-  const mockPrismaService = {
-    user: {
-      create: jest.fn(),
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      count: jest.fn(),
-      update: jest.fn(),
-    },
-    workspace: {
-      create: jest.fn(),
-    },
-    workspaceMember: {
-      create: jest.fn(),
-      findFirst: jest.fn(),
-    },
-    $transaction: jest.fn(),
-  };
+  let prisma: DeepMockProxy<PrismaClient>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -48,7 +18,7 @@ describe('UsersService', () => {
         UsersService,
         {
           provide: PrismaService,
-          useValue: mockPrismaService,
+          useValue: mockDeep<PrismaClient>(),
         },
       ],
     }).compile();
@@ -89,7 +59,7 @@ describe('UsersService', () => {
       };
 
       // Simulate transaction body
-      mockPrismaService.$transaction.mockImplementation((fn) =>
+      prisma.$transaction.mockImplementation((fn: any) =>
         fn({
           user: {
             create: jest.fn().mockResolvedValue(newUser),
@@ -113,14 +83,14 @@ describe('UsersService', () => {
 
       expect(result.user).toEqual(updatedUser);
       expect(result.personalWorkspaceId).toBe('ws-1');
-      expect(mockPrismaService.$transaction).toHaveBeenCalled();
+      expect(prisma.$transaction).toHaveBeenCalled();
     });
   });
 
   describe('create', () => {
     it('should call prisma.user.create', async () => {
       const newUser = { id: 'user-2' };
-      mockPrismaService.user.create.mockResolvedValue(newUser);
+      prisma.user.create.mockResolvedValue(newUser as any);
 
       const result = await service.create(
         'test2@example.com',
@@ -130,19 +100,19 @@ describe('UsersService', () => {
       );
 
       expect(result).toEqual(newUser);
-      expect(mockPrismaService.user.create).toHaveBeenCalled();
+      expect(prisma.user.create).toHaveBeenCalled();
     });
   });
 
   describe('findByEmail', () => {
     it('should call prisma.user.findUnique by email', async () => {
       const user = { id: 'user-1' };
-      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      prisma.user.findUnique.mockResolvedValue(user as any);
 
       const result = await service.findByEmail('test@example.com');
 
       expect(result).toEqual(user);
-      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: 'test@example.com' },
       });
     });
@@ -151,12 +121,12 @@ describe('UsersService', () => {
   describe('findById', () => {
     it('should call prisma.user.findUnique by id', async () => {
       const user = { id: 'user-1' };
-      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      prisma.user.findUnique.mockResolvedValue(user as any);
 
       const result = await service.findById('user-1');
 
       expect(result).toEqual(user);
-      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: 'user-1' },
       });
     });
@@ -177,15 +147,15 @@ describe('UsersService', () => {
         deletedAt: null,
       };
 
-      mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
+      prisma.workspaceMember.findFirst.mockResolvedValue({
         id: 'm-1',
-      });
-      mockPrismaService.user.update.mockResolvedValue(updatedUser);
+      } as any);
+      prisma.user.update.mockResolvedValue(updatedUser as any);
 
       const result = await service.switchActiveWorkspace(userId, workspaceId);
 
       expect(result).toEqual(updatedUser);
-      expect(mockPrismaService.workspaceMember.findFirst).toHaveBeenCalledWith({
+      expect(prisma.workspaceMember.findFirst).toHaveBeenCalledWith({
         where: {
           workspaceId,
           userId,
@@ -193,7 +163,7 @@ describe('UsersService', () => {
         },
         select: { id: true },
       });
-      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+      expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: userId },
         data: { activeWorkspaceId: workspaceId },
         select: expect.objectContaining({ activeWorkspaceId: true }),
@@ -201,24 +171,24 @@ describe('UsersService', () => {
     });
 
     it('should throw ForbiddenException when user is not an active member', async () => {
-      mockPrismaService.workspaceMember.findFirst.mockResolvedValue(null);
+      prisma.workspaceMember.findFirst.mockResolvedValue(null);
 
       await expect(
         service.switchActiveWorkspace('user-1', 'ws-99'),
       ).rejects.toThrow(ForbiddenException);
-      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
+      expect(prisma.user.update).not.toHaveBeenCalled();
     });
   });
 
   describe('findAll', () => {
     it('should return paginated users with no filters', async () => {
       const users = [{ id: '1' }, { id: '2' }];
-      mockPrismaService.user.findMany.mockResolvedValue(users);
-      mockPrismaService.user.count.mockResolvedValue(2);
+      prisma.user.findMany.mockResolvedValue(users as any);
+      prisma.user.count.mockResolvedValue(2);
 
       const result = await service.findAll({});
 
-      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+      expect(prisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { deletedAt: null },
           skip: 0,
@@ -233,8 +203,8 @@ describe('UsersService', () => {
     });
 
     it('should apply search and role filters', async () => {
-      mockPrismaService.user.findMany.mockResolvedValue([]);
-      mockPrismaService.user.count.mockResolvedValue(0);
+      prisma.user.findMany.mockResolvedValue([]);
+      prisma.user.count.mockResolvedValue(0);
 
       await service.findAll({
         search: 'test',
@@ -243,7 +213,7 @@ describe('UsersService', () => {
         limit: 5,
       });
 
-      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+      expect(prisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
             deletedAt: null,
@@ -263,7 +233,7 @@ describe('UsersService', () => {
   describe('findOneProfile', () => {
     it('should return user profile if found', async () => {
       const user = { id: '1' };
-      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      prisma.user.findUnique.mockResolvedValue(user as any);
 
       const result = await service.findOneProfile('1');
 
@@ -271,7 +241,7 @@ describe('UsersService', () => {
     });
 
     it('should throw NotFoundException if user not found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(service.findOneProfile('1')).rejects.toThrow(
         NotFoundException,
@@ -282,12 +252,12 @@ describe('UsersService', () => {
   describe('update', () => {
     it('should update user', async () => {
       const updatedUser = { id: '1' };
-      mockPrismaService.user.update.mockResolvedValue(updatedUser);
+      prisma.user.update.mockResolvedValue(updatedUser as any);
 
       const result = await service.update('1', { fullName: 'Updated' });
 
       expect(result).toEqual(updatedUser);
-      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+      expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: '1' },
         data: { fullName: 'Updated' },
       });
@@ -297,15 +267,15 @@ describe('UsersService', () => {
   describe('updateProfile', () => {
     it('should allow user to update own profile', async () => {
       const updatedUser = { id: '1', fullName: 'New Name' };
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: '1' });
-      mockPrismaService.user.update.mockResolvedValue(updatedUser);
+      prisma.user.findUnique.mockResolvedValue({ id: '1' } as any);
+      prisma.user.update.mockResolvedValue(updatedUser as any);
 
       const result = await service.updateProfile('1', '1', 'RECRUITER', {
         fullName: 'New Name',
       });
 
       expect(result).toEqual(updatedUser);
-      expect(mockPrismaService.user.update).toHaveBeenCalledWith(
+      expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: '1' },
           data: { fullName: 'New Name' },
@@ -315,8 +285,8 @@ describe('UsersService', () => {
 
     it('should allow admin to update other profile', async () => {
       const updatedUser = { id: '2', fullName: 'New Name' };
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: '2' });
-      mockPrismaService.user.update.mockResolvedValue(updatedUser);
+      prisma.user.findUnique.mockResolvedValue({ id: '2' } as any);
+      prisma.user.update.mockResolvedValue(updatedUser as any);
 
       const result = await service.updateProfile('2', '1', 'ADMIN', {
         fullName: 'New Name',
@@ -332,7 +302,7 @@ describe('UsersService', () => {
     });
 
     it('should throw NotFoundException if user not found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
         service.updateProfile('1', '1', 'RECRUITER', { fullName: 'New Name' }),
@@ -343,13 +313,13 @@ describe('UsersService', () => {
   describe('updateRole', () => {
     it('should update role if user exists', async () => {
       const updatedUser = { id: '1', role: Role.ADMIN };
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: '1' });
-      mockPrismaService.user.update.mockResolvedValue(updatedUser);
+      prisma.user.findUnique.mockResolvedValue({ id: '1' } as any);
+      prisma.user.update.mockResolvedValue(updatedUser as any);
 
       const result = await service.updateRole('1', Role.ADMIN);
 
       expect(result).toEqual(updatedUser);
-      expect(mockPrismaService.user.update).toHaveBeenCalledWith(
+      expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: '1' },
           data: { role: Role.ADMIN },
@@ -358,7 +328,7 @@ describe('UsersService', () => {
     });
 
     it('should throw NotFoundException if user not found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(service.updateRole('1', Role.ADMIN)).rejects.toThrow(
         NotFoundException,
@@ -368,11 +338,11 @@ describe('UsersService', () => {
 
   describe('softDelete', () => {
     it('should update deletedAt', async () => {
-      mockPrismaService.user.update.mockResolvedValue({ id: '1' });
+      prisma.user.update.mockResolvedValue({ id: '1' } as any);
 
       await service.softDelete('1');
 
-      expect(mockPrismaService.user.update).toHaveBeenCalledWith(
+      expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: '1' },
           data: { deletedAt: expect.any(Date) },
@@ -383,12 +353,12 @@ describe('UsersService', () => {
 
   describe('softDeleteUser', () => {
     it('should update deletedAt if user exists', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: '1' });
-      mockPrismaService.user.update.mockResolvedValue({ id: '1' });
+      prisma.user.findUnique.mockResolvedValue({ id: '1' } as any);
+      prisma.user.update.mockResolvedValue({ id: '1' } as any);
 
       await service.softDeleteUser('1');
 
-      expect(mockPrismaService.user.update).toHaveBeenCalledWith(
+      expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: '1' },
           data: { deletedAt: expect.any(Date) },
@@ -397,14 +367,11 @@ describe('UsersService', () => {
     });
 
     it('should throw NotFoundException if user not found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(service.softDeleteUser('1')).rejects.toThrow(
         NotFoundException,
       );
     });
   });
-
-  // Suppress unused-variable warning for prisma — it is used via module.get above.
-  void prisma;
 });

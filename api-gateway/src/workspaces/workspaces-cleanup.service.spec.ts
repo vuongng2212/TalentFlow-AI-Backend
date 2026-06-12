@@ -1,42 +1,21 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { WorkspacesCleanupService } from './workspaces-cleanup.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { PrismaClient } from '@prisma/client';
 
 describe('WorkspacesCleanupService', () => {
   let service: WorkspacesCleanupService;
-  let prisma: {
-    workspaceInvitation: {
-      findMany: jest.Mock;
-      deleteMany: jest.Mock;
-    };
-    user: {
-      findMany: jest.Mock;
-    };
-    workspaceMember: {
-      updateMany: jest.Mock;
-    };
-    $transaction: jest.Mock;
-  };
-
-  const mockPrismaService = {
-    workspaceInvitation: {
-      findMany: jest.fn(),
-      deleteMany: jest.fn(),
-    },
-    user: {
-      findMany: jest.fn(),
-    },
-    workspaceMember: {
-      updateMany: jest.fn(),
-    },
-    $transaction: jest.fn(),
-  };
+  let prisma: DeepMockProxy<PrismaClient>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WorkspacesCleanupService,
-        { provide: PrismaService, useValue: mockPrismaService },
+        { provide: PrismaService, useValue: mockDeep<PrismaClient>() },
       ],
     }).compile();
 
@@ -76,10 +55,14 @@ describe('WorkspacesCleanupService', () => {
         { id: 'u-2', email: 'user2@test.com' },
       ];
 
-      prisma.workspaceInvitation.findMany.mockResolvedValue(expiredInvitations);
-      prisma.user.findMany.mockResolvedValue(matchedUsers);
+      prisma.workspaceInvitation.findMany.mockResolvedValue(
+        expiredInvitations as any,
+      );
+      prisma.user.findMany.mockResolvedValue(matchedUsers as any);
       prisma.$transaction.mockResolvedValue(true);
-      prisma.workspaceInvitation.deleteMany.mockResolvedValue({ count: 3 });
+      prisma.workspaceInvitation.deleteMany.mockResolvedValue({
+        count: 3,
+      });
 
       await service.cleanExpiredInvitations();
 
