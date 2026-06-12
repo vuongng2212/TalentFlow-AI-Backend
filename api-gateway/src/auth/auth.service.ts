@@ -123,6 +123,7 @@ export class AuthService {
         email: user.email,
         fullName: user.fullName,
         role: user.role,
+        activeWorkspaceId: user.activeWorkspaceId,
         createdAt: user.createdAt,
       },
     };
@@ -174,6 +175,20 @@ export class AuthService {
       ip: context?.ip,
       details: { tokenId },
     });
+  }
+
+  async getProfile(userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+      activeWorkspaceId: user.activeWorkspaceId,
+    };
   }
 
   async getLoginAttempts(email: string): Promise<number> {

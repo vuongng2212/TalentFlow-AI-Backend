@@ -536,4 +536,37 @@ describe('AuthService', () => {
       );
     });
   });
+
+  describe('getProfile', () => {
+    it('should return user profile with activeWorkspaceId', async () => {
+      const user = {
+        id: 'uuid',
+        email: 'test@example.com',
+        fullName: 'Test User',
+        role: Role.RECRUITER,
+        activeWorkspaceId: 'ws-123',
+      };
+
+      mockUsersService.findById.mockResolvedValue(user);
+
+      const result = await service.getProfile('uuid');
+
+      expect(result).toEqual({
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        activeWorkspaceId: user.activeWorkspaceId,
+      });
+      expect(mockUsersService.findById).toHaveBeenCalledWith('uuid');
+    });
+
+    it('should throw UnauthorizedException if user is not found', async () => {
+      mockUsersService.findById.mockResolvedValue(null);
+
+      await expect(service.getProfile('uuid')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
 });
