@@ -99,7 +99,6 @@ describe('ElkLoggerService', () => {
 
   describe('ELK transport', () => {
     it('should not add ELK transport when ELK_HOST is not configured', () => {
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(configService.get).toHaveBeenCalledWith('ELK_HOST');
     });
 

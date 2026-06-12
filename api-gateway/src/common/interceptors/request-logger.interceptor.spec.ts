@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { CallHandler, ExecutionContext, Logger } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
 import { RequestLoggerInterceptor } from './request-logger.interceptor';
