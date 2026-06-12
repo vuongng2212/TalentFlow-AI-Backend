@@ -59,9 +59,8 @@ describe('QueueMetricsCollector', () => {
 
       await collector.onModuleInit();
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(queueService.getQueueStats).toHaveBeenCalled();
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(configService.get).toHaveBeenCalledWith(
         'QUEUE_METRICS_POLL_INTERVAL_MS',
         30000,
@@ -74,7 +73,6 @@ describe('QueueMetricsCollector', () => {
 
       await collector.onModuleInit();
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(configService.get).toHaveBeenCalledWith(
         'QUEUE_METRICS_POLL_INTERVAL_MS',
         30000,
@@ -92,7 +90,6 @@ describe('QueueMetricsCollector', () => {
 
       await collector.collectMetrics();
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(queueService.getQueueStats).toHaveBeenCalled();
 
       const metrics = await mockRegistry.getMetricsAsJSON();

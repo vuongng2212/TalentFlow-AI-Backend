@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { CallHandler, ExecutionContext } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
 import { MetricsInterceptor } from './metrics.interceptor';
