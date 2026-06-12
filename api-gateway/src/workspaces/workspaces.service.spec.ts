@@ -800,9 +800,9 @@ describe('WorkspacesService', () => {
     it('should throw NotFoundException when workspace does not exist', async () => {
       mockPrismaService.workspace.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.findOne('ws-missing', 'user-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('ws-missing', 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw ForbiddenException when requester is not an active member', async () => {
@@ -818,9 +818,9 @@ describe('WorkspacesService', () => {
       // ensureMemberAccess uses workspaceMember.findFirst — return null = not a member
       mockPrismaService.workspaceMember.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.findOne('ws-1', 'stranger-1'),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.findOne('ws-1', 'stranger-1')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should return workspace detail with memberRole and memberCount for an active member', async () => {
@@ -838,7 +838,9 @@ describe('WorkspacesService', () => {
         members,
       });
       // ensureMemberAccess succeeds
-      mockPrismaService.workspaceMember.findFirst.mockResolvedValue({ id: 'wm-1' });
+      mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
+        id: 'wm-1',
+      });
 
       const result = await service.findOne('ws-1', 'user-1');
 
@@ -865,7 +867,9 @@ describe('WorkspacesService', () => {
         updatedAt: new Date(),
         members: [{ userId: 'owner-1', role: WorkspaceMemberRole.OWNER }],
       });
-      mockPrismaService.workspaceMember.findFirst.mockResolvedValue({ id: 'wm-x' });
+      mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
+        id: 'wm-x',
+      });
 
       const result = await service.findOne('ws-1', 'user-not-in-list');
 
@@ -883,7 +887,9 @@ describe('WorkspacesService', () => {
         updatedAt: new Date(),
         members: [{ userId: 'u1', role: WorkspaceMemberRole.OWNER }],
       });
-      mockPrismaService.workspaceMember.findFirst.mockResolvedValue({ id: 'wm-1' });
+      mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
+        id: 'wm-1',
+      });
 
       await service.findOne('ws-1', 'u1');
 
@@ -925,7 +931,9 @@ describe('WorkspacesService', () => {
     });
 
     it('should throw ForbiddenException when requester has RECRUITER role', async () => {
-      mockPrismaService.workspace.findUnique.mockResolvedValue(workspaceFixture);
+      mockPrismaService.workspace.findUnique.mockResolvedValue(
+        workspaceFixture,
+      );
       mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.RECRUITER,
       });
@@ -936,7 +944,9 @@ describe('WorkspacesService', () => {
     });
 
     it('should throw ForbiddenException when requester has VIEWER role', async () => {
-      mockPrismaService.workspace.findUnique.mockResolvedValue(workspaceFixture);
+      mockPrismaService.workspace.findUnique.mockResolvedValue(
+        workspaceFixture,
+      );
       mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.VIEWER,
       });
@@ -947,7 +957,9 @@ describe('WorkspacesService', () => {
     });
 
     it('should throw ForbiddenException when requester is not a member', async () => {
-      mockPrismaService.workspace.findUnique.mockResolvedValue(workspaceFixture);
+      mockPrismaService.workspace.findUnique.mockResolvedValue(
+        workspaceFixture,
+      );
       mockPrismaService.workspaceMember.findFirst.mockResolvedValue(null);
 
       await expect(
@@ -958,7 +970,9 @@ describe('WorkspacesService', () => {
     it('should update workspace name when called by OWNER', async () => {
       const updated = { ...workspaceFixture, name: 'New Name' };
 
-      mockPrismaService.workspace.findUnique.mockResolvedValue(workspaceFixture);
+      mockPrismaService.workspace.findUnique.mockResolvedValue(
+        workspaceFixture,
+      );
       mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
       });
@@ -980,7 +994,9 @@ describe('WorkspacesService', () => {
     it('should update workspace name when called by ADMIN', async () => {
       const updated = { ...workspaceFixture, name: 'Admin Rename' };
 
-      mockPrismaService.workspace.findUnique.mockResolvedValue(workspaceFixture);
+      mockPrismaService.workspace.findUnique.mockResolvedValue(
+        workspaceFixture,
+      );
       mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.ADMIN,
       });
@@ -996,11 +1012,15 @@ describe('WorkspacesService', () => {
     it('should upgrade workspace to business plan when isBusiness is set to true', async () => {
       const upgraded = { ...workspaceFixture, isBusiness: true };
 
-      mockPrismaService.workspace.findUnique.mockResolvedValue(workspaceFixture);
+      mockPrismaService.workspace.findUnique.mockResolvedValue(
+        workspaceFixture,
+      );
       mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
       });
-      mockPrismaService.workspace.update = jest.fn().mockResolvedValue(upgraded);
+      mockPrismaService.workspace.update = jest
+        .fn()
+        .mockResolvedValue(upgraded);
 
       const result = await service.update('ws-1', 'owner-1', {
         isBusiness: true,
@@ -1015,9 +1035,15 @@ describe('WorkspacesService', () => {
     });
 
     it('should allow updating name and isBusiness simultaneously', async () => {
-      const updated = { ...workspaceFixture, name: 'Acme Biz', isBusiness: true };
+      const updated = {
+        ...workspaceFixture,
+        name: 'Acme Biz',
+        isBusiness: true,
+      };
 
-      mockPrismaService.workspace.findUnique.mockResolvedValue(workspaceFixture);
+      mockPrismaService.workspace.findUnique.mockResolvedValue(
+        workspaceFixture,
+      );
       mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
       });
@@ -1040,7 +1066,9 @@ describe('WorkspacesService', () => {
       // Only isBusiness provided — name must NOT appear in data
       const updated = { ...workspaceFixture, isBusiness: true };
 
-      mockPrismaService.workspace.findUnique.mockResolvedValue(workspaceFixture);
+      mockPrismaService.workspace.findUnique.mockResolvedValue(
+        workspaceFixture,
+      );
       mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
       });
@@ -1048,7 +1076,7 @@ describe('WorkspacesService', () => {
 
       await service.update('ws-1', 'owner-1', { isBusiness: true });
 
-      const callArg = (mockPrismaService.workspace.update as jest.Mock).mock.calls[0][0];
+      const callArg = mockPrismaService.workspace.update.mock.calls[0][0];
       expect(callArg.data).not.toHaveProperty('name');
       expect(callArg.data).toEqual({ isBusiness: true });
     });
@@ -1063,11 +1091,15 @@ describe('WorkspacesService', () => {
         updatedAt: new Date(),
       };
 
-      mockPrismaService.workspace.findUnique.mockResolvedValue(workspaceFixture);
+      mockPrismaService.workspace.findUnique.mockResolvedValue(
+        workspaceFixture,
+      );
       mockPrismaService.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
       });
-      mockPrismaService.workspace.update = jest.fn().mockResolvedValue(updatedRecord);
+      mockPrismaService.workspace.update = jest
+        .fn()
+        .mockResolvedValue(updatedRecord);
 
       await service.update('ws-1', 'owner-1', { name: 'Selected' });
 
@@ -1086,4 +1118,3 @@ describe('WorkspacesService', () => {
     });
   });
 });
-

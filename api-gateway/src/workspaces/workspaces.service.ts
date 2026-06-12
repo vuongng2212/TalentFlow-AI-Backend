@@ -133,7 +133,9 @@ export class WorkspacesService {
 
     await this.ensureMemberAccess(workspaceId, requesterId);
 
-    const myMembership = workspace.members.find((m) => m.userId === requesterId);
+    const myMembership = workspace.members.find(
+      (m) => m.userId === requesterId,
+    );
 
     return {
       id: workspace.id,
