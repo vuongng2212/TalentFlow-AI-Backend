@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { EmailTemplatesController } from './email-templates.controller';
 import { EmailTemplatesService } from './email-templates.service';
@@ -46,8 +49,10 @@ describe('EmailTemplatesController', () => {
 
       const result = await controller.create(dto);
 
-      expect(service.create).toHaveBeenCalledWith(dto);
-      expect(EmailTemplateResponseDto.from).toHaveBeenCalledWith(template);
+      expect(jest.mocked(service.create)).toHaveBeenCalledWith(dto);
+      expect(jest.mocked(EmailTemplateResponseDto.from)).toHaveBeenCalledWith(
+        template,
+      );
       expect(result).toEqual(template);
     });
   });
@@ -63,7 +68,7 @@ describe('EmailTemplatesController', () => {
 
       const result = await controller.findAll(query);
 
-      expect(service.findAll).toHaveBeenCalledWith(query);
+      expect(jest.mocked(service.findAll)).toHaveBeenCalledWith(query);
       expect(result).toEqual(response);
     });
   });
@@ -86,8 +91,10 @@ describe('EmailTemplatesController', () => {
 
       const result = await controller.findOne(id);
 
-      expect(service.findOne).toHaveBeenCalledWith(id);
-      expect(EmailTemplateResponseDto.from).toHaveBeenCalledWith(template);
+      expect(jest.mocked(service.findOne)).toHaveBeenCalledWith(id);
+      expect(jest.mocked(EmailTemplateResponseDto.from)).toHaveBeenCalledWith(
+        template,
+      );
       expect(result).toEqual(template);
     });
   });
@@ -112,8 +119,10 @@ describe('EmailTemplatesController', () => {
 
       const result = await controller.update(id, dto);
 
-      expect(service.update).toHaveBeenCalledWith(id, dto);
-      expect(EmailTemplateResponseDto.from).toHaveBeenCalledWith(template);
+      expect(jest.mocked(service.update)).toHaveBeenCalledWith(id, dto);
+      expect(jest.mocked(EmailTemplateResponseDto.from)).toHaveBeenCalledWith(
+        template,
+      );
       expect(result).toEqual(template);
     });
   });
@@ -125,7 +134,7 @@ describe('EmailTemplatesController', () => {
 
       await controller.remove(id);
 
-      expect(service.remove).toHaveBeenCalledWith(id);
+      expect(jest.mocked(service.remove)).toHaveBeenCalledWith(id);
     });
   });
 });

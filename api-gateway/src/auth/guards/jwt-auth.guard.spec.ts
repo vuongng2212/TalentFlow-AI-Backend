@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -63,10 +64,10 @@ describe('JwtAuthGuard', () => {
       const result = guard.canActivate(mockContext);
 
       expect(result).toBe(true);
-      expect(reflector.getAllAndOverride).toHaveBeenCalledWith(IS_PUBLIC_KEY, [
-        mockContext.getHandler(),
-        mockContext.getClass(),
-      ]);
+      expect(jest.mocked(reflector.getAllAndOverride)).toHaveBeenCalledWith(
+        IS_PUBLIC_KEY,
+        [mockContext.getHandler(), mockContext.getClass()],
+      );
     });
 
     it('should call parent canActivate for non-public routes', () => {
@@ -77,10 +78,10 @@ describe('JwtAuthGuard', () => {
 
       // Parent mock returns true
       expect(result).toBe(true);
-      expect(reflector.getAllAndOverride).toHaveBeenCalledWith(IS_PUBLIC_KEY, [
-        mockContext.getHandler(),
-        mockContext.getClass(),
-      ]);
+      expect(jest.mocked(reflector.getAllAndOverride)).toHaveBeenCalledWith(
+        IS_PUBLIC_KEY,
+        [mockContext.getHandler(), mockContext.getClass()],
+      );
     });
 
     it('should call parent canActivate when isPublic is undefined', () => {
@@ -90,7 +91,7 @@ describe('JwtAuthGuard', () => {
       const result = guard.canActivate(mockContext);
 
       expect(result).toBe(true);
-      expect(reflector.getAllAndOverride).toHaveBeenCalled();
+      expect(jest.mocked(reflector.getAllAndOverride)).toHaveBeenCalled();
     });
 
     it('should call parent canActivate when isPublic is null', () => {

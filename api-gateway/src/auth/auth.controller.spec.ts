@@ -87,12 +87,12 @@ describe('AuthController', () => {
         response as Response,
       );
 
-      expect(response.cookie).toHaveBeenCalledTimes(2);
+      expect(jest.mocked(response.cookie)).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
         message: 'Login successful',
         user: authResult.user,
       });
-      expect(mockAuthService.login).toHaveBeenCalledWith(
+      expect(jest.mocked(mockAuthService.login)).toHaveBeenCalledWith(
         dto.email,
         dto.password,
         expect.objectContaining({
@@ -126,11 +126,11 @@ describe('AuthController', () => {
         response as Response,
       );
 
-      expect(response.cookie).toHaveBeenCalledTimes(2);
+      expect(jest.mocked(response.cookie)).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
         message: 'Token refreshed successfully',
       });
-      expect(mockAuthService.refresh).toHaveBeenCalledWith(
+      expect(jest.mocked(mockAuthService.refresh)).toHaveBeenCalledWith(
         user.id,
         expect.objectContaining({
           ip: '127.0.0.1',
@@ -163,7 +163,9 @@ describe('AuthController', () => {
       expect(result).toEqual({
         user: mockProfile,
       });
-      expect(mockAuthService.getProfile).toHaveBeenCalledWith(user.id);
+      expect(jest.mocked(mockAuthService.getProfile)).toHaveBeenCalledWith(
+        user.id,
+      );
     });
   });
 
@@ -182,14 +184,14 @@ describe('AuthController', () => {
 
       await controller.logout(user, request as Request, response as Response);
 
-      expect(mockAuthService.logout).toHaveBeenCalledWith(
+      expect(jest.mocked(mockAuthService.logout)).toHaveBeenCalledWith(
         user.id,
         user.tokenId,
         expect.objectContaining({
           ip: '127.0.0.1',
         }),
       );
-      expect(response.clearCookie).toHaveBeenCalledTimes(2);
+      expect(jest.mocked(response.clearCookie)).toHaveBeenCalledTimes(2);
     });
 
     it('should handle logout without tokenId', async () => {
@@ -205,7 +207,7 @@ describe('AuthController', () => {
 
       await controller.logout(user, request as Request, response as Response);
 
-      expect(mockAuthService.logout).toHaveBeenCalledWith(
+      expect(jest.mocked(mockAuthService.logout)).toHaveBeenCalledWith(
         user.id,
         '',
         expect.any(Object),

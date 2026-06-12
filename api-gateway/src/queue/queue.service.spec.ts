@@ -109,20 +109,26 @@ describe('QueueService', () => {
       }),
     );
 
-    expect(mockChannel.assertExchange).toHaveBeenCalledWith(
+    expect(jest.mocked(mockChannel.assertExchange)).toHaveBeenCalledWith(
       TALENTFLOW_EVENTS_EXCHANGE,
       'topic',
       { durable: true },
     );
-    expect(mockChannel.assertQueue).toHaveBeenCalledWith(CV_PARSING_DLQ, {
-      durable: true,
-    });
-    expect(mockChannel.assertQueue).toHaveBeenCalledWith(CV_PROCESSING_QUEUE, {
-      durable: true,
-      deadLetterExchange: '',
-      deadLetterRoutingKey: CV_PARSING_DLQ,
-    });
-    expect(mockChannel.bindQueue).toHaveBeenCalledWith(
+    expect(jest.mocked(mockChannel.assertQueue)).toHaveBeenCalledWith(
+      CV_PARSING_DLQ,
+      {
+        durable: true,
+      },
+    );
+    expect(jest.mocked(mockChannel.assertQueue)).toHaveBeenCalledWith(
+      CV_PROCESSING_QUEUE,
+      {
+        durable: true,
+        deadLetterExchange: '',
+        deadLetterRoutingKey: CV_PARSING_DLQ,
+      },
+    );
+    expect(jest.mocked(mockChannel.bindQueue)).toHaveBeenCalledWith(
       CV_PROCESSING_QUEUE,
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_UPLOADED,
@@ -134,7 +140,7 @@ describe('QueueService', () => {
 
     await service.publishCvUploaded(mockEvent);
 
-    expect(mockChannel.publish).toHaveBeenCalledWith(
+    expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_UPLOADED,
       expect.any(Buffer),
@@ -148,15 +154,15 @@ describe('QueueService', () => {
   it('should report healthy after init', async () => {
     await service.onModuleInit();
 
-    await expect(service.isHealthy()).resolves.toBe(true);
+    await expect(jest.mocked(service.isHealthy())).resolves.toBe(true);
   });
 
   it('should close channel and connection on destroy', async () => {
     await service.onModuleInit();
     await service.onModuleDestroy();
 
-    expect(mockChannel.close).toHaveBeenCalled();
-    expect(mockConnection.close).toHaveBeenCalled();
+    expect(jest.mocked(mockChannel.close)).toHaveBeenCalled();
+    expect(jest.mocked(mockConnection.close)).toHaveBeenCalled();
   });
 
   it('should log and continue when module init fails', async () => {
@@ -166,7 +172,7 @@ describe('QueueService', () => {
       .mockImplementation(() => undefined);
     (connect as jest.Mock).mockRejectedValueOnce(new Error('connect failed'));
 
-    await expect(service.onModuleInit()).resolves.toBeUndefined();
+    await expect(jest.mocked(service.onModuleInit())).resolves.toBeUndefined();
 
     expect(logErrorSpy).toHaveBeenCalledWith(
       'Failed to connect to RabbitMQ',
@@ -179,9 +185,9 @@ describe('QueueService', () => {
       .spyOn(Logger.prototype, 'error')
       .mockImplementation(() => undefined);
 
-    await expect(service.publishCvUploaded(mockEvent)).rejects.toThrow(
-      'RabbitMQ channel not initialized',
-    );
+    await expect(
+      jest.mocked(service.publishCvUploaded(mockEvent)),
+    ).rejects.toThrow('RabbitMQ channel not initialized');
 
     expect(logErrorSpy).toHaveBeenCalledWith(
       'Cannot publish: channel not initialized',
@@ -196,9 +202,9 @@ describe('QueueService', () => {
     await service.onModuleInit();
     mockChannel.publish.mockReturnValueOnce(false);
 
-    await expect(service.publishCvUploaded(mockEvent)).rejects.toThrow(
-      'RabbitMQ outbound buffer full',
-    );
+    await expect(
+      jest.mocked(service.publishCvUploaded(mockEvent)),
+    ).rejects.toThrow('RabbitMQ outbound buffer full');
 
     expect(logErrorSpy).toHaveBeenCalledWith(
       'Message was not published - channel buffer full',
@@ -247,7 +253,7 @@ describe('QueueService', () => {
     expect(errorListener).toBeDefined();
     errorListener?.(new Error('socket closed'));
 
-    await expect(service.isHealthy()).resolves.toBe(false);
+    await expect(jest.mocked(service.isHealthy())).resolves.toBe(false);
     expect(logErrorSpy).toHaveBeenCalledWith(
       'RabbitMQ connection error',
       expect.any(Object),
@@ -264,7 +270,7 @@ describe('QueueService', () => {
     expect(closeListener).toBeDefined();
     closeListener?.();
 
-    await expect(service.isHealthy()).resolves.toBe(false);
+    await expect(jest.mocked(service.isHealthy())).resolves.toBe(false);
   });
 
   it('should log error when destroy fails', async () => {
@@ -274,7 +280,9 @@ describe('QueueService', () => {
       .mockImplementation(() => undefined);
     mockChannel.close.mockRejectedValueOnce(new Error('close failed'));
 
-    await expect(service.onModuleDestroy()).resolves.toBeUndefined();
+    await expect(
+      jest.mocked(service.onModuleDestroy()),
+    ).resolves.toBeUndefined();
 
     expect(logErrorSpy).toHaveBeenCalledWith(
       'Error closing RabbitMQ connection',

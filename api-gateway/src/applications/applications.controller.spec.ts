@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApplicationsController } from './applications.controller';
 import { ApplicationsService } from './applications.service';
@@ -90,7 +91,10 @@ describe('ApplicationsController', () => {
       const result = await controller.create(mockUser, createDto);
 
       expect(result).toEqual(mockApplication);
-      expect(service.create).toHaveBeenCalledWith(mockUser.id, createDto);
+      expect(jest.mocked(service.create)).toHaveBeenCalledWith(
+        mockUser.id,
+        createDto,
+      );
     });
   });
 
@@ -120,7 +124,11 @@ describe('ApplicationsController', () => {
       const result = await controller.uploadCv(mockUser, file, dto);
 
       expect(result).toEqual(expected);
-      expect(service.createWithCv).toHaveBeenCalledWith(mockUser.id, file, dto);
+      expect(jest.mocked(service.createWithCv)).toHaveBeenCalledWith(
+        mockUser.id,
+        file,
+        dto,
+      );
     });
   });
 
@@ -137,7 +145,7 @@ describe('ApplicationsController', () => {
       const result = await controller.findAll(mockUser, query);
 
       expect(result).toEqual(expectedResult);
-      expect(service.findAll).toHaveBeenCalledWith(
+      expect(jest.mocked(service.findAll)).toHaveBeenCalledWith(
         mockUser.id,
         mockUser.role,
         query,
@@ -160,7 +168,7 @@ describe('ApplicationsController', () => {
 
       await controller.findAll(mockRecruiterUser, query);
 
-      expect(service.findAll).toHaveBeenCalledWith(
+      expect(jest.mocked(service.findAll)).toHaveBeenCalledWith(
         mockRecruiterUser.id,
         mockRecruiterUser.role,
         query,
@@ -175,7 +183,7 @@ describe('ApplicationsController', () => {
       const result = await controller.findOne('app-1', mockUser);
 
       expect(result).toEqual(mockApplication);
-      expect(service.findOne).toHaveBeenCalledWith(
+      expect(jest.mocked(service.findOne)).toHaveBeenCalledWith(
         'app-1',
         mockUser.id,
         mockUser.role,
@@ -203,7 +211,7 @@ describe('ApplicationsController', () => {
       );
 
       expect(result).toEqual(updatedApplication);
-      expect(service.update).toHaveBeenCalledWith(
+      expect(jest.mocked(service.update)).toHaveBeenCalledWith(
         'app-1',
         mockRecruiterUser.id,
         mockRecruiterUser.role,
@@ -218,7 +226,7 @@ describe('ApplicationsController', () => {
 
       await controller.remove('app-1', mockUser);
 
-      expect(service.remove).toHaveBeenCalledWith(
+      expect(jest.mocked(service.remove)).toHaveBeenCalledWith(
         'app-1',
         mockUser.id,
         mockUser.role,

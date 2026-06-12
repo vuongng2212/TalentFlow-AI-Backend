@@ -1,26 +1,19 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { JobsService } from './jobs.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
-import { JobStatus, EmploymentType } from '@prisma/client';
+import { JobStatus, EmploymentType, PrismaClient } from '@prisma/client';
 import { WorkspaceContextService } from '../common/services/workspace-context.service';
+import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 
 describe('JobsService (Workspace-Scoped Isolation)', () => {
   let service: JobsService;
-  let prisma: PrismaService;
+  let prisma: DeepMockProxy<PrismaClient>;
 
   const WORKSPACE_ID = 'workspace-1';
-
-  const mockPrismaService = {
-    job: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-      findFirst: jest.fn(),
-      findUnique: jest.fn(),
-      update: jest.fn(),
-      count: jest.fn(),
-    },
-  };
 
   const mockWorkspaceContext = {
     getWorkspaceId: jest.fn().mockReturnValue(WORKSPACE_ID),
@@ -50,7 +43,7 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
         JobsService,
         {
           provide: PrismaService,
-          useValue: mockPrismaService,
+          useValue: mockDeep<PrismaClient>(),
         },
         {
           provide: WorkspaceContextService,
@@ -60,7 +53,7 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
     }).compile();
 
     service = module.get<JobsService>(JobsService);
-    prisma = module.get<PrismaService>(PrismaService);
+    prisma = module.get(PrismaService);
   });
 
   afterEach(() => {
@@ -76,7 +69,7 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
         status: JobStatus.OPEN,
       };
 
-      mockPrismaService.job.create.mockResolvedValue(mockJob);
+      prisma.job.create.mockResolvedValue(mockJob);
 
       const result = await service.create('user-1', createDto);
 
@@ -104,8 +97,8 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
   describe('findAll - workspace isolation', () => {
     it('should always filter by the resolved workspaceId', async () => {
       const query = { page: 1, limit: 10 };
-      mockPrismaService.job.findMany.mockResolvedValue([mockJob]);
-      mockPrismaService.job.count.mockResolvedValue(1);
+      prisma.job.findMany.mockResolvedValue([mockJob]);
+      prisma.job.count.mockResolvedValue(1);
 
       await service.findAll(query);
 
@@ -121,20 +114,20 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
 
     it('should never leak jobs from other workspaces because the where clause always includes workspaceId', async () => {
       const query = { page: 1, limit: 10, search: 'engineer' };
-      mockPrismaService.job.findMany.mockResolvedValue([mockJob]);
-      mockPrismaService.job.count.mockResolvedValue(1);
+      prisma.job.findMany.mockResolvedValue([mockJob]);
+      prisma.job.count.mockResolvedValue(1);
 
       await service.findAll(query);
 
-      const call = mockPrismaService.job.findMany.mock.calls[0][0];
+      const call = (prisma.job.findMany.mock.calls[0] as any)[0];
       expect(call.where.workspaceId).toBe(WORKSPACE_ID);
       expect(call.where.deletedAt).toBeNull();
     });
 
     it('should filter by salaryMin', async () => {
       const query = { page: 1, limit: 10, salaryMin: 50000 };
-      mockPrismaService.job.findMany.mockResolvedValue([mockJob]);
-      mockPrismaService.job.count.mockResolvedValue(1);
+      prisma.job.findMany.mockResolvedValue([mockJob]);
+      prisma.job.count.mockResolvedValue(1);
 
       await service.findAll(query);
 
@@ -150,8 +143,8 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
 
     it('should filter by skills', async () => {
       const query = { page: 1, limit: 10, skills: 'NestJS, TypeScript' };
-      mockPrismaService.job.findMany.mockResolvedValue([mockJob]);
-      mockPrismaService.job.count.mockResolvedValue(1);
+      prisma.job.findMany.mockResolvedValue([mockJob]);
+      prisma.job.count.mockResolvedValue(1);
 
       await service.findAll(query);
 
@@ -171,7 +164,7 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
 
   describe('findOne - workspace isolation', () => {
     it('should look up by id AND workspaceId so cross-tenant access returns 404', async () => {
-      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
+      prisma.job.findFirst.mockResolvedValue(mockJob);
 
       const result = await service.findOne('job-1');
 
@@ -184,7 +177,7 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
     });
 
     it('should throw NotFoundException if job not found in this workspace', async () => {
-      mockPrismaService.job.findFirst.mockResolvedValue(null);
+      prisma.job.findFirst.mockResolvedValue(null);
 
       await expect(service.findOne('non-existent')).rejects.toThrow(
         NotFoundException,
@@ -194,8 +187,8 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
 
   describe('update - workspace-scoped RBAC', () => {
     it('should allow OWNER to update jobs in their workspace', async () => {
-      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
-      mockPrismaService.job.update.mockResolvedValue({
+      prisma.job.findFirst.mockResolvedValue(mockJob);
+      prisma.job.update.mockResolvedValue({
         ...mockJob,
         title: 'Updated Title',
       });
@@ -208,8 +201,8 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
     });
 
     it('should allow RECRUITER to update jobs in their workspace', async () => {
-      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
-      mockPrismaService.job.update.mockResolvedValue({
+      prisma.job.findFirst.mockResolvedValue(mockJob);
+      prisma.job.update.mockResolvedValue({
         ...mockJob,
         title: 'Updated Title',
       });
@@ -222,7 +215,7 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
     });
 
     it('should reject VIEWER with ForbiddenException', async () => {
-      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
+      prisma.job.findFirst.mockResolvedValue(mockJob);
 
       await expect(
         service.update('job-1', 'user-2', 'VIEWER', { title: 'Updated' }),
@@ -232,8 +225,8 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
 
   describe('remove - workspace-scoped RBAC', () => {
     it('should soft delete a job in the current workspace', async () => {
-      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
-      mockPrismaService.job.update.mockResolvedValue({
+      prisma.job.findFirst.mockResolvedValue(mockJob);
+      prisma.job.update.mockResolvedValue({
         ...mockJob,
         deletedAt: new Date(),
       });
@@ -247,7 +240,7 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
     });
 
     it('should reject VIEWER with ForbiddenException', async () => {
-      mockPrismaService.job.findFirst.mockResolvedValue(mockJob);
+      prisma.job.findFirst.mockResolvedValue(mockJob);
 
       await expect(service.remove('job-1', 'user-2', 'VIEWER')).rejects.toThrow(
         ForbiddenException,

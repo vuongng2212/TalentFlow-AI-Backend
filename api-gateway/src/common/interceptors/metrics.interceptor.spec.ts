@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { CallHandler, ExecutionContext } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
 import { MetricsInterceptor } from './metrics.interceptor';
@@ -64,12 +65,9 @@ describe('MetricsInterceptor', () => {
 
       interceptor.intercept(mockContext, mockCallHandler).subscribe({
         next: () => {
-          expect(metricsService.recordRequest).toHaveBeenCalledWith(
-            'GET',
-            '/api/users',
-            200,
-            expect.any(Number),
-          );
+          expect(
+            jest.mocked(metricsService.recordRequest),
+          ).toHaveBeenCalledWith('GET', '/api/users', 200, expect.any(Number));
           done();
         },
         error: done.fail,
@@ -82,12 +80,9 @@ describe('MetricsInterceptor', () => {
 
       interceptor.intercept(mockContext, mockCallHandler).subscribe({
         next: () => {
-          expect(metricsService.recordRequest).toHaveBeenCalledWith(
-            'POST',
-            '/api/users',
-            201,
-            expect.any(Number),
-          );
+          expect(
+            jest.mocked(metricsService.recordRequest),
+          ).toHaveBeenCalledWith('POST', '/api/users', 201, expect.any(Number));
           done();
         },
         error: done.fail,
@@ -100,12 +95,9 @@ describe('MetricsInterceptor', () => {
 
       interceptor.intercept(mockContext, mockCallHandler).subscribe({
         error: () => {
-          expect(metricsService.recordRequest).toHaveBeenCalledWith(
-            'GET',
-            '/api/error',
-            500,
-            expect.any(Number),
-          );
+          expect(
+            jest.mocked(metricsService.recordRequest),
+          ).toHaveBeenCalledWith('GET', '/api/error', 500, expect.any(Number));
           done();
         },
       });
@@ -145,12 +137,9 @@ describe('MetricsInterceptor', () => {
 
       interceptor.intercept(mockContext, mockCallHandler).subscribe({
         next: () => {
-          expect(metricsService.recordRequest).toHaveBeenCalledWith(
-            'UNKNOWN',
-            'unknown',
-            500,
-            expect.any(Number),
-          );
+          expect(
+            jest.mocked(metricsService.recordRequest),
+          ).toHaveBeenCalledWith('UNKNOWN', 'unknown', 500, expect.any(Number));
           done();
         },
         error: done.fail,

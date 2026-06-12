@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { WorkspacesController } from './workspaces.controller';
 import { WorkspacesService } from './workspaces.service';
@@ -67,7 +70,10 @@ describe('WorkspacesController', () => {
 
       const result = await controller.create(mockUser, dto);
 
-      expect(service.create).toHaveBeenCalledWith(mockUser.id, dto);
+      expect(jest.mocked(service.create)).toHaveBeenCalledWith(
+        mockUser.id,
+        dto,
+      );
       expect(result).toEqual(expectedResult);
     });
   });
@@ -80,7 +86,9 @@ describe('WorkspacesController', () => {
 
       const result = await controller.listMyWorkspaces(mockUser);
 
-      expect(service.findAllForUser).toHaveBeenCalledWith(mockUser.id);
+      expect(jest.mocked(service.findAllForUser)).toHaveBeenCalledWith(
+        mockUser.id,
+      );
       expect(result).toEqual(expectedResult);
     });
   });
@@ -93,7 +101,7 @@ describe('WorkspacesController', () => {
 
       const result = await controller.getOne(mockWorkspaceId, mockUser);
 
-      expect(service.findOne).toHaveBeenCalledWith(
+      expect(jest.mocked(service.findOne)).toHaveBeenCalledWith(
         mockWorkspaceId,
         mockUser.id,
       );
@@ -114,7 +122,7 @@ describe('WorkspacesController', () => {
         dto,
       );
 
-      expect(service.update).toHaveBeenCalledWith(
+      expect(jest.mocked(service.update)).toHaveBeenCalledWith(
         mockWorkspaceId,
         mockUser.id,
         dto,
@@ -135,7 +143,7 @@ describe('WorkspacesController', () => {
 
       const result = await controller.addMember(mockWorkspaceId, mockUser, dto);
 
-      expect(service.addMember).toHaveBeenCalledWith(
+      expect(jest.mocked(service.addMember)).toHaveBeenCalledWith(
         mockWorkspaceId,
         mockUser.id,
         dto,
@@ -154,7 +162,7 @@ describe('WorkspacesController', () => {
 
       const result = await controller.listMembers(mockWorkspaceId, mockUser);
 
-      expect(service.listMembers).toHaveBeenCalledWith(
+      expect(jest.mocked(service.listMembers)).toHaveBeenCalledWith(
         mockWorkspaceId,
         mockUser.id,
       );
@@ -181,7 +189,7 @@ describe('WorkspacesController', () => {
         dto,
       );
 
-      expect(service.createInvitation).toHaveBeenCalledWith(
+      expect(jest.mocked(service.createInvitation)).toHaveBeenCalledWith(
         mockWorkspaceId,
         mockUser.id,
         dto,
@@ -199,7 +207,7 @@ describe('WorkspacesController', () => {
 
       const result = await controller.acceptInvitation(mockUser, dto);
 
-      expect(service.acceptInvitation).toHaveBeenCalledWith(
+      expect(jest.mocked(service.acceptInvitation)).toHaveBeenCalledWith(
         mockUser.id,
         dto.token,
       );
@@ -215,7 +223,7 @@ describe('WorkspacesController', () => {
 
       await controller.removeMember(mockWorkspaceId, targetUserId, mockUser);
 
-      expect(service.removeMember).toHaveBeenCalledWith(
+      expect(jest.mocked(service.removeMember)).toHaveBeenCalledWith(
         mockWorkspaceId,
         mockUser.id,
         targetUserId,

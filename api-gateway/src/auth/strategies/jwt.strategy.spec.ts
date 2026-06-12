@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './jwt.strategy';
@@ -69,13 +70,15 @@ describe('JwtStrategy', () => {
         role: mockUser.role,
         fullName: mockUser.fullName,
       });
-      expect(usersService.findById).toHaveBeenCalledWith(payload.sub);
+      expect(jest.mocked(usersService.findById)).toHaveBeenCalledWith(
+        payload.sub,
+      );
     });
 
     it('should throw UnauthorizedException when user not found', async () => {
       mockUsersService.findById.mockResolvedValue(null);
 
-      await expect(strategy.validate(payload)).rejects.toThrow(
+      await expect(jest.mocked(strategy.validate(payload))).rejects.toThrow(
         UnauthorizedException,
       );
     });
@@ -86,7 +89,7 @@ describe('JwtStrategy', () => {
         deletedAt: new Date(),
       });
 
-      await expect(strategy.validate(payload)).rejects.toThrow(
+      await expect(jest.mocked(strategy.validate(payload))).rejects.toThrow(
         UnauthorizedException,
       );
     });

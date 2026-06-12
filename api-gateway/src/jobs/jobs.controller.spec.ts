@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { JobsController } from './jobs.controller';
 import { JobsService } from './jobs.service';
@@ -81,7 +82,10 @@ describe('JobsController', () => {
       const result = await controller.create(mockUser, createJobDto);
 
       expect(result).toEqual(mockJob);
-      expect(service.create).toHaveBeenCalledWith(mockUser.id, createJobDto);
+      expect(jest.mocked(service.create)).toHaveBeenCalledWith(
+        mockUser.id,
+        createJobDto,
+      );
     });
   });
 
@@ -98,7 +102,7 @@ describe('JobsController', () => {
       const result = await controller.findAll(query);
 
       expect(result).toEqual(expectedResult);
-      expect(service.findAll).toHaveBeenCalledWith(query);
+      expect(jest.mocked(service.findAll)).toHaveBeenCalledWith(query);
     });
 
     it('should pass filter parameters to service', async () => {
@@ -114,7 +118,7 @@ describe('JobsController', () => {
 
       await controller.findAll(query);
 
-      expect(service.findAll).toHaveBeenCalledWith(query);
+      expect(jest.mocked(service.findAll)).toHaveBeenCalledWith(query);
     });
   });
 
@@ -125,7 +129,7 @@ describe('JobsController', () => {
       const result = await controller.findOne('job-1');
 
       expect(result).toEqual(mockJob);
-      expect(service.findOne).toHaveBeenCalledWith('job-1');
+      expect(jest.mocked(service.findOne)).toHaveBeenCalledWith('job-1');
     });
   });
 
@@ -139,7 +143,7 @@ describe('JobsController', () => {
       const result = await controller.update('job-1', mockUser, updateJobDto);
 
       expect(result).toEqual(updatedJob);
-      expect(service.update).toHaveBeenCalledWith(
+      expect(jest.mocked(service.update)).toHaveBeenCalledWith(
         'job-1',
         mockUser.id,
         mockUser.role,
@@ -154,7 +158,7 @@ describe('JobsController', () => {
 
       await controller.remove('job-1', mockUser);
 
-      expect(service.remove).toHaveBeenCalledWith(
+      expect(jest.mocked(service.remove)).toHaveBeenCalledWith(
         'job-1',
         mockUser.id,
         mockUser.role,

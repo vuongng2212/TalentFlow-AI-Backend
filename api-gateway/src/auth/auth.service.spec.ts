@@ -98,15 +98,17 @@ describe('AuthService', () => {
         signupData.role,
       );
 
-      expect(mockUsersService.findByEmail).toHaveBeenCalledWith(
+      expect(jest.mocked(mockUsersService.findByEmail)).toHaveBeenCalledWith(
         signupData.email,
       );
-      expect(passwordUtil.hashPassword).toHaveBeenCalledWith(
+      expect(jest.mocked(passwordUtil.hashPassword)).toHaveBeenCalledWith(
         signupData.password,
       );
-      expect(mockUsersService.createWithPersonalWorkspace).toHaveBeenCalled();
+      expect(
+        jest.mocked(mockUsersService.createWithPersonalWorkspace),
+      ).toHaveBeenCalled();
       expect(result).toBeDefined();
-      expect(mockSecurityAuditService.log).toHaveBeenCalledWith(
+      expect(jest.mocked(mockSecurityAuditService.log)).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: SecurityEventType.SIGNUP,
           userId: 'uuid',
@@ -156,11 +158,11 @@ describe('AuthService', () => {
       expect(result).toHaveProperty('accessToken');
       expect(result).toHaveProperty('refreshToken');
       expect(result).toHaveProperty('user');
-      expect(mockRedisService.set).toHaveBeenCalled();
-      expect(mockRedisService.del).toHaveBeenCalledWith(
+      expect(jest.mocked(mockRedisService.set)).toHaveBeenCalled();
+      expect(jest.mocked(mockRedisService.del)).toHaveBeenCalledWith(
         `login_attempts:${loginData.email}`,
       );
-      expect(mockSecurityAuditService.log).toHaveBeenCalledWith(
+      expect(jest.mocked(mockSecurityAuditService.log)).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: SecurityEventType.LOGIN_SUCCESS,
           userId: user.id,
@@ -177,7 +179,7 @@ describe('AuthService', () => {
         service.login('wrong@email.com', 'password'),
       ).rejects.toThrow(UnauthorizedException);
 
-      expect(mockSecurityAuditService.log).toHaveBeenCalledWith(
+      expect(jest.mocked(mockSecurityAuditService.log)).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: SecurityEventType.LOGIN_FAILED,
         }),
@@ -201,7 +203,7 @@ describe('AuthService', () => {
         service.login('test@example.com', 'wrongpassword'),
       ).rejects.toThrow(UnauthorizedException);
 
-      expect(mockSecurityAuditService.log).toHaveBeenCalledWith(
+      expect(jest.mocked(mockSecurityAuditService.log)).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: SecurityEventType.LOGIN_FAILED,
           userId: user.id,
@@ -236,7 +238,7 @@ describe('AuthService', () => {
         service.login('locked@example.com', 'password'),
       ).rejects.toThrow(UnauthorizedException);
 
-      expect(mockSecurityAuditService.log).toHaveBeenCalledWith(
+      expect(jest.mocked(mockSecurityAuditService.log)).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: SecurityEventType.LOGIN_BLOCKED,
           email: 'locked@example.com',
@@ -253,7 +255,7 @@ describe('AuthService', () => {
         service.login('test@example.com', 'wrongpassword'),
       ).rejects.toThrow(UnauthorizedException);
 
-      expect(mockRedisService.incr).toHaveBeenCalledWith(
+      expect(jest.mocked(mockRedisService.incr)).toHaveBeenCalledWith(
         'login_attempts:test@example.com',
       );
     });
@@ -267,7 +269,7 @@ describe('AuthService', () => {
         service.login('test@example.com', 'wrongpassword'),
       ).rejects.toThrow(UnauthorizedException);
 
-      expect(mockRedisService.expire).toHaveBeenCalledWith(
+      expect(jest.mocked(mockRedisService.expire)).toHaveBeenCalledWith(
         'login_attempts:test@example.com',
         15 * 60,
       );
@@ -282,7 +284,7 @@ describe('AuthService', () => {
         service.login('test@example.com', 'wrongpassword'),
       ).rejects.toThrow(UnauthorizedException);
 
-      expect(mockSecurityAuditService.log).toHaveBeenCalledWith(
+      expect(jest.mocked(mockSecurityAuditService.log)).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: SecurityEventType.ACCOUNT_LOCKED,
         }),
@@ -306,7 +308,7 @@ describe('AuthService', () => {
 
       await service.login('test@example.com', 'correctpassword');
 
-      expect(mockRedisService.del).toHaveBeenCalledWith(
+      expect(jest.mocked(mockRedisService.del)).toHaveBeenCalledWith(
         'login_attempts:test@example.com',
       );
     });
@@ -362,8 +364,8 @@ describe('AuthService', () => {
 
       expect(result).toHaveProperty('accessToken');
       expect(result).toHaveProperty('refreshToken');
-      expect(mockRedisService.set).toHaveBeenCalled();
-      expect(mockSecurityAuditService.log).toHaveBeenCalledWith(
+      expect(jest.mocked(mockRedisService.set)).toHaveBeenCalled();
+      expect(jest.mocked(mockSecurityAuditService.log)).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: SecurityEventType.TOKEN_REFRESH,
           userId: user.id,
@@ -374,11 +376,11 @@ describe('AuthService', () => {
     it('should throw UnauthorizedException if user not found', async () => {
       mockUsersService.findById.mockResolvedValue(null);
 
-      await expect(service.refresh('non-existent-uuid')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        jest.mocked(service.refresh('non-existent-uuid')),
+      ).rejects.toThrow(UnauthorizedException);
 
-      expect(mockSecurityAuditService.log).toHaveBeenCalledWith(
+      expect(jest.mocked(mockSecurityAuditService.log)).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: SecurityEventType.TOKEN_REFRESH_FAILED,
         }),
@@ -395,7 +397,7 @@ describe('AuthService', () => {
 
       mockUsersService.findById.mockResolvedValue(user);
 
-      await expect(service.refresh('uuid')).rejects.toThrow(
+      await expect(jest.mocked(service.refresh('uuid'))).rejects.toThrow(
         UnauthorizedException,
       );
     });
@@ -408,15 +410,15 @@ describe('AuthService', () => {
 
       await service.logout('user-uuid', 'token-id-123');
 
-      expect(mockRedisService.del).toHaveBeenCalledWith(
+      expect(jest.mocked(mockRedisService.del)).toHaveBeenCalledWith(
         'refresh_token:user-uuid',
       );
-      expect(mockRedisService.set).toHaveBeenCalledWith(
+      expect(jest.mocked(mockRedisService.set)).toHaveBeenCalledWith(
         'blacklist:token-id-123',
         'true',
         7 * 24 * 60 * 60,
       );
-      expect(mockSecurityAuditService.log).toHaveBeenCalledWith(
+      expect(jest.mocked(mockSecurityAuditService.log)).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: SecurityEventType.LOGOUT,
           userId: 'user-uuid',
@@ -433,7 +435,7 @@ describe('AuthService', () => {
         userAgent: 'Mozilla/5.0',
       });
 
-      expect(mockSecurityAuditService.log).toHaveBeenCalledWith(
+      expect(jest.mocked(mockSecurityAuditService.log)).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: SecurityEventType.LOGOUT,
           userId: 'user-uuid',
@@ -492,15 +494,15 @@ describe('AuthService', () => {
 
       expect(result).toHaveProperty('accessToken');
       expect(result).toHaveProperty('refreshToken');
-      expect(mockRedisService.set).toHaveBeenCalled();
+      expect(jest.mocked(mockRedisService.set)).toHaveBeenCalled();
     });
 
     it('should throw UnauthorizedException if user not found', async () => {
       mockUsersService.findById.mockResolvedValue(null);
 
-      await expect(service.refresh('non-existent-uuid')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        jest.mocked(service.refresh('non-existent-uuid')),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException if user is deleted', async () => {
@@ -513,7 +515,7 @@ describe('AuthService', () => {
 
       mockUsersService.findById.mockResolvedValue(user);
 
-      await expect(service.refresh('uuid')).rejects.toThrow(
+      await expect(jest.mocked(service.refresh('uuid'))).rejects.toThrow(
         UnauthorizedException,
       );
     });
@@ -526,10 +528,10 @@ describe('AuthService', () => {
 
       await service.logout('user-uuid', 'token-id-123');
 
-      expect(mockRedisService.del).toHaveBeenCalledWith(
+      expect(jest.mocked(mockRedisService.del)).toHaveBeenCalledWith(
         'refresh_token:user-uuid',
       );
-      expect(mockRedisService.set).toHaveBeenCalledWith(
+      expect(jest.mocked(mockRedisService.set)).toHaveBeenCalledWith(
         'blacklist:token-id-123',
         'true',
         7 * 24 * 60 * 60,
@@ -558,13 +560,15 @@ describe('AuthService', () => {
         role: user.role,
         activeWorkspaceId: user.activeWorkspaceId,
       });
-      expect(mockUsersService.findById).toHaveBeenCalledWith('uuid');
+      expect(jest.mocked(mockUsersService.findById)).toHaveBeenCalledWith(
+        'uuid',
+      );
     });
 
     it('should throw UnauthorizedException if user is not found', async () => {
       mockUsersService.findById.mockResolvedValue(null);
 
-      await expect(service.getProfile('uuid')).rejects.toThrow(
+      await expect(jest.mocked(service.getProfile('uuid'))).rejects.toThrow(
         UnauthorizedException,
       );
     });
