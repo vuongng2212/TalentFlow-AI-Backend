@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Patch,
   Delete,
 } from '@nestjs/common';
 import {
@@ -20,8 +21,10 @@ import { Role, WorkspaceMemberRole } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { WorkspaceRoles } from '../auth/decorators/workspace-roles.decorator';
+import { SkipWorkspaceContext } from '../auth/decorators/skip-workspace-context.decorator';
 import { AddWorkspaceMemberDto } from './dto/add-workspace-member.dto';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
+import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import {
   AcceptInvitationDto,
   CreateInvitationDto,
@@ -48,10 +51,44 @@ export class WorkspacesController {
   constructor(private readonly workspacesService: WorkspacesService) {}
 
   @Post()
+  @SkipWorkspaceContext()
   @ApiOperation({ summary: 'Create a workspace' })
   @ApiResponse({ status: 201, description: 'Workspace created successfully' })
   create(@CurrentUser() user: UserPayload, @Body() dto: CreateWorkspaceDto) {
     return this.workspacesService.create(user.id, dto);
+  }
+
+  @Get()
+  @SkipWorkspaceContext()
+  @ApiOperation({ summary: 'List all workspaces the current user belongs to' })
+  @ApiResponse({ status: 200, description: 'Workspace list returned' })
+  listMyWorkspaces(@CurrentUser() user: UserPayload) {
+    return this.workspacesService.findAllForUser(user.id);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a single workspace by ID' })
+  @ApiResponse({ status: 200, description: 'Workspace detail returned' })
+  @ApiResponse({ status: 403, description: 'Forbidden – not a member' })
+  @ApiResponse({ status: 404, description: 'Workspace not found' })
+  getOne(
+    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @CurrentUser() user: UserPayload,
+  ) {
+    return this.workspacesService.findOne(workspaceId, user.id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update workspace name or plan (owner/admin only)' })
+  @ApiResponse({ status: 200, description: 'Workspace updated successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden – not owner/admin' })
+  @ApiResponse({ status: 404, description: 'Workspace not found' })
+  updateWorkspace(
+    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @CurrentUser() user: UserPayload,
+    @Body() dto: UpdateWorkspaceDto,
+  ) {
+    return this.workspacesService.update(workspaceId, user.id, dto);
   }
 
   @Post(':id/members')
@@ -95,6 +132,7 @@ export class WorkspacesController {
   }
 
   @Post('invitations/accept')
+  @SkipWorkspaceContext()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Accept a workspace invitation via token' })
   @ApiResponse({ status: 200, description: 'Invitation accepted' })

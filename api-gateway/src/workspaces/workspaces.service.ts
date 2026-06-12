@@ -12,6 +12,7 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueService } from '../queue/queue.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
+import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { AddWorkspaceMemberDto } from './dto/add-workspace-member.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { WorkspaceMemberInvitedEvent } from '../queue/interfaces/workspace-member-invited-event.interface';
@@ -71,6 +72,114 @@ export class WorkspacesService {
       });
 
       return workspace;
+    });
+  }
+
+  /**
+   * Returns all workspaces where the requesting user is an ACTIVE member,
+   * enriched with the member's role inside that workspace.
+   */
+  async findAllForUser(userId: string) {
+    const memberships = await this.prisma.workspaceMember.findMany({
+      where: {
+        userId,
+        status: WorkspaceMemberStatus.ACTIVE,
+      },
+      include: {
+        workspace: {
+          select: {
+            id: true,
+            name: true,
+            isBusiness: true,
+            createdById: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return memberships.map((m) => ({
+      ...m.workspace,
+      memberRole: m.role,
+    }));
+  }
+
+  /**
+   * Returns the detail of a single workspace. Ensures the requesting
+   * user is an active member before exposing the data.
+   */
+  async findOne(workspaceId: string, requesterId: string) {
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: {
+        id: true,
+        name: true,
+        isBusiness: true,
+        createdById: true,
+        createdAt: true,
+        updatedAt: true,
+        members: {
+          where: { status: WorkspaceMemberStatus.ACTIVE },
+          select: { userId: true, role: true },
+        },
+      },
+    });
+
+    if (!workspace) {
+      throw new NotFoundException(`Workspace with ID ${workspaceId} not found`);
+    }
+
+    await this.ensureMemberAccess(workspaceId, requesterId);
+
+    const myMembership = workspace.members.find((m) => m.userId === requesterId);
+
+    return {
+      id: workspace.id,
+      name: workspace.name,
+      isBusiness: workspace.isBusiness,
+      createdById: workspace.createdById,
+      createdAt: workspace.createdAt,
+      updatedAt: workspace.updatedAt,
+      memberRole: myMembership?.role ?? null,
+      memberCount: workspace.members.length,
+    };
+  }
+
+  /**
+   * Updates workspace name and/or isBusiness flag.
+   * Only OWNER or ADMIN of the workspace may do this.
+   */
+  async update(
+    workspaceId: string,
+    requesterId: string,
+    dto: UpdateWorkspaceDto,
+  ) {
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      throw new NotFoundException(`Workspace with ID ${workspaceId} not found`);
+    }
+
+    await this.ensureCanManageMembers(workspaceId, requesterId);
+
+    return this.prisma.workspace.update({
+      where: { id: workspaceId },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.isBusiness !== undefined && { isBusiness: dto.isBusiness }),
+      },
+      select: {
+        id: true,
+        name: true,
+        isBusiness: true,
+        createdById: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
   }
 
@@ -145,6 +254,7 @@ export class WorkspacesService {
                 id: true,
                 email: true,
                 fullName: true,
+                role: true,
               },
             },
           },
@@ -165,6 +275,7 @@ export class WorkspacesService {
               id: true,
               email: true,
               fullName: true,
+              role: true,
             },
           },
         },

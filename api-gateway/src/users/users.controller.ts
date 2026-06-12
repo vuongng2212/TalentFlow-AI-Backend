@@ -24,6 +24,7 @@ import { UserResponseDto } from './dto/user-response.dto';
 import { SwitchActiveWorkspaceDto } from './dto/switch-workspace.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { SkipWorkspaceContext } from '../auth/decorators/skip-workspace-context.decorator';
 import { Role } from '@prisma/client';
 
 interface UserPayload {
@@ -36,6 +37,7 @@ interface UserPayload {
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
 @Controller('users')
+@SkipWorkspaceContext()
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
