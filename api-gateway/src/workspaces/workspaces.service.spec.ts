@@ -206,7 +206,7 @@ describe('WorkspacesService', () => {
       } as any);
       prisma.user.findUnique.mockResolvedValue({ id: 'user-2' } as any);
 
-      prisma.$transaction.mockImplementation(async (callback: any) => {
+      prisma.$transaction.mockImplementation((callback: any) => {
         const tx = {
           workspaceMember: {
             findUnique: jest.fn().mockResolvedValue({
@@ -241,7 +241,7 @@ describe('WorkspacesService', () => {
       } as any);
       prisma.user.findUnique.mockResolvedValue({ id: 'user-2' } as any);
 
-      prisma.$transaction.mockImplementation(async (callback: any) => {
+      prisma.$transaction.mockImplementation((callback: any) => {
         const tx = {
           workspaceMember: {
             findUnique: jest.fn().mockResolvedValue({
@@ -286,7 +286,7 @@ describe('WorkspacesService', () => {
       };
 
       const update = jest.fn().mockResolvedValue(updatedMember);
-      prisma.$transaction.mockImplementation(async (callback: any) => {
+      prisma.$transaction.mockImplementation((callback: any) => {
         const tx = {
           workspaceMember: {
             findUnique: jest.fn().mockResolvedValue({
@@ -327,7 +327,7 @@ describe('WorkspacesService', () => {
         role: WorkspaceMemberRole.RECRUITER,
       };
 
-      prisma.$transaction.mockImplementation(async (callback: any) => {
+      prisma.$transaction.mockImplementation((callback: any) => {
         const tx = {
           workspaceMember: {
             findUnique: jest.fn().mockResolvedValue(null),
@@ -516,7 +516,7 @@ describe('WorkspacesService', () => {
     });
 
     it('should throw NotFoundException when token invalid', async () => {
-      prisma.$transaction.mockImplementation(async (callback: any) => {
+      prisma.$transaction.mockImplementation((callback: any) => {
         const tx = {
           workspaceInvitation: {
             findUnique: jest.fn().mockResolvedValue(null),
@@ -531,7 +531,7 @@ describe('WorkspacesService', () => {
     });
 
     it('should throw BadRequestException when token expired', async () => {
-      prisma.$transaction.mockImplementation(async (callback: any) => {
+      prisma.$transaction.mockImplementation((callback: any) => {
         const tx = {
           workspaceInvitation: {
             findUnique: jest.fn().mockResolvedValue({
@@ -555,7 +555,7 @@ describe('WorkspacesService', () => {
 
     it('should accept invitation, transition to ACTIVE, and update activeWorkspaceId', async () => {
       const future = new Date(Date.now() + 1000 * 60 * 60);
-      prisma.$transaction.mockImplementation(async (callback: any) => {
+      prisma.$transaction.mockImplementation((callback: any) => {
         const tx = {
           workspaceInvitation: {
             findUnique: jest.fn().mockResolvedValue({
