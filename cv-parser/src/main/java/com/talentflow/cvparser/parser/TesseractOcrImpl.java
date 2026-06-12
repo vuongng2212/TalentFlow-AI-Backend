@@ -138,6 +138,8 @@ public class TesseractOcrImpl {
             }
 
             PDFRenderer renderer = new PDFRenderer(document);
+            Object renderLock = new Object();
+
             int maxInFlight = Math.max(1, maxParallelPages);
             List<String> pageTexts = new ArrayList<>(Collections.nCopies(pageCount, ""));
             List<CompletableFuture<PageOcrResult>> pageTasks = new ArrayList<>(maxInFlight);
@@ -146,8 +148,7 @@ public class TesseractOcrImpl {
                 int pageIndex = i;
                 int pageNumber = i + 1;
                 validateRenderedPageSize(document.getPage(pageIndex), pageNumber, filePath);
-                BufferedImage image = renderer.renderImageWithDPI(pageIndex, dpi, ImageType.GRAY);
-                pageTasks.add(submitPageTask(image, filePath, pageNumber));
+                pageTasks.add(submitPageTask(renderer, renderLock, pageIndex, filePath, pageNumber));
 
                 if (pageTasks.size() == maxInFlight) {
                     collectBatchResults(pageTasks, pageTexts);
@@ -162,7 +163,6 @@ public class TesseractOcrImpl {
             return String.join("\n", pageTexts).trim();
         }
     }
-
     private String ocrImage(Path filePath) {
         ITesseract tesseract = borrowTesseract();
         try {
@@ -193,10 +193,23 @@ public class TesseractOcrImpl {
         }
     }
 
-    private CompletableFuture<PageOcrResult> submitPageTask(BufferedImage image, Path filePath, int pageNumber) {
+    private CompletableFuture<PageOcrResult> submitPageTask(PDFRenderer renderer, Object renderLock,
+                                                            int pageIndex, Path filePath, int pageNumber) {
         return CompletableFuture.supplyAsync(() -> {
+            BufferedImage image;
+
+            synchronized (renderLock) {
+                try {
+                    image = renderer.renderImageWithDPI(pageIndex, dpi, ImageType.GRAY);
+                } catch (IOException e) {
+                    log.warn("Failed to render page {}. file=[{}], reason={}",
+                            pageNumber, filePath.getFileName(), e.getMessage());
+                    return new PageOcrResult(pageIndex, "");
+                }
+            }
+
             try {
-                return new PageOcrResult(pageNumber - 1, runTesseract(image, filePath, pageNumber));
+                return new PageOcrResult(pageIndex, runTesseract(image, filePath, pageNumber));
             } finally {
                 image.flush();
             }
