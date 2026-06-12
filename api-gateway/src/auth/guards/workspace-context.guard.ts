@@ -12,6 +12,8 @@ import { WorkspaceMemberStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
+import { SKIP_WORKSPACE_CONTEXT_KEY } from '../decorators/skip-workspace-context.decorator';
+
 export const WORKSPACE_CONTEXT_KEY = 'workspaceId';
 
 export interface RequestWithWorkspace {
@@ -43,6 +45,11 @@ export class WorkspaceContextGuard implements CanActivate {
       return true;
     }
 
+    const skipWorkspaceContext = this.reflector.getAllAndOverride<boolean>(
+      SKIP_WORKSPACE_CONTEXT_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
     const request = context.switchToHttp().getRequest<
       RequestWithWorkspace & {
         headers: Record<string, string | string[] | undefined>;
@@ -54,14 +61,23 @@ export class WorkspaceContextGuard implements CanActivate {
       throw new ForbiddenException('Authenticated user context is required');
     }
 
-    const headerValue = this.extractHeader(request);
-    const resolvedWorkspaceId = await this.resolveWorkspaceId(
-      request.user.userId,
-      headerValue,
-    );
+    try {
+      const headerValue = this.extractHeader(request);
+      const resolvedWorkspaceId = await this.resolveWorkspaceId(
+        request.user.userId,
+        headerValue,
+      );
 
-    request.workspaceId = resolvedWorkspaceId;
-    this.cls.set(WORKSPACE_CONTEXT_KEY, resolvedWorkspaceId);
+      request.workspaceId = resolvedWorkspaceId;
+      this.cls.set(WORKSPACE_CONTEXT_KEY, resolvedWorkspaceId);
+    } catch (error) {
+      if (!skipWorkspaceContext) {
+        throw error;
+      }
+      this.logger.debug(
+        `Skipped workspace context resolution error: ${(error as Error).message}`,
+      );
+    }
 
     return true;
   }
