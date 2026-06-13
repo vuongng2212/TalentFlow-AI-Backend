@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   ExecutionContext,
@@ -98,7 +98,7 @@ describe('WorkspaceContextGuard', () => {
 
       prisma.workspaceMember.findFirst.mockResolvedValueOnce({
         id: 'mem-1',
-      } as any);
+      } as never);
 
       const result = await guard.canActivate(context);
 
@@ -126,7 +126,7 @@ describe('WorkspaceContextGuard', () => {
 
       prisma.workspaceMember.findFirst.mockResolvedValueOnce({
         id: 'mem-1',
-      } as any);
+      } as never);
 
       await guard.canActivate(context);
 
@@ -183,10 +183,10 @@ describe('WorkspaceContextGuard', () => {
 
       prisma.user.findUnique.mockResolvedValueOnce({
         activeWorkspaceId: 'ws-active',
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValueOnce({
         id: 'mem-1',
-      } as any);
+      } as never);
 
       const result = await guard.canActivate(context);
 
@@ -219,14 +219,14 @@ describe('WorkspaceContextGuard', () => {
 
       prisma.user.findUnique.mockResolvedValueOnce({
         activeWorkspaceId: 'ws-invalid',
-      } as any);
+      } as never);
       // First call for activeWorkspaceId check fails
       prisma.workspaceMember.findFirst.mockResolvedValueOnce(null);
       // Second call for first active membership succeeds
       prisma.workspaceMember.findFirst.mockResolvedValueOnce({
         workspaceId: 'ws-first',
-      } as any);
-      prisma.user.update.mockResolvedValueOnce({} as any);
+      } as never);
+      prisma.user.update.mockResolvedValueOnce({} as never);
 
       const result = await guard.canActivate(context);
 
@@ -251,11 +251,11 @@ describe('WorkspaceContextGuard', () => {
 
       prisma.user.findUnique.mockResolvedValueOnce({
         activeWorkspaceId: null,
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValueOnce({
         workspaceId: 'ws-first',
-      } as any);
-      prisma.user.update.mockResolvedValueOnce({} as any);
+      } as never);
+      prisma.user.update.mockResolvedValueOnce({} as never);
 
       const result = await guard.canActivate(context);
 

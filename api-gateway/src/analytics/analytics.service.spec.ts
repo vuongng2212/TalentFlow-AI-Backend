@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { AnalyticsService } from './analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspaceContextService } from '../common/services/workspace-context.service';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Job } from '@prisma/client';
 
 const MOCK_WORKSPACE_ID = 'ws-test-1';
 
@@ -137,7 +137,7 @@ describe('AnalyticsService', () => {
           _count: { applications: 5 },
         },
       ];
-      prisma.job.findMany.mockResolvedValue(mockJobs as any);
+      prisma.job.findMany.mockResolvedValue(mockJobs as unknown as Job[]);
 
       const result = await service.getTopJobs(5);
 

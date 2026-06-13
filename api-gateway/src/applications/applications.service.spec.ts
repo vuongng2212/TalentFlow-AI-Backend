@@ -20,6 +20,8 @@ import {
   EmploymentType,
   Role,
   PrismaClient,
+  User,
+  Application,
 } from '@prisma/client';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 
@@ -151,7 +153,7 @@ describe('ApplicationsService', () => {
       // Arrange
       const createDto = { jobId: 'job-1', coverLetter: 'I am interested' };
       prisma.job.findFirst.mockResolvedValue(mockJob);
-      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+      prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
       prisma.candidate.findUnique.mockResolvedValue(mockCandidate);
       prisma.application.findFirst.mockResolvedValue(null);
       prisma.application.create.mockResolvedValue({
@@ -166,7 +168,7 @@ describe('ApplicationsService', () => {
           email: 'applicant@test.com',
           fullName: 'Test Applicant',
         },
-      } as any);
+      } as never);
 
       // Act
       const result = await service.create('user-1', createDto);
@@ -232,7 +234,7 @@ describe('ApplicationsService', () => {
       // Arrange
       const createDto = { jobId: 'job-1' };
       prisma.job.findFirst.mockResolvedValue(mockJob);
-      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+      prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
       prisma.candidate.findUnique.mockResolvedValue(null);
       prisma.candidate.create.mockResolvedValue(mockCandidate);
       prisma.application.findFirst.mockResolvedValue(null);
@@ -248,7 +250,7 @@ describe('ApplicationsService', () => {
           email: 'applicant@test.com',
           fullName: 'Test Applicant',
         },
-      } as any);
+      } as never);
 
       // Act
       await service.create('user-1', createDto);
@@ -267,9 +269,11 @@ describe('ApplicationsService', () => {
       // Arrange
       const createDto = { jobId: 'job-1' };
       prisma.job.findFirst.mockResolvedValue(mockJob);
-      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+      prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
       prisma.candidate.findUnique.mockResolvedValue(mockCandidate);
-      prisma.application.findFirst.mockResolvedValue(mockApplication as any);
+      prisma.application.findFirst.mockResolvedValue(
+        mockApplication as unknown as Application,
+      );
 
       // Act & Assert
       await expect(service.create('user-1', createDto)).rejects.toThrow(
@@ -288,7 +292,7 @@ describe('ApplicationsService', () => {
 
     it('should upload CV, create application, and publish queue event', async () => {
       prisma.job.findFirst.mockResolvedValue(mockJob);
-      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+      prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
       prisma.candidate.findUnique.mockResolvedValue(mockCandidate);
       prisma.application.findFirst.mockResolvedValue(null);
       mockStorageService.upload.mockResolvedValue({
@@ -300,7 +304,7 @@ describe('ApplicationsService', () => {
         ...mockApplication,
         cvFileKey: 'cvs/file.pdf',
         cvFileUrl: 'http://localhost:9000/talentflow-cvs/cvs/file.pdf',
-      } as any);
+      } as never);
       mockQueueService.publishCvUploaded.mockResolvedValue(undefined);
       mockStorageService.getSignedUrl.mockResolvedValue('https://signed-url');
 
@@ -341,7 +345,7 @@ describe('ApplicationsService', () => {
 
     it('should throw InternalServerErrorException when upload fails', async () => {
       prisma.job.findFirst.mockResolvedValue(mockJob);
-      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+      prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
       prisma.candidate.findUnique.mockResolvedValue(mockCandidate);
       prisma.application.findFirst.mockResolvedValue(null);
       mockStorageService.upload.mockRejectedValue(new Error('upload failed'));
@@ -360,7 +364,7 @@ describe('ApplicationsService', () => {
 
     it('should rollback created application and file when queue publish fails', async () => {
       prisma.job.findFirst.mockResolvedValue(mockJob);
-      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+      prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
       prisma.candidate.findUnique.mockResolvedValue(mockCandidate);
       prisma.application.findFirst.mockResolvedValue(null);
       mockStorageService.upload.mockResolvedValue({
@@ -371,11 +375,11 @@ describe('ApplicationsService', () => {
         ...mockApplication,
         cvFileKey: 'cvs/file.pdf',
         cvFileUrl: 'http://localhost:9000/talentflow-cvs/cvs/file.pdf',
-      } as any);
+      } as never);
       mockQueueService.publishCvUploaded.mockRejectedValue(
         new Error('queue failed'),
       );
-      prisma.application.delete.mockResolvedValue({} as any);
+      prisma.application.delete.mockResolvedValue({} as unknown as Application);
       mockStorageService.delete.mockResolvedValue(undefined);
 
       // Silence the logger error for this test
@@ -405,7 +409,9 @@ describe('ApplicationsService', () => {
     it('should return paginated applications for recruiter', async () => {
       // Arrange
       const query = { page: 1, limit: 10 };
-      prisma.application.findMany.mockResolvedValue([mockApplication] as any);
+      prisma.application.findMany.mockResolvedValue([
+        mockApplication,
+      ] as unknown as Application[]);
       prisma.application.count.mockResolvedValue(1);
 
       // Act
@@ -448,7 +454,7 @@ describe('ApplicationsService', () => {
     it('should filter by candidate for non-admin users', async () => {
       // Arrange
       const query = { page: 1, limit: 10 };
-      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+      prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
       prisma.candidate.findUnique.mockResolvedValue(mockCandidate);
       prisma.application.findMany.mockResolvedValue([]);
       prisma.application.count.mockResolvedValue(0);
@@ -528,7 +534,9 @@ describe('ApplicationsService', () => {
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
-      prisma.user.findUnique.mockResolvedValue(mockRecruiterUser as any);
+      prisma.user.findUnique.mockResolvedValue(
+        mockRecruiterUser as unknown as User,
+      );
       prisma.candidate.findUnique.mockResolvedValue(null);
 
       // Act
@@ -543,7 +551,7 @@ describe('ApplicationsService', () => {
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
-      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+      prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
       prisma.candidate.findUnique.mockResolvedValue(mockCandidate);
 
       // Act
@@ -558,7 +566,9 @@ describe('ApplicationsService', () => {
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
-      prisma.user.findUnique.mockResolvedValue(mockRecruiterUser as any);
+      prisma.user.findUnique.mockResolvedValue(
+        mockRecruiterUser as unknown as User,
+      );
       prisma.candidate.findUnique.mockResolvedValue(null);
 
       // Act
@@ -583,7 +593,7 @@ describe('ApplicationsService', () => {
       prisma.application.findFirst.mockResolvedValue({
         ...mockApplicationWithRelations,
         deletedAt: new Date(),
-      } as any);
+      } as never);
 
       // Act & Assert
       await expect(
@@ -600,7 +610,7 @@ describe('ApplicationsService', () => {
         ...mockUser,
         id: 'other-user',
         email: 'other@test.com',
-      } as any);
+      } as never);
       prisma.candidate.findUnique.mockResolvedValue(null);
 
       // Act & Assert
@@ -638,7 +648,9 @@ describe('ApplicationsService', () => {
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
-      prisma.user.findUnique.mockResolvedValue(mockRecruiterUser as any);
+      prisma.user.findUnique.mockResolvedValue(
+        mockRecruiterUser as unknown as User,
+      );
       prisma.candidate.findUnique.mockResolvedValue(null);
       prisma.application.update.mockResolvedValue({
         ...mockApplication,
@@ -649,7 +661,7 @@ describe('ApplicationsService', () => {
           email: 'applicant@test.com',
           fullName: 'Test Applicant',
         },
-      } as any);
+      } as never);
 
       // Act
       const result = await service.update(
@@ -671,7 +683,9 @@ describe('ApplicationsService', () => {
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
-      prisma.user.findUnique.mockResolvedValue(mockRecruiterUser as any);
+      prisma.user.findUnique.mockResolvedValue(
+        mockRecruiterUser as unknown as User,
+      );
       prisma.candidate.findUnique.mockResolvedValue(null);
       prisma.application.update.mockResolvedValue({
         ...mockApplication,
@@ -683,7 +697,7 @@ describe('ApplicationsService', () => {
           email: 'applicant@test.com',
           fullName: 'Test Applicant',
         },
-      } as any);
+      } as never);
 
       // Act
       await service.update('app-1', 'recruiter-1', 'RECRUITER', updateDto);
@@ -708,7 +722,7 @@ describe('ApplicationsService', () => {
         ...mockUser,
         id: 'other-user',
         email: 'other@test.com',
-      } as any);
+      } as never);
       prisma.candidate.findUnique.mockResolvedValue(null);
 
       // Act & Assert
@@ -723,7 +737,7 @@ describe('ApplicationsService', () => {
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
-      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+      prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
       prisma.candidate.findUnique.mockResolvedValue(mockCandidate);
       prisma.application.update.mockResolvedValue({
         ...mockApplication,
@@ -734,7 +748,7 @@ describe('ApplicationsService', () => {
           email: 'applicant@test.com',
           fullName: 'Test Applicant',
         },
-      } as any);
+      } as never);
 
       // Act
       const result = await service.update(
@@ -761,7 +775,7 @@ describe('ApplicationsService', () => {
         ...mockUser,
         id: 'admin-1',
         role: Role.ADMIN,
-      } as any);
+      } as never);
       prisma.candidate.findUnique.mockResolvedValue(null);
       prisma.application.update.mockResolvedValue({
         ...mockApplication,
@@ -772,7 +786,7 @@ describe('ApplicationsService', () => {
           email: 'applicant@test.com',
           fullName: 'Test Applicant',
         },
-      } as any);
+      } as never);
 
       // Act
       const result = await service.update(
@@ -810,13 +824,13 @@ describe('ApplicationsService', () => {
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
-      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+      prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
       prisma.candidate.findUnique.mockResolvedValue(mockCandidate);
       prisma.application.update.mockResolvedValue({
         ...mockApplication,
         deletedAt: new Date(),
         status: ApplicationStatus.WITHDRAWN,
-      } as any);
+      } as never);
 
       // Act
       await service.remove('app-1', 'user-1', 'RECRUITER');
@@ -840,13 +854,13 @@ describe('ApplicationsService', () => {
         ...mockUser,
         id: 'admin-1',
         role: Role.ADMIN,
-      } as any);
+      } as never);
       prisma.candidate.findUnique.mockResolvedValue(null);
       prisma.application.update.mockResolvedValue({
         ...mockApplication,
         deletedAt: new Date(),
         status: ApplicationStatus.WITHDRAWN,
-      } as any);
+      } as never);
 
       // Act
       await service.remove('app-1', 'admin-1', 'ADMIN');
@@ -860,7 +874,9 @@ describe('ApplicationsService', () => {
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
-      prisma.user.findUnique.mockResolvedValue(mockRecruiterUser as any);
+      prisma.user.findUnique.mockResolvedValue(
+        mockRecruiterUser as unknown as User,
+      );
       prisma.candidate.findUnique.mockResolvedValue(null);
 
       // Act & Assert
@@ -878,7 +894,7 @@ describe('ApplicationsService', () => {
         ...mockUser,
         id: 'other-user',
         email: 'other@test.com',
-      } as any);
+      } as never);
       prisma.candidate.findUnique.mockResolvedValue(null);
 
       // Act & Assert

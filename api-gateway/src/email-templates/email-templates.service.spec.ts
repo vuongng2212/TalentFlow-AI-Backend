@@ -1,13 +1,12 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { EmailTemplatesService } from './email-templates.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspaceContextService } from '../common/services/workspace-context.service';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, EmailTemplate } from '@prisma/client';
 
 describe('EmailTemplatesService', () => {
   let service: EmailTemplatesService;
@@ -51,7 +50,9 @@ describe('EmailTemplatesService', () => {
         workspaceId: mockWorkspaceId,
       };
 
-      prisma.emailTemplate.create.mockResolvedValue(expectedTemplate as any);
+      prisma.emailTemplate.create.mockResolvedValue(
+        expectedTemplate as unknown as EmailTemplate,
+      );
 
       const result = await service.create(dto);
 
@@ -69,7 +70,9 @@ describe('EmailTemplatesService', () => {
   describe('findAll', () => {
     it('should return paginated templates with no filters', async () => {
       const templates = [{ id: 'tpl-1' }, { id: 'tpl-2' }];
-      prisma.emailTemplate.findMany.mockResolvedValue(templates as any);
+      prisma.emailTemplate.findMany.mockResolvedValue(
+        templates as unknown as EmailTemplate[],
+      );
       prisma.emailTemplate.count.mockResolvedValue(2);
 
       const result = await service.findAll({});
@@ -111,7 +114,9 @@ describe('EmailTemplatesService', () => {
   describe('findOne', () => {
     it('should return a template if found', async () => {
       const template = { id: 'tpl-1' };
-      prisma.emailTemplate.findFirst.mockResolvedValue(template as any);
+      prisma.emailTemplate.findFirst.mockResolvedValue(
+        template as unknown as EmailTemplate,
+      );
 
       const result = await service.findOne('tpl-1');
 
@@ -136,8 +141,12 @@ describe('EmailTemplatesService', () => {
       const updatedTemplate = { ...existingTemplate, ...dto };
 
       // Mock findOne (which uses prisma.emailTemplate.findFirst)
-      prisma.emailTemplate.findFirst.mockResolvedValue(existingTemplate as any);
-      prisma.emailTemplate.update.mockResolvedValue(updatedTemplate as any);
+      prisma.emailTemplate.findFirst.mockResolvedValue(
+        existingTemplate as unknown as EmailTemplate,
+      );
+      prisma.emailTemplate.update.mockResolvedValue(
+        updatedTemplate as unknown as EmailTemplate,
+      );
 
       const result = await service.update('tpl-1', dto);
 
@@ -156,8 +165,12 @@ describe('EmailTemplatesService', () => {
     it('should delete an existing template', async () => {
       const existingTemplate = { id: 'tpl-1' };
 
-      prisma.emailTemplate.findFirst.mockResolvedValue(existingTemplate as any);
-      prisma.emailTemplate.delete.mockResolvedValue(existingTemplate as any);
+      prisma.emailTemplate.findFirst.mockResolvedValue(
+        existingTemplate as unknown as EmailTemplate,
+      );
+      prisma.emailTemplate.delete.mockResolvedValue(
+        existingTemplate as unknown as EmailTemplate,
+      );
 
       await service.remove('tpl-1');
 

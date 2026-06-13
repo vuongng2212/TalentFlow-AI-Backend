@@ -1,11 +1,17 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { Role, WorkspaceMemberStatus, PrismaClient } from '@prisma/client';
+import {
+  Role,
+  WorkspaceMemberStatus,
+  PrismaClient,
+  User,
+  WorkspaceMember,
+} from '@prisma/client';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 
 describe('UsersService', () => {
@@ -90,7 +96,7 @@ describe('UsersService', () => {
   describe('create', () => {
     it('should call prisma.user.create', async () => {
       const newUser = { id: 'user-2' };
-      prisma.user.create.mockResolvedValue(newUser as any);
+      prisma.user.create.mockResolvedValue(newUser as unknown as User);
 
       const result = await service.create(
         'test2@example.com',
@@ -107,7 +113,7 @@ describe('UsersService', () => {
   describe('findByEmail', () => {
     it('should call prisma.user.findUnique by email', async () => {
       const user = { id: 'user-1' };
-      prisma.user.findUnique.mockResolvedValue(user as any);
+      prisma.user.findUnique.mockResolvedValue(user as unknown as User);
 
       const result = await service.findByEmail('test@example.com');
 
@@ -121,7 +127,7 @@ describe('UsersService', () => {
   describe('findById', () => {
     it('should call prisma.user.findUnique by id', async () => {
       const user = { id: 'user-1' };
-      prisma.user.findUnique.mockResolvedValue(user as any);
+      prisma.user.findUnique.mockResolvedValue(user as unknown as User);
 
       const result = await service.findById('user-1');
 
@@ -149,8 +155,8 @@ describe('UsersService', () => {
 
       prisma.workspaceMember.findFirst.mockResolvedValue({
         id: 'm-1',
-      } as any);
-      prisma.user.update.mockResolvedValue(updatedUser as any);
+      } as unknown as WorkspaceMember);
+      prisma.user.update.mockResolvedValue(updatedUser as unknown as User);
 
       const result = await service.switchActiveWorkspace(userId, workspaceId);
 
@@ -183,7 +189,7 @@ describe('UsersService', () => {
   describe('findAll', () => {
     it('should return paginated users with no filters', async () => {
       const users = [{ id: '1' }, { id: '2' }];
-      prisma.user.findMany.mockResolvedValue(users as any);
+      prisma.user.findMany.mockResolvedValue(users as unknown as User[]);
       prisma.user.count.mockResolvedValue(2);
 
       const result = await service.findAll({});
@@ -197,7 +203,7 @@ describe('UsersService', () => {
         }),
       );
       expect(result).toEqual({
-        data: users as any,
+        data: users as unknown as User[],
         meta: { total: 2, page: 1, limit: 10, totalPages: 1 },
       });
     });
@@ -233,7 +239,7 @@ describe('UsersService', () => {
   describe('findOneProfile', () => {
     it('should return user profile if found', async () => {
       const user = { id: '1' };
-      prisma.user.findUnique.mockResolvedValue(user as any);
+      prisma.user.findUnique.mockResolvedValue(user as unknown as User);
 
       const result = await service.findOneProfile('1');
 
@@ -252,7 +258,7 @@ describe('UsersService', () => {
   describe('update', () => {
     it('should update user', async () => {
       const updatedUser = { id: '1' };
-      prisma.user.update.mockResolvedValue(updatedUser as any);
+      prisma.user.update.mockResolvedValue(updatedUser as unknown as User);
 
       const result = await service.update('1', { fullName: 'Updated' });
 
@@ -267,8 +273,8 @@ describe('UsersService', () => {
   describe('updateProfile', () => {
     it('should allow user to update own profile', async () => {
       const updatedUser = { id: '1', fullName: 'New Name' };
-      prisma.user.findUnique.mockResolvedValue({ id: '1' } as any);
-      prisma.user.update.mockResolvedValue(updatedUser as any);
+      prisma.user.findUnique.mockResolvedValue({ id: '1' } as unknown as User);
+      prisma.user.update.mockResolvedValue(updatedUser as unknown as User);
 
       const result = await service.updateProfile('1', '1', 'RECRUITER', {
         fullName: 'New Name',
@@ -285,8 +291,8 @@ describe('UsersService', () => {
 
     it('should allow admin to update other profile', async () => {
       const updatedUser = { id: '2', fullName: 'New Name' };
-      prisma.user.findUnique.mockResolvedValue({ id: '2' } as any);
-      prisma.user.update.mockResolvedValue(updatedUser as any);
+      prisma.user.findUnique.mockResolvedValue({ id: '2' } as unknown as User);
+      prisma.user.update.mockResolvedValue(updatedUser as unknown as User);
 
       const result = await service.updateProfile('2', '1', 'ADMIN', {
         fullName: 'New Name',
@@ -313,8 +319,8 @@ describe('UsersService', () => {
   describe('updateRole', () => {
     it('should update role if user exists', async () => {
       const updatedUser = { id: '1', role: Role.ADMIN };
-      prisma.user.findUnique.mockResolvedValue({ id: '1' } as any);
-      prisma.user.update.mockResolvedValue(updatedUser as any);
+      prisma.user.findUnique.mockResolvedValue({ id: '1' } as unknown as User);
+      prisma.user.update.mockResolvedValue(updatedUser as unknown as User);
 
       const result = await service.updateRole('1', Role.ADMIN);
 
@@ -338,7 +344,7 @@ describe('UsersService', () => {
 
   describe('softDelete', () => {
     it('should update deletedAt', async () => {
-      prisma.user.update.mockResolvedValue({ id: '1' } as any);
+      prisma.user.update.mockResolvedValue({ id: '1' } as unknown as User);
 
       await service.softDelete('1');
 
@@ -353,8 +359,8 @@ describe('UsersService', () => {
 
   describe('softDeleteUser', () => {
     it('should update deletedAt if user exists', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: '1' } as any);
-      prisma.user.update.mockResolvedValue({ id: '1' } as any);
+      prisma.user.findUnique.mockResolvedValue({ id: '1' } as unknown as User);
+      prisma.user.update.mockResolvedValue({ id: '1' } as unknown as User);
 
       await service.softDeleteUser('1');
 
