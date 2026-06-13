@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { EmailTemplatesController } from './email-templates.controller';
@@ -83,11 +81,11 @@ describe('EmailTemplatesController', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      service.findOne.mockResolvedValue(template as any);
+      service.findOne.mockResolvedValue(template as never);
 
       jest
         .spyOn(EmailTemplateResponseDto, 'from')
-        .mockReturnValue(template as any);
+        .mockReturnValue(template as never);
 
       const result = await controller.findOne(id);
 
@@ -111,11 +109,11 @@ describe('EmailTemplatesController', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      service.update.mockResolvedValue(template as any);
+      service.update.mockResolvedValue(template as never);
 
       jest
         .spyOn(EmailTemplateResponseDto, 'from')
-        .mockReturnValue(template as any);
+        .mockReturnValue(template as never);
 
       const result = await controller.update(id, dto);
 

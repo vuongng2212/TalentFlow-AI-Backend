@@ -12,6 +12,9 @@ import {
   WorkspaceMemberRole,
   WorkspaceMemberStatus,
   PrismaClient,
+  User,
+  WorkspaceMember,
+  Workspace,
 } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -134,7 +137,7 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue({
         id: 'workspace-1',
         isBusiness: false,
-      } as any);
+      } as never);
 
       await expect(
         service.addMember('workspace-1', 'owner-1', {
@@ -147,10 +150,10 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue({
         id: 'workspace-1',
         isBusiness: true,
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.RECRUITER,
-      } as any);
+      } as never);
 
       await expect(
         service.addMember('workspace-1', 'requester-1', {
@@ -163,10 +166,10 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue({
         id: 'workspace-1',
         isBusiness: true,
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
-      } as any);
+      } as never);
       prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
@@ -180,14 +183,14 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue({
         id: 'workspace-1',
         isBusiness: true,
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.ADMIN,
-      } as any);
+      } as never);
       prisma.user.findUnique.mockResolvedValue({
         id: 'user-2',
         deletedAt: new Date(),
-      } as any);
+      } as never);
 
       await expect(
         service.addMember('workspace-1', 'admin-1', {
@@ -200,11 +203,13 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue({
         id: 'workspace-1',
         isBusiness: true,
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
-      } as any);
-      prisma.user.findUnique.mockResolvedValue({ id: 'user-2' } as any);
+      } as never);
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-2',
+      } as unknown as User);
 
       prisma.$transaction.mockImplementation((callback: any) => {
         const tx = {
@@ -235,11 +240,13 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue({
         id: 'workspace-1',
         isBusiness: true,
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
-      } as any);
-      prisma.user.findUnique.mockResolvedValue({ id: 'user-2' } as any);
+      } as never);
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-2',
+      } as unknown as User);
 
       prisma.$transaction.mockImplementation((callback: any) => {
         const tx = {
@@ -268,11 +275,13 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue({
         id: 'workspace-1',
         isBusiness: true,
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.ADMIN,
-      } as any);
-      prisma.user.findUnique.mockResolvedValue({ id: 'user-2' } as any);
+      } as never);
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-2',
+      } as unknown as User);
 
       const updatedMember = {
         id: 'wm-1',
@@ -314,11 +323,13 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue({
         id: 'workspace-1',
         isBusiness: true,
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
-      } as any);
-      prisma.user.findUnique.mockResolvedValue({ id: 'user-2' } as any);
+      } as never);
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-2',
+      } as unknown as User);
 
       const createdMember = {
         id: 'wm-1',
@@ -360,7 +371,7 @@ describe('WorkspacesService', () => {
     it('should throw ForbiddenException when requester is not active member', async () => {
       prisma.workspace.findUnique.mockResolvedValue({
         id: 'workspace-1',
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValue(null);
 
       await expect(
@@ -373,11 +384,13 @@ describe('WorkspacesService', () => {
 
       prisma.workspace.findUnique.mockResolvedValue({
         id: 'workspace-1',
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         id: 'wm-owner',
-      } as any);
-      prisma.workspaceMember.findMany.mockResolvedValue(members as any);
+      } as never);
+      prisma.workspaceMember.findMany.mockResolvedValue(
+        members as unknown as WorkspaceMember[],
+      );
 
       const result = await service.listMembers('workspace-1', 'owner-1');
 
@@ -408,7 +421,7 @@ describe('WorkspacesService', () => {
     it('should return true when active membership exists', async () => {
       prisma.workspaceMember.findFirst.mockResolvedValue({
         id: 'wm-1',
-      } as any);
+      } as never);
 
       await expect(
         service.ensureActiveMembership('workspace-1', 'user-1'),
@@ -440,7 +453,7 @@ describe('WorkspacesService', () => {
         id: 'workspace-1',
         name: 'Personal',
         isBusiness: false,
-      } as any);
+      } as never);
 
       await expect(
         service.createInvitation('workspace-1', 'owner-1', {
@@ -454,10 +467,10 @@ describe('WorkspacesService', () => {
         id: 'workspace-1',
         name: 'Biz',
         isBusiness: true,
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.RECRUITER,
-      } as any);
+      } as never);
 
       await expect(
         service.createInvitation('workspace-1', 'recruiter-1', {
@@ -472,13 +485,17 @@ describe('WorkspacesService', () => {
         name: 'Biz',
         isBusiness: true,
       };
-      prisma.workspace.findUnique.mockResolvedValue(workspace as any);
+      prisma.workspace.findUnique.mockResolvedValue(
+        workspace as unknown as Workspace,
+      );
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
-      } as any);
+      } as never);
       const existingUser = { id: 'user-invitee' };
-      prisma.user.findUnique.mockResolvedValue(existingUser as any);
-      prisma.workspaceMember.upsert.mockResolvedValue({} as any);
+      prisma.user.findUnique.mockResolvedValue(existingUser as unknown as User);
+      prisma.workspaceMember.upsert.mockResolvedValue(
+        {} as unknown as WorkspaceMember,
+      );
       const createdInvitation = {
         id: 'inv-1',
         email: 'invitee@test.com',
@@ -596,7 +613,7 @@ describe('WorkspacesService', () => {
     it('should throw ForbiddenException if requester is not OWNER or ADMIN', async () => {
       prisma.workspaceMember.findFirst.mockResolvedValueOnce({
         role: WorkspaceMemberRole.VIEWER,
-      } as any);
+      } as never);
 
       await expect(
         service.removeMember('ws-1', 'requester-1', 'target-1'),
@@ -616,7 +633,7 @@ describe('WorkspacesService', () => {
     it('should throw ForbiddenException if trying to remove the owner', async () => {
       prisma.workspaceMember.findFirst
         .mockResolvedValueOnce({ role: WorkspaceMemberRole.ADMIN } as any)
-        .mockResolvedValueOnce({ role: WorkspaceMemberRole.OWNER } as any);
+        .mockResolvedValueOnce({ role: WorkspaceMemberRole.OWNER } as never);
 
       await expect(
         service.removeMember('ws-1', 'requester-1', 'target-1'),
@@ -626,7 +643,9 @@ describe('WorkspacesService', () => {
     it('should successfully remove member and reset activeWorkspaceId if it matches', async () => {
       prisma.workspaceMember.findFirst
         .mockResolvedValueOnce({ role: WorkspaceMemberRole.ADMIN } as any)
-        .mockResolvedValueOnce({ role: WorkspaceMemberRole.RECRUITER } as any);
+        .mockResolvedValueOnce({
+          role: WorkspaceMemberRole.RECRUITER,
+        } as never);
 
       prisma.$transaction.mockImplementation(async (callback: any) => {
         const tx = {
@@ -710,7 +729,9 @@ describe('WorkspacesService', () => {
           },
         },
       ];
-      prisma.workspaceMember.findMany.mockResolvedValue(memberships as any);
+      prisma.workspaceMember.findMany.mockResolvedValue(
+        memberships as unknown as WorkspaceMember[],
+      );
 
       const result = await service.findAllForUser('user-1');
 
@@ -756,7 +777,7 @@ describe('WorkspacesService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         members: [],
-      } as any);
+      } as never);
       // ensureMemberAccess uses workspaceMember.findFirst — return null = not a member
       prisma.workspaceMember.findFirst.mockResolvedValue(null);
 
@@ -778,11 +799,11 @@ describe('WorkspacesService', () => {
         createdAt: new Date('2026-01-01'),
         updatedAt: new Date('2026-01-02'),
         members,
-      } as any);
+      } as never);
       // ensureMemberAccess succeeds
       prisma.workspaceMember.findFirst.mockResolvedValue({
         id: 'wm-1',
-      } as any);
+      } as never);
 
       const result = await service.findOne('ws-1', 'user-1');
 
@@ -808,10 +829,10 @@ describe('WorkspacesService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         members: [{ userId: 'owner-1', role: WorkspaceMemberRole.OWNER }],
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         id: 'wm-x',
-      } as any);
+      } as never);
 
       const result = await service.findOne('ws-1', 'user-not-in-list');
 
@@ -828,10 +849,10 @@ describe('WorkspacesService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         members: [{ userId: 'u1', role: WorkspaceMemberRole.OWNER }],
-      } as any);
+      } as never);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         id: 'wm-1',
-      } as any);
+      } as never);
 
       await service.findOne('ws-1', 'u1');
 
@@ -876,7 +897,7 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue(workspaceFixture);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.RECRUITER,
-      } as any);
+      } as never);
 
       await expect(
         service.update('ws-1', 'recruiter-1', { name: 'Hacked' }),
@@ -887,7 +908,7 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue(workspaceFixture);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.VIEWER,
-      } as any);
+      } as never);
 
       await expect(
         service.update('ws-1', 'viewer-1', { name: 'Hacked' }),
@@ -909,7 +930,7 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue(workspaceFixture);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
-      } as any);
+      } as never);
       prisma.workspace.update = jest.fn().mockResolvedValue(updated);
 
       const result = await service.update('ws-1', 'owner-1', {
@@ -931,7 +952,7 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue(workspaceFixture);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.ADMIN,
-      } as any);
+      } as never);
       prisma.workspace.update = jest.fn().mockResolvedValue(updated);
 
       const result = await service.update('ws-1', 'admin-1', {
@@ -947,7 +968,7 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue(workspaceFixture);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
-      } as any);
+      } as never);
       prisma.workspace.update = jest.fn().mockResolvedValue(upgraded);
 
       const result = await service.update('ws-1', 'owner-1', {
@@ -972,7 +993,7 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue(workspaceFixture);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
-      } as any);
+      } as never);
       prisma.workspace.update = jest.fn().mockResolvedValue(updated);
 
       const result = await service.update('ws-1', 'owner-1', {
@@ -995,7 +1016,7 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue(workspaceFixture);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
-      } as any);
+      } as never);
       prisma.workspace.update = jest.fn().mockResolvedValue(updated);
 
       await service.update('ws-1', 'owner-1', { isBusiness: true });
@@ -1018,7 +1039,7 @@ describe('WorkspacesService', () => {
       prisma.workspace.findUnique.mockResolvedValue(workspaceFixture);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
-      } as any);
+      } as never);
       prisma.workspace.update = jest.fn().mockResolvedValue(updatedRecord);
 
       await service.update('ws-1', 'owner-1', { name: 'Selected' });

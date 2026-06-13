@@ -5,7 +5,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { WorkspacesCleanupService } from './workspaces-cleanup.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, User } from '@prisma/client';
 
 describe('WorkspacesCleanupService', () => {
   let service: WorkspacesCleanupService;
@@ -58,7 +58,7 @@ describe('WorkspacesCleanupService', () => {
       prisma.workspaceInvitation.findMany.mockResolvedValue(
         expiredInvitations as any,
       );
-      prisma.user.findMany.mockResolvedValue(matchedUsers as any);
+      prisma.user.findMany.mockResolvedValue(matchedUsers as unknown as User[]);
       prisma.$transaction.mockResolvedValue(true);
       prisma.workspaceInvitation.deleteMany.mockResolvedValue({
         count: 3,

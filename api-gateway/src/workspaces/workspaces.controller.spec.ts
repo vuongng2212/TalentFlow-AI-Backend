@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { WorkspacesController } from './workspaces.controller';
@@ -66,7 +64,7 @@ describe('WorkspacesController', () => {
         isBusiness: false,
       };
 
-      service.create.mockResolvedValue(expectedResult as any);
+      service.create.mockResolvedValue(expectedResult as never);
 
       const result = await controller.create(mockUser, dto);
 
@@ -82,7 +80,7 @@ describe('WorkspacesController', () => {
     it('should call service.findAllForUser with correct user id', async () => {
       const expectedResult = [{ id: mockWorkspaceId, name: 'Workspace 1' }];
 
-      service.findAllForUser.mockResolvedValue(expectedResult as any);
+      service.findAllForUser.mockResolvedValue(expectedResult as never);
 
       const result = await controller.listMyWorkspaces(mockUser);
 
@@ -97,7 +95,7 @@ describe('WorkspacesController', () => {
     it('should call service.findOne with correct parameters', async () => {
       const expectedResult = { id: mockWorkspaceId, name: 'Workspace 1' };
 
-      service.findOne.mockResolvedValue(expectedResult as any);
+      service.findOne.mockResolvedValue(expectedResult as never);
 
       const result = await controller.getOne(mockWorkspaceId, mockUser);
 
@@ -114,7 +112,7 @@ describe('WorkspacesController', () => {
       const dto: UpdateWorkspaceDto = { name: 'Updated Workspace' };
       const expectedResult = { id: mockWorkspaceId, name: 'Updated Workspace' };
 
-      service.update.mockResolvedValue(expectedResult as any);
+      service.update.mockResolvedValue(expectedResult as never);
 
       const result = await controller.updateWorkspace(
         mockWorkspaceId,
@@ -139,7 +137,7 @@ describe('WorkspacesController', () => {
       };
       const expectedResult = { id: 'membership-123', userId: 'user-456' };
 
-      service.addMember.mockResolvedValue(expectedResult as any);
+      service.addMember.mockResolvedValue(expectedResult as never);
 
       const result = await controller.addMember(mockWorkspaceId, mockUser, dto);
 
@@ -158,7 +156,7 @@ describe('WorkspacesController', () => {
         { id: 'membership-123', user: { fullName: 'Test' } },
       ];
 
-      service.listMembers.mockResolvedValue(expectedResult as any);
+      service.listMembers.mockResolvedValue(expectedResult as never);
 
       const result = await controller.listMembers(mockWorkspaceId, mockUser);
 
@@ -181,7 +179,7 @@ describe('WorkspacesController', () => {
         email: 'invite@example.com',
       };
 
-      service.createInvitation.mockResolvedValue(expectedResult as any);
+      service.createInvitation.mockResolvedValue(expectedResult as never);
 
       const result = await controller.createInvitation(
         mockWorkspaceId,
@@ -203,7 +201,7 @@ describe('WorkspacesController', () => {
       const dto: AcceptInvitationDto = { token: 'valid-token' };
       const expectedResult = { id: 'membership-123', status: 'ACTIVE' };
 
-      service.acceptInvitation.mockResolvedValue(expectedResult as any);
+      service.acceptInvitation.mockResolvedValue(expectedResult as never);
 
       const result = await controller.acceptInvitation(mockUser, dto);
 
