@@ -126,7 +126,7 @@ export class ApplicationsService {
       throw new ConflictException('You have already applied to this job');
     }
 
-    return this.prisma.application.create({
+    const application = await this.prisma.application.create({
       data: {
         ...data,
         jobId,
@@ -151,6 +151,25 @@ export class ApplicationsService {
         },
       },
     });
+
+    try {
+      await this.queueService.publishApplicationCreated({
+        applicationId: application.id,
+        jobId: application.jobId,
+        jobTitle: application.job.title,
+        applicantId: application.candidateId,
+        applicantEmail: application.candidate.email,
+        applicantName: application.candidate.fullName,
+        appliedAt: application.appliedAt.toISOString(),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to publish application.created event for application ${application.id}`,
+        sanitizeError(error),
+      );
+    }
+
+    return application;
   }
 
   async createWithCv(
@@ -161,7 +180,7 @@ export class ApplicationsService {
     const { jobId, coverLetter } = dto;
     const workspaceId = this.workspaceContext.getWorkspaceId();
 
-    await this.findOpenJobOrThrow(jobId, workspaceId);
+    const job = await this.findOpenJobOrThrow(jobId, workspaceId);
     const candidate = await this.findOrCreateCandidateOrThrow(
       userId,
       workspaceId,
@@ -194,6 +213,16 @@ export class ApplicationsService {
         fileKey,
         mimeType: file.mimetype,
         uploadedAt: new Date().toISOString(),
+      });
+
+      await this.queueService.publishApplicationCreated({
+        applicationId: application.id,
+        jobId,
+        jobTitle: job.title,
+        applicantId: candidate.id,
+        applicantEmail: candidate.email,
+        applicantName: candidate.fullName,
+        appliedAt: application.appliedAt.toISOString(),
       });
 
       return this.buildUploadResponse(application.id, fileKey, uploadUrl);
