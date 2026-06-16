@@ -60,8 +60,10 @@ import {
   CV_PROCESSING_QUEUE,
   CV_PARSING_DLQ,
   ROUTING_KEY_CV_UPLOADED,
+  ROUTING_KEY_WORKSPACE_MEMBER_INVITED,
 } from './constants/queue.constants';
 import { CvUploadedEvent } from './interfaces/cv-uploaded-event.interface';
+import { WorkspaceMemberInvitedEvent } from './interfaces/workspace-member-invited-event.interface';
 
 @Injectable()
 export class QueueService implements OnModuleInit, OnModuleDestroy {
@@ -273,6 +275,39 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.log(
       `Published cv.uploaded event for application ${event.applicationId}`,
+    );
+
+    return Promise.resolve();
+  }
+
+  async publishWorkspaceMemberInvited(
+    event: WorkspaceMemberInvitedEvent,
+  ): Promise<void> {
+    if (!this.channel) {
+      this.logger.error('Cannot publish: channel not initialized');
+      throw new Error('RabbitMQ channel not initialized');
+    }
+
+    const message = Buffer.from(JSON.stringify(event));
+
+    const published = this.channel.publish(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_WORKSPACE_MEMBER_INVITED,
+      message,
+      {
+        persistent: true,
+        contentType: 'application/json',
+        timestamp: Date.now(),
+      },
+    );
+
+    if (!published) {
+      this.logger.error('Message was not published - channel buffer full');
+      throw new Error('RabbitMQ outbound buffer full');
+    }
+
+    this.logger.log(
+      `Published workspace.member.invited event for ${event.email}`,
     );
 
     return Promise.resolve();

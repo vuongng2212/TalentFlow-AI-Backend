@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { ElkLoggerService } from './elk-logger.service';
@@ -99,8 +100,7 @@ describe('ElkLoggerService', () => {
 
   describe('ELK transport', () => {
     it('should not add ELK transport when ELK_HOST is not configured', () => {
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(configService.get).toHaveBeenCalledWith('ELK_HOST');
+      expect(jest.mocked(configService.get)).toHaveBeenCalledWith('ELK_HOST');
     });
 
     it('should add ELK transport when ELK_HOST is configured', async () => {

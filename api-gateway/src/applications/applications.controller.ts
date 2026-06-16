@@ -20,6 +20,7 @@ import {
   ApiParam,
   ApiConsumes,
   ApiBody,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApplicationsService } from './applications.service';
@@ -41,6 +42,11 @@ interface UserPayload {
 
 @ApiTags('Applications')
 @ApiBearerAuth('access-token')
+@ApiHeader({
+  name: 'x-workspace-id',
+  required: false,
+  description: 'Active workspace ID for resource isolation',
+})
 @Controller('applications')
 export class ApplicationsController {
   constructor(private readonly applicationsService: ApplicationsService) {}
@@ -60,10 +66,7 @@ export class ApplicationsController {
     @CurrentUser() user: UserPayload,
     @Body() createApplicationDto: CreateApplicationDto,
   ): Promise<ApplicationResponseDto> {
-    return this.applicationsService.create(
-      user.id,
-      createApplicationDto,
-    ) as Promise<ApplicationResponseDto>;
+    return this.applicationsService.create(user.id, createApplicationDto);
   }
 
   @Post('upload')

@@ -21,6 +21,7 @@ describe('CV Upload (e2e)', () => {
   let applicantCookie: string;
   let recruiterCookie: string;
   let jobId: string;
+  let recruiterWorkspaceId: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -90,12 +91,31 @@ describe('CV Upload (e2e)', () => {
 
     const recruiter = await prisma.user.findUnique({
       where: { email: 'cv-recruiter@test.com' },
+      select: { id: true, activeWorkspaceId: true },
+    });
+
+    if (!recruiter || !recruiter.activeWorkspaceId) {
+      throw new Error('Recruiter not found or has no active workspace');
+    }
+    recruiterWorkspaceId = recruiter.activeWorkspaceId;
+
+    const applicantRecord = await prisma.user.findUnique({
+      where: { email: 'cv-applicant@test.com' },
       select: { id: true },
     });
 
-    if (!recruiter) {
-      throw new Error('Recruiter not found');
+    if (!applicantRecord) {
+      throw new Error('Applicant user not found');
     }
+
+    await prisma.workspaceMember.create({
+      data: {
+        workspaceId: recruiterWorkspaceId,
+        userId: applicantRecord.id,
+        role: 'RECRUITER',
+        status: 'ACTIVE',
+      },
+    });
 
     const jobResponse = await request(app.getHttpServer())
       .post('/api/v1/jobs')
@@ -123,6 +143,7 @@ describe('CV Upload (e2e)', () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/applications/upload')
         .set('Cookie', [applicantCookie])
+        .set('x-workspace-id', recruiterWorkspaceId)
         .field('jobId', jobId)
         .field('coverLetter', 'CV upload test')
         .attach('file', Buffer.from('%PDF-1.4 test'), {
@@ -143,6 +164,7 @@ describe('CV Upload (e2e)', () => {
       await request(app.getHttpServer())
         .post('/api/v1/applications/upload')
         .set('Cookie', [applicantCookie])
+        .set('x-workspace-id', recruiterWorkspaceId)
         .field('jobId', jobId)
         .attach('file', Buffer.from('not allowed'), {
           filename: 'malware.exe',
@@ -155,6 +177,7 @@ describe('CV Upload (e2e)', () => {
       await request(app.getHttpServer())
         .post('/api/v1/applications/upload')
         .set('Cookie', [applicantCookie])
+        .set('x-workspace-id', recruiterWorkspaceId)
         .field('jobId', jobId)
         .attach('file', Buffer.from('%PDF-1.4 duplicate'), {
           filename: 'resume.pdf',
@@ -167,6 +190,7 @@ describe('CV Upload (e2e)', () => {
       await request(app.getHttpServer())
         .post('/api/v1/applications/upload')
         .set('Cookie', [recruiterCookie])
+        .set('x-workspace-id', recruiterWorkspaceId)
         .field('jobId', 'f47ac10b-58cc-4372-a567-0e02b2c3d479')
         .attach('file', Buffer.from('%PDF-1.4 test'), {
           filename: 'resume.pdf',

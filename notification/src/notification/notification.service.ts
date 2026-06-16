@@ -10,6 +10,7 @@ import {
   CvParsedEvent,
   NotificationSendEvent,
 } from '../rabbitmq/events';
+import { WorkspaceMemberInvitedDto } from '../rabbitmq/dtos/workspace-member-invited.dto';
 import { NotificationResponseDto } from './dto/notification-response.dto';
 import {
   SendNotificationDto,
@@ -214,6 +215,45 @@ export class NotificationService {
     };
 
     logger.log(`handleCvFailed completed, notificationId=${notification.id}`);
+    return { success: true, messageId: notification.id };
+  }
+
+  async handleWorkspaceMemberInvited(
+    event: WorkspaceMemberInvitedDto,
+  ): Promise<{ success: boolean; messageId?: string }> {
+    const logger = new Logger(NotificationService.name);
+    logger.log(
+      `Processing workspace.member.invited for ${maskPii(event.email)} (workspace=${event.workspaceName})`,
+    );
+
+    await this.emailService.sendEmail({
+      to: event.email,
+      subject: `You're invited to join ${event.workspaceName} on TalentFlow`,
+      templateId: EmailTemplateId.WORKSPACE_INVITATION,
+      templateData: {
+        workspaceName: event.workspaceName,
+        inviteUrl: event.inviteUrl,
+      },
+    });
+
+    const notification: NotificationEntity = {
+      id: randomUUID(),
+      userId: event.email,
+      type: 'workspace_invitation',
+      channel: 'email',
+      title: `You're invited to join ${event.workspaceName}`,
+      message: `Accept the invitation to join ${event.workspaceName}.`,
+      recipient: event.email,
+      subject: `You're invited to join ${event.workspaceName} on TalentFlow`,
+      status: 'sent',
+      read: false,
+      sentAt: new Date(),
+      createdAt: new Date(),
+    };
+
+    logger.log(
+      `handleWorkspaceMemberInvited completed, notificationId=${notification.id}`,
+    );
     return { success: true, messageId: notification.id };
   }
 

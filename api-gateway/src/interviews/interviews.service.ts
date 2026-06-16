@@ -10,17 +10,23 @@ import { UpdateInterviewDto } from './dto/update-interview.dto';
 import { QueryInterviewsDto } from './dto/query-interviews.dto';
 import type { PaginatedResult } from '../common/dto/pagination.dto';
 import type { Interview } from '@prisma/client';
+import { WorkspaceContextService } from '../common/services/workspace-context.service';
 
 @Injectable()
 export class InterviewsService {
   private readonly logger = new Logger(InterviewsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly workspaceContext: WorkspaceContextService,
+  ) {}
 
   async create(dto: CreateInterviewDto): Promise<Interview> {
-    // Verify application exists
-    const application = await this.prisma.application.findUnique({
-      where: { id: dto.applicationId, deletedAt: null },
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+
+    // Verify application exists within the current workspace
+    const application = await this.prisma.application.findFirst({
+      where: { id: dto.applicationId, workspaceId, deletedAt: null },
     });
 
     if (!application) {
@@ -50,11 +56,14 @@ export class InterviewsService {
       );
     }
 
-    this.logger.log(`Creating interview for application ${dto.applicationId}`);
+    this.logger.log(
+      `Creating interview for application ${dto.applicationId} in workspace ${workspaceId}`,
+    );
 
     return this.prisma.interview.create({
       data: {
         applicationId: dto.applicationId,
+        workspaceId,
         scheduledAt,
         duration: dto.duration ?? 60,
         type: dto.type ?? 'VIDEO',
@@ -80,6 +89,7 @@ export class InterviewsService {
   async findAll(
     query: QueryInterviewsDto,
   ): Promise<PaginatedResult<Interview>> {
+    const workspaceId = this.workspaceContext.getWorkspaceId();
     const {
       page = 1,
       limit = 10,
@@ -92,7 +102,9 @@ export class InterviewsService {
     } = query;
     const skip = (page - 1) * limit;
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = {
+      workspaceId,
+    };
 
     if (applicationId) where.applicationId = applicationId;
     if (interviewerId) where.interviewerId = interviewerId;
@@ -133,8 +145,9 @@ export class InterviewsService {
   }
 
   async findOne(id: string): Promise<Interview> {
-    const interview = await this.prisma.interview.findUnique({
-      where: { id },
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const interview = await this.prisma.interview.findFirst({
+      where: { id, workspaceId },
       include: {
         application: {
           select: {
@@ -161,8 +174,9 @@ export class InterviewsService {
   }
 
   async update(id: string, dto: UpdateInterviewDto): Promise<Interview> {
-    const existing = await this.prisma.interview.findUnique({
-      where: { id },
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const existing = await this.prisma.interview.findFirst({
+      where: { id, workspaceId },
     });
 
     if (!existing) {
@@ -192,7 +206,7 @@ export class InterviewsService {
       }
     }
 
-    this.logger.log(`Updating interview ${id}`);
+    this.logger.log(`Updating interview ${id} in workspace ${workspaceId}`);
 
     return this.prisma.interview.update({
       where: { id },
@@ -225,15 +239,16 @@ export class InterviewsService {
   }
 
   async remove(id: string): Promise<void> {
-    const existing = await this.prisma.interview.findUnique({
-      where: { id },
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const existing = await this.prisma.interview.findFirst({
+      where: { id, workspaceId },
     });
 
     if (!existing) {
       throw new NotFoundException(`Interview with ID "${id}" not found`);
     }
 
-    this.logger.log(`Cancelling interview ${id}`);
+    this.logger.log(`Cancelling interview ${id} in workspace ${workspaceId}`);
 
     // Soft cancel — change status to CANCELLED instead of hard delete
     await this.prisma.interview.update({

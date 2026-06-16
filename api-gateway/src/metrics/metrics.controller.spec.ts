@@ -46,14 +46,14 @@ describe('MetricsController', () => {
 
       await controller.getMetrics(mockResponse);
 
-      expect(mockResponse.setHeader).toHaveBeenCalledWith(
+      expect(jest.mocked(mockResponse.setHeader)).toHaveBeenCalledWith(
         'Content-Type',
         'text/plain; version=0.0.4',
       );
-      expect(mockResponse.send).toHaveBeenCalledWith(
+      expect(jest.mocked(mockResponse.send)).toHaveBeenCalledWith(
         '# HELP test metric\ntest_metric 1',
       );
-      expect(metricsService.getRegistry).toHaveBeenCalled();
+      expect(jest.mocked(metricsService.getRegistry)).toHaveBeenCalled();
     });
 
     it('should call registry.metrics()', async () => {
@@ -64,7 +64,7 @@ describe('MetricsController', () => {
 
       await controller.getMetrics(mockResponse);
 
-      expect(mockRegistry.metrics).toHaveBeenCalled();
+      expect(jest.mocked(mockRegistry.metrics)).toHaveBeenCalled();
     });
   });
 });

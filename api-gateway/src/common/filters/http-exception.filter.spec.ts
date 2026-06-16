@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import { HttpExceptionFilter } from './http-exception.filter';
 import { Request, Response } from 'express';
@@ -45,8 +44,8 @@ describe('HttpExceptionFilter', () => {
 
       filter.catch(exception, mockArgumentsHost);
 
-      expect(mockResponse.status).toHaveBeenCalledWith(404);
-      expect(mockResponse.json).toHaveBeenCalledWith(
+      expect(jest.mocked(mockResponse.status)).toHaveBeenCalledWith(404);
+      expect(jest.mocked(mockResponse.json)).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 404,
           message: 'Not Found',
@@ -63,8 +62,8 @@ describe('HttpExceptionFilter', () => {
 
       filter.catch(exception, mockArgumentsHost);
 
-      expect(mockResponse.status).toHaveBeenCalledWith(400);
-      expect(mockResponse.json).toHaveBeenCalledWith(
+      expect(jest.mocked(mockResponse.status)).toHaveBeenCalledWith(400);
+      expect(jest.mocked(mockResponse.json)).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 400,
           message: 'Validation error',
@@ -80,8 +79,8 @@ describe('HttpExceptionFilter', () => {
 
       filter.catch(exception, mockArgumentsHost);
 
-      expect(mockResponse.status).toHaveBeenCalledWith(400);
-      expect(mockResponse.json).toHaveBeenCalledWith(
+      expect(jest.mocked(mockResponse.status)).toHaveBeenCalledWith(400);
+      expect(jest.mocked(mockResponse.json)).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 400,
           message: 'Validation failed',
@@ -98,8 +97,8 @@ describe('HttpExceptionFilter', () => {
 
       filter.catch(exception, mockArgumentsHost);
 
-      expect(mockResponse.status).toHaveBeenCalledWith(500);
-      expect(mockResponse.json).toHaveBeenCalledWith(
+      expect(jest.mocked(mockResponse.status)).toHaveBeenCalledWith(500);
+      expect(jest.mocked(mockResponse.json)).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 500,
         }),
@@ -116,8 +115,8 @@ describe('HttpExceptionFilter', () => {
 
       filter.catch(exception, mockArgumentsHost);
 
-      expect(mockResponse.status).toHaveBeenCalledWith(500);
-      expect(mockResponse.json).toHaveBeenCalledWith(
+      expect(jest.mocked(mockResponse.status)).toHaveBeenCalledWith(500);
+      expect(jest.mocked(mockResponse.json)).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 500,
           message: 'Internal server error',
@@ -133,7 +132,7 @@ describe('HttpExceptionFilter', () => {
 
       filter.catch(exception, mockArgumentsHost);
 
-      expect(mockResponse.json).toHaveBeenCalledWith(
+      expect(jest.mocked(mockResponse.json)).toHaveBeenCalledWith(
         expect.objectContaining({
           requestId: 'test-request-123',
         }),
@@ -148,7 +147,7 @@ describe('HttpExceptionFilter', () => {
 
       filter.catch(exception, mockArgumentsHost);
 
-      expect(mockResponse.json).toHaveBeenCalledWith(
+      expect(jest.mocked(mockResponse.json)).toHaveBeenCalledWith(
         expect.objectContaining({
           requestId: 'response-header-id',
         }),
@@ -163,7 +162,7 @@ describe('HttpExceptionFilter', () => {
 
       filter.catch(exception, mockArgumentsHost);
 
-      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(jest.mocked(mockResponse.status)).toHaveBeenCalledWith(500);
 
       process.env.NODE_ENV = originalEnv;
     });
@@ -176,7 +175,7 @@ describe('HttpExceptionFilter', () => {
 
       filter.catch(exception, mockArgumentsHost);
 
-      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(jest.mocked(mockResponse.status)).toHaveBeenCalledWith(400);
     });
 
     it('should set correct error name from status code', () => {
@@ -184,7 +183,7 @@ describe('HttpExceptionFilter', () => {
 
       filter.catch(exception, mockArgumentsHost);
 
-      expect(mockResponse.json).toHaveBeenCalledWith(
+      expect(jest.mocked(mockResponse.json)).toHaveBeenCalledWith(
         expect.objectContaining({
           message: 'Forbidden',
         }),
