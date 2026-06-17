@@ -170,7 +170,7 @@ app:
   ocr:
     tessdata-path: ${TESSDATA_PATH:/usr/share/tesseract-ocr/4.00/tessdata}
     language: ${OCR_LANGUAGE:vie+eng}
-    dpi: ${OCR_DPI:300}
+    dpi: ${OCR_DPI:150}
     max-pages: ${OCR_MAX_PAGES:20}
     max-parallel-pages: ${OCR_MAX_PARALLEL_PAGES:2}
     pool-borrow-timeout-seconds: ${OCR_POOL_BORROW_TIMEOUT_SECONDS:30}

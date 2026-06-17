@@ -11,6 +11,8 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -113,6 +115,45 @@ class TesseractOcrImplTest {
             document.save(pdfPath.toFile());
         }
         return pdfPath;
+    }
+
+    @Test
+    void renderedImagePixelAreaFitsWithinBudgetFor150Dpi() throws IOException {
+        // A4 page at 300 DPI → ~2480 × 3508 ≈ 8.7M pixels (old default — bottleneck B2).
+        // A4 page at 150 DPI → ~1240 × 1754 ≈ 2.2M pixels (target default).
+        // Assertion threshold sits between the two; the test fails at 300 DPI and passes at 150 DPI.
+        int dpi = 150;
+        long pixelBudget = 2_500_000L;
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Path pdfPath = createPdf(1);
+        List<BufferedImage> capturedImages = new CopyOnWriteArrayList<>();
+
+        try {
+            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor) {
+                @Override
+                protected String runTesseract(BufferedImage image, Path filePath, int pageNumber) {
+                    capturedImages.add(image);
+                    return "";
+                }
+            };
+            ReflectionTestUtils.setField(ocr, "maxPages",                 10);
+            ReflectionTestUtils.setField(ocr, "maxParallelPages",         1);
+            ReflectionTestUtils.setField(ocr, "maxRenderedPixelsPerPage", 20_000_000L);
+            ReflectionTestUtils.setField(ocr, "dpi",                      dpi);
+
+            ocr.extractText(pdfPath, "application/pdf").join();
+
+            assertThat(capturedImages).hasSize(1);
+            long pixelArea = (long) capturedImages.get(0).getWidth()
+                           * capturedImages.get(0).getHeight();
+            assertThat(pixelArea)
+                    .as("pixel area at dpi=%d must fit within 150-DPI budget (%d px²)", dpi, pixelBudget)
+                    .isLessThan(pixelBudget);
+        } finally {
+            executor.shutdownNow();
+            Files.deleteIfExists(pdfPath);
+        }
     }
 
     @Test

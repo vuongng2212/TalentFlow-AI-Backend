@@ -43,7 +43,7 @@ public class TesseractOcrImpl {
     @Value("${tesseract.language:eng+vie}")
     private String language;
 
-    @Value("${app.ocr.dpi:300}")
+    @Value("${app.ocr.dpi:150}")
     private int dpi;
 
     @Value("${app.ocr.max-pages:20}")
