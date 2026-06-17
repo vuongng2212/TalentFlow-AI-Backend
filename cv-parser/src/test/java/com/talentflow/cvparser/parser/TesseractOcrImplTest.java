@@ -11,9 +11,12 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
 
@@ -110,6 +113,55 @@ class TesseractOcrImplTest {
             document.save(pdfPath.toFile());
         }
         return pdfPath;
+    }
+
+    @Test
+    void ocrScannedPdfSubmitsAllPagesOcrConcurrentlyWithoutBatching() throws Exception {
+        // 4-page PDF, maxParallelPages=2.
+        // Old design batches pages in groups of maxParallelPages and blocks between batches —
+        // so at most 2 OCR tasks are ever in-flight simultaneously.
+        // New two-phase design submits all 4 tasks at once; all 4 must be in-flight before any completes.
+        int pageCount = 4;
+        ExecutorService pageExecutor = Executors.newFixedThreadPool(pageCount);
+        ExecutorService testRunner   = Executors.newSingleThreadExecutor();
+        Path pdfPath = createPdf(pageCount);
+
+        CountDownLatch allTasksInFlight = new CountDownLatch(pageCount);
+        CountDownLatch releaseAll       = new CountDownLatch(1);
+
+        try {
+            StubTesseractOcrImpl ocr = new StubTesseractOcrImpl(pageExecutor, page -> {
+                allTasksInFlight.countDown();
+                try { releaseAll.await(5, TimeUnit.SECONDS); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                return "page-" + page;
+            });
+            ReflectionTestUtils.setField(ocr, "maxPages",                  10);
+            ReflectionTestUtils.setField(ocr, "maxParallelPages",          2);
+            ReflectionTestUtils.setField(ocr, "maxRenderedPixelsPerPage",  20_000_000L);
+            ReflectionTestUtils.setField(ocr, "dpi",                       100);
+
+            // extractText blocks testRunner while page tasks wait on releaseAll
+            Future<String> ocrFuture = testRunner.submit(
+                    () -> ocr.extractText(pdfPath, "application/pdf").join());
+
+            // All pageCount OCR tasks must start before any completes.
+            // Under old batching logic only maxParallelPages=2 tasks are submitted first,
+            // so this await times out and the assertion below fails.
+            boolean allStarted = allTasksInFlight.await(5, TimeUnit.SECONDS);
+            assertThat(allStarted)
+                    .as("all %d OCR tasks should be in-flight concurrently before any completes", pageCount)
+                    .isTrue();
+
+            releaseAll.countDown();
+            assertThat(ocrFuture.get(5, TimeUnit.SECONDS))
+                    .isEqualTo("page-1\npage-2\npage-3\npage-4");
+        } finally {
+            releaseAll.countDown(); // safety: unblock tasks if assertion failed
+            testRunner.shutdownNow();
+            pageExecutor.shutdownNow();
+            Files.deleteIfExists(pdfPath);
+        }
     }
 
     private static final class StubTesseractOcrImpl extends TesseractOcrImpl {

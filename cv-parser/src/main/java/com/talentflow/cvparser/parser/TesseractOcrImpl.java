@@ -138,31 +138,49 @@ public class TesseractOcrImpl {
             }
 
             PDFRenderer renderer = new PDFRenderer(document);
-            Object renderLock = new Object();
 
-            int maxInFlight = Math.max(1, maxParallelPages);
-            List<String> pageTexts = new ArrayList<>(Collections.nCopies(pageCount, ""));
-            List<CompletableFuture<PageOcrResult>> pageTasks = new ArrayList<>(maxInFlight);
-
+            // Phase A — render all pages serially on this thread.
+            // PDFRenderer is not thread-safe per PDDocument instance; owning the renderer
+            // on a single thread removes the need for any lock and eliminates the old
+            // per-batch blocking barrier that prevented cross-batch OCR concurrency.
+            List<BufferedImage> images = new ArrayList<>(pageCount);
             for (int i = 0; i < pageCount; i++) {
-                int pageIndex = i;
-                int pageNumber = i + 1;
-                validateRenderedPageSize(document.getPage(pageIndex), pageNumber, filePath);
-                pageTasks.add(submitPageTask(renderer, renderLock, pageIndex, filePath, pageNumber));
-
-                if (pageTasks.size() == maxInFlight) {
-                    collectBatchResults(pageTasks, pageTexts);
-                    pageTasks.clear();
-                }
+                validateRenderedPageSize(document.getPage(i), i + 1, filePath);
+                images.add(renderPage(renderer, i));
             }
 
-            if (!pageTasks.isEmpty()) {
-                collectBatchResults(pageTasks, pageTexts);
+            // Phase B — submit all OCR tasks concurrently now that images are ready.
+            List<CompletableFuture<PageOcrResult>> tasks = new ArrayList<>(pageCount);
+            for (int i = 0; i < pageCount; i++) {
+                final int pageIndex = i;
+                final BufferedImage image = images.get(i);
+                tasks.add(CompletableFuture.supplyAsync(
+                        () -> {
+                            try {
+                                return new PageOcrResult(pageIndex, runTesseract(image, filePath, pageIndex + 1));
+                            } finally {
+                                image.flush();
+                            }
+                        },
+                        ocrPageExecutor));
+            }
+
+            CompletableFuture.allOf(tasks.toArray(new CompletableFuture[0])).join();
+
+            List<String> pageTexts = new ArrayList<>(Collections.nCopies(pageCount, ""));
+            for (CompletableFuture<PageOcrResult> task : tasks) {
+                PageOcrResult result = task.join();
+                pageTexts.set(result.pageIndex(), result.text());
             }
 
             return String.join("\n", pageTexts).trim();
         }
     }
+
+    protected BufferedImage renderPage(PDFRenderer renderer, int pageIndex) throws IOException {
+        return renderer.renderImageWithDPI(pageIndex, dpi, ImageType.GRAY);
+    }
+
     private String ocrImage(Path filePath) {
         ITesseract tesseract = borrowTesseract();
         try {
@@ -190,37 +208,6 @@ public class TesseractOcrImpl {
                     "PDF page render size exceeds limit. page=%d, pixels=%d, limit=%d",
                     pageNumber, totalPixels, maxRenderedPixelsPerPage
             ), "PDF_PAGE_TOO_LARGE");
-        }
-    }
-
-    private CompletableFuture<PageOcrResult> submitPageTask(PDFRenderer renderer, Object renderLock,
-                                                            int pageIndex, Path filePath, int pageNumber) {
-        return CompletableFuture.supplyAsync(() -> {
-            BufferedImage image;
-
-            synchronized (renderLock) {
-                try {
-                    image = renderer.renderImageWithDPI(pageIndex, dpi, ImageType.GRAY);
-                } catch (IOException e) {
-                    log.warn("Failed to render page {}. file=[{}], reason={}",
-                            pageNumber, filePath.getFileName(), e.getMessage());
-                    return new PageOcrResult(pageIndex, "");
-                }
-            }
-
-            try {
-                return new PageOcrResult(pageIndex, runTesseract(image, filePath, pageNumber));
-            } finally {
-                image.flush();
-            }
-        }, ocrPageExecutor);
-    }
-
-    private void collectBatchResults(List<CompletableFuture<PageOcrResult>> pageTasks, List<String> pageTexts) {
-        CompletableFuture.allOf(pageTasks.toArray(new CompletableFuture[0])).join();
-        for (CompletableFuture<PageOcrResult> pageTask : pageTasks) {
-            PageOcrResult result = pageTask.join();
-            pageTexts.set(result.pageIndex(), result.text());
         }
     }
 
