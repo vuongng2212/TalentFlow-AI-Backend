@@ -29,7 +29,7 @@ public class GeminiConfig {
     @Value("${llm.model:gemini-2.5-flash}")
     private String model;
 
-    @Value("${llm.timeout-seconds:30}")
+    @Value("${llm.timeout-seconds:8}")
     private int timeoutSeconds;
 
     /**

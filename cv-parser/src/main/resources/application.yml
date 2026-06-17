@@ -61,7 +61,7 @@ llm:
   model: ${LLM_MODEL:gemini-2.5-flash}
   api-key: ${GEMINI_API_KEY:}
   base-url: https://generativelanguage.googleapis.com/v1beta
-  timeout-seconds: ${LLM_TIMEOUT_SECONDS:30}
+  timeout-seconds: ${LLM_TIMEOUT_SECONDS:8}
   max-tokens: ${LLM_MAX_TOKENS:8192}
   min-text-length: ${LLM_MIN_TEXT_LENGTH:50}
 
@@ -111,7 +111,7 @@ resilience4j:
   retry:
     instances:
       geminiApi:
-        max-attempts: 3
+        max-attempts: 2
         wait-duration: 2s
         exponential-backoff-multiplier: 2
         retry-exceptions:
