@@ -9,6 +9,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,6 +39,21 @@ class PdfTextParserSecurityLimitTest {
 
         assertThat(text).isNotNull();
         Files.deleteIfExists(pdf);
+    }
+
+    @Test
+    void parserDoesNotReusePdfTextStripperAcrossCallsToPreventStaleState() {
+        // PDFTextStripper retains startPage/endPage between calls on the same thread.
+        // Stale endPage=0 from a future code path that configures the stripper would cause
+        // getText() to return "", silently triggering the expensive OCR fallback for a
+        // plain-text PDF.  Fix: construct new PDFTextStripper() per call (O(1), no I/O).
+        boolean hasThreadLocalStripper = Arrays.stream(PdfTextParser.class.getDeclaredFields())
+                .anyMatch(f -> ThreadLocal.class.isAssignableFrom(f.getType()));
+
+        assertThat(hasThreadLocalStripper)
+                .as("PdfTextParser must not hold a ThreadLocal<PDFTextStripper>; " +
+                    "use new PDFTextStripper() per call to prevent stale state across invocations on the same thread")
+                .isFalse();
     }
 
     private Path createPdf(int pages) throws IOException {
