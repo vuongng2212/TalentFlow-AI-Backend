@@ -14,7 +14,7 @@ spring:
     listener:
       simple:
         acknowledge-mode: manual
-        prefetch: 10
+        prefetch: ${AMQP_LISTENER_PREFETCH:2}
         retry:
           enabled: true
           initial-interval: 1000
@@ -127,6 +127,11 @@ resilience4j:
         limit-for-period: 100
         limit-refresh-period: 60s
         timeout-duration: 5s
+
+# AMQP Listener Configuration
+amqp:
+  listener:
+    concurrency: ${AMQP_LISTENER_CONCURRENCY:2}
 
 # Logging Configuration
 logging:

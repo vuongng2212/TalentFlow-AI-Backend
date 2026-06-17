@@ -26,8 +26,9 @@ public class CvParserListener {
     private final RabbitTemplate rabbitTemplate;
 
     @RabbitListener(
-            queues  = RabbitMqConfig.CV_PARSER_QUEUE,
-            ackMode = "MANUAL"
+            queues      = RabbitMqConfig.CV_PARSER_QUEUE,
+            ackMode     = "MANUAL",
+            concurrency = "${amqp.listener.concurrency:2}"
     )
     public void onCvUploaded(
             @Payload CvUploadedEvent event,
