@@ -3,9 +3,11 @@ package com.talentflow.cvparser.parser;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -40,6 +42,26 @@ class ParserFactoryTest {
         assertThat(result).isEmpty();
         assertThat(ocrFuture.isCancelled()).isTrue();
         Files.deleteIfExists(pdfPath);
+    }
+
+    @Test
+    void ocrFallbackTimeoutDefaultIsTightEnoughToPreventLongPipelineStall() throws NoSuchFieldException {
+        // Hard-coded 120s default means an OCR failure blocks the RabbitMQ consumer thread for 2 minutes
+        // and cannot be tuned per environment without recompiling.
+        // With B1/B2 fixes a 10-page scan completes in < 30s; the default should reflect that.
+        Field field = ParserFactory.class.getDeclaredField("ocrTimeoutSeconds");
+        Value annotation = field.getAnnotation(Value.class);
+
+        // Extract the default from "${app.parser.ocr-timeout-seconds:NNN}"
+        String expr = annotation.value(); // e.g. "${app.parser.ocr-timeout-seconds:120}"
+        long defaultSeconds = Long.parseLong(
+                expr.substring(expr.lastIndexOf(':') + 1, expr.lastIndexOf('}')));
+
+        assertThat(defaultSeconds)
+                .as("ocrTimeoutSeconds default is %ds — trim to ≤ 60s and expose via " +
+                    "app.parser.ocr-timeout-seconds in application.yml so it is tunable per environment",
+                    defaultSeconds)
+                .isLessThanOrEqualTo(60L);
     }
 
     private Path createPdf() throws IOException {

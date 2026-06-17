@@ -62,6 +62,7 @@ llm:
   api-key: ${GEMINI_API_KEY:}
   base-url: https://generativelanguage.googleapis.com/v1beta
   timeout-seconds: ${LLM_TIMEOUT_SECONDS:8}
+  extraction-timeout-seconds: ${LLM_EXTRACTION_TIMEOUT_SECONDS:20}
   max-tokens: ${LLM_MAX_TOKENS:8192}
   min-text-length: ${LLM_MIN_TEXT_LENGTH:50}
 
@@ -164,6 +165,7 @@ app:
     temp-dir: ${CV_PARSER_TEMP_DIR:}
 
   parser:
+    ocr-timeout-seconds: ${OCR_TIMEOUT_SECONDS:30}
     docx:
       min-inflate-ratio: ${DOCX_MIN_INFLATE_RATIO:0.01}
       max-entry-size: ${DOCX_MAX_ENTRY_SIZE:20971520}

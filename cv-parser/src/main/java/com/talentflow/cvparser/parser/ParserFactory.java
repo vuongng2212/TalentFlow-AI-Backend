@@ -23,7 +23,7 @@ public class ParserFactory {
     @Value("${app.ocr.min-text-length-threshold:100}")
     private int minTextLengthThreshold;
 
-    @Value("${app.parser.ocr-timeout-seconds:120}")
+    @Value("${app.parser.ocr-timeout-seconds:30}")
     private long ocrTimeoutSeconds;
 
     private final List<DocumentParser> parsers;

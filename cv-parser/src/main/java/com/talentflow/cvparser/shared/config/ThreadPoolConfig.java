@@ -63,9 +63,12 @@ public class ThreadPoolConfig {
      */
     @Bean("ocrPageExecutor")
     public Executor ocrPageExecutor() {
+        // Must be >= ocrExecutor.maxPoolSize × maxParallelPages (4 × 2 = 8).
+        // Fewer threads causes tasks from concurrent extractText() calls to queue behind each other,
+        // serialising pages that the two-phase B1 design intended to run in parallel.
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(4);
+        executor.setCorePoolSize(8);
+        executor.setMaxPoolSize(8);
         executor.setQueueCapacity(20);
         executor.setThreadNamePrefix("ocr-page-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
