@@ -69,7 +69,7 @@ public class TesseractOcrImpl {
     @PostConstruct
     public void init() {
         tesseractPool = new LinkedBlockingQueue<>(maxParallelPages);
-        for (int i = 0; i <= maxParallelPages; i++) {
+        for (int i = 0; i < maxParallelPages; i++) {
             tesseractPool.offer(buildTesseract());
         }
         log.info("Initialized TesseractOcrImpl. maxPages={}, maxParallelPages={}, maxRenderedPixelsPerPage={}, dpi={}, language={}, tessdataPath={}",
@@ -227,7 +227,7 @@ public class TesseractOcrImpl {
     private record PageOcrResult(int pageIndex, String text) {
     }
 
-    private ITesseract buildTesseract() {
+    protected ITesseract buildTesseract() {
         ITesseract tesseract = new Tesseract();
         tesseract.setDatapath(tessdataPath);
         tesseract.setLanguage(language);

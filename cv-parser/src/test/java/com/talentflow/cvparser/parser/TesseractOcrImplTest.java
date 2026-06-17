@@ -1,6 +1,8 @@
 package com.talentflow.cvparser.parser;
 
 import com.talentflow.cvparser.shared.exception.ParsingException;
+import net.sourceforge.tess4j.ITesseract;
+import net.sourceforge.tess4j.Tesseract;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
@@ -115,6 +117,36 @@ class TesseractOcrImplTest {
             document.save(pdfPath.toFile());
         }
         return pdfPath;
+    }
+
+    @Test
+    void initCreatesExactlyMaxParallelPagesTesseractInstances() {
+        // The pool capacity is maxParallelPages, so building maxParallelPages+1 instances
+        // silently discards one fully-initialized Tesseract (with tessdata already loaded).
+        // After the fix, buildTesseract() must be called exactly maxParallelPages times.
+        int maxParallelPages = 2;
+        AtomicInteger buildCount = new AtomicInteger(0);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        try {
+            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor) {
+                @Override
+                protected ITesseract buildTesseract() {
+                    buildCount.incrementAndGet();
+                    return new Tesseract(); // no native calls until doOCR(); safe to construct here
+                }
+            };
+            ReflectionTestUtils.setField(ocr, "maxParallelPages", maxParallelPages);
+
+            ocr.init();
+
+            assertThat(buildCount.get())
+                    .as("init() must call buildTesseract() exactly maxParallelPages=%d times, "
+                            + "not maxParallelPages+1", maxParallelPages)
+                    .isEqualTo(maxParallelPages);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
