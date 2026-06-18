@@ -1,10 +1,16 @@
 import {
+  ROUTING_KEY_APPLICATION_CV_PROCESSED_SUCCESSFULLY,
+  ROUTING_KEY_APPLICATION_CV_PROCESSED_FAILED,
+} from './constants/queue.constants';
+import {
   Injectable,
   Logger,
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { forwardRef, Inject } from '@nestjs/common';
+import { ApplicationsService } from '../applications/applications.service';
 import { connect } from 'amqplib';
 import { sanitizeError } from '../common/utils/sanitize.util';
 
@@ -54,6 +60,13 @@ interface AmqpChannel {
     queue: string,
   ): Promise<{ queue: string; messageCount: number; consumerCount: number }>;
   close(): Promise<void>;
+  consume(
+    queue: string,
+    onMessage: (msg: unknown) => void | Promise<void>,
+    options?: unknown,
+  ): Promise<unknown>;
+  ack(msg: unknown): void;
+  nack(msg: unknown, allUpTo?: boolean, requeue?: boolean): void;
 }
 import {
   TALENTFLOW_EVENTS_EXCHANGE,
@@ -63,11 +76,17 @@ import {
   ROUTING_KEY_WORKSPACE_MEMBER_INVITED,
   ROUTING_KEY_APPLICATION_CREATED,
   ROUTING_KEY_NOTIFICATION_SEND,
+  ROUTING_KEY_CV_PARSED,
+  ROUTING_KEY_CV_FAILED,
 } from './constants/queue.constants';
 import { CvUploadedEvent } from './interfaces/cv-uploaded-event.interface';
 import { WorkspaceMemberInvitedEvent } from './interfaces/workspace-member-invited-event.interface';
 import { ApplicationCreatedEvent } from './interfaces/application-created-event.interface';
 import { NotificationSendEvent } from './interfaces/notification-send-event.interface';
+import {
+  EnrichedCvParsedEvent,
+  EnrichedCvFailedEvent,
+} from './interfaces/cv-events.interface';
 
 @Injectable()
 export class QueueService implements OnModuleInit, OnModuleDestroy {
@@ -78,7 +97,11 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private isShuttingDown = false;
   private readonly logger = new Logger(QueueService.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    @Inject(forwardRef(() => ApplicationsService))
+    private readonly applicationsService: ApplicationsService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     await this.connectWithSetup();
@@ -88,6 +111,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.connect();
       await this.setupTopology();
+      await this.setupConsumers();
       this.reconnectAttempt = 0;
       this.logger.log('RabbitMQ connection established');
     } catch (error) {
@@ -125,7 +149,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     const connection = (await connect(
       url,
       this.getConnectionOptions(timeoutMs),
-    )) as AmqpConnection;
+    )) as unknown as AmqpConnection;
 
     this.connection = connection;
     this.channel = await connection.createChannel();
@@ -250,7 +274,62 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       ROUTING_KEY_CV_UPLOADED,
     );
 
+    await this.channel.bindQueue(
+      CV_PROCESSING_QUEUE,
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_CV_PARSED,
+    );
+
+    await this.channel.bindQueue(
+      CV_PROCESSING_QUEUE,
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_CV_FAILED,
+    );
+
     this.logger.log('RabbitMQ topology configured');
+  }
+
+  private async setupConsumers(): Promise<void> {
+    if (!this.channel) return;
+
+    await this.channel.consume(CV_PROCESSING_QUEUE, async (msg) => {
+      if (!msg) return;
+
+      try {
+        const message = msg as {
+          fields: { routingKey: string };
+          content: Buffer;
+        };
+        const routingKey = message.fields.routingKey;
+        const content = JSON.parse(message.content.toString()) as unknown;
+
+        this.logger.log(`Received message with routing key: ${routingKey}`);
+
+        switch (routingKey) {
+          case ROUTING_KEY_CV_PARSED:
+            await this.applicationsService.handleCvParsedEvent(
+              content as import('./interfaces/cv-events.interface').RawCvParsedEvent,
+            );
+            break;
+          case ROUTING_KEY_CV_FAILED:
+            await this.applicationsService.handleCvFailedEvent(
+              content as import('./interfaces/cv-events.interface').RawCvFailedEvent,
+            );
+            break;
+          default:
+            this.logger.debug(
+              `Ignoring message with routing key: ${routingKey}`,
+            );
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+        (this.channel as any)?.ack(msg);
+      } catch (error) {
+        this.logger.error(`Error processing message`, sanitizeError(error));
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+        (this.channel as any)?.nack(msg, false, false);
+      }
+    });
   }
 
   async publishCvUploaded(event: CvUploadedEvent): Promise<void> {
@@ -376,6 +455,68 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.log(
       `Published notification.send event for user ${event.userId}`,
+    );
+
+    return Promise.resolve();
+  }
+
+  async publishEnrichedCvParsed(event: EnrichedCvParsedEvent): Promise<void> {
+    if (!this.channel) {
+      this.logger.error('Cannot publish: channel not initialized');
+      throw new Error('RabbitMQ channel not initialized');
+    }
+
+    const message = Buffer.from(JSON.stringify(event));
+
+    const published = this.channel.publish(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_APPLICATION_CV_PROCESSED_SUCCESSFULLY,
+      message,
+      {
+        persistent: true,
+        contentType: 'application/json',
+        timestamp: Date.now(),
+      },
+    );
+
+    if (!published) {
+      this.logger.error('Message was not published - channel buffer full');
+      throw new Error('RabbitMQ outbound buffer full');
+    }
+
+    this.logger.log(
+      `Published enriched cv.success event for application ${event.applicationId}`,
+    );
+
+    return Promise.resolve();
+  }
+
+  async publishEnrichedCvFailed(event: EnrichedCvFailedEvent): Promise<void> {
+    if (!this.channel) {
+      this.logger.error('Cannot publish: channel not initialized');
+      throw new Error('RabbitMQ channel not initialized');
+    }
+
+    const message = Buffer.from(JSON.stringify(event));
+
+    const published = this.channel.publish(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_APPLICATION_CV_PROCESSED_FAILED,
+      message,
+      {
+        persistent: true,
+        contentType: 'application/json',
+        timestamp: Date.now(),
+      },
+    );
+
+    if (!published) {
+      this.logger.error('Message was not published - channel buffer full');
+      throw new Error('RabbitMQ outbound buffer full');
+    }
+
+    this.logger.log(
+      `Published enriched cv.failed event for application ${event.applicationId}`,
     );
 
     return Promise.resolve();
