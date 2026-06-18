@@ -61,9 +61,13 @@ import {
   CV_PARSING_DLQ,
   ROUTING_KEY_CV_UPLOADED,
   ROUTING_KEY_WORKSPACE_MEMBER_INVITED,
+  ROUTING_KEY_APPLICATION_CREATED,
+  ROUTING_KEY_NOTIFICATION_SEND,
 } from './constants/queue.constants';
 import { CvUploadedEvent } from './interfaces/cv-uploaded-event.interface';
 import { WorkspaceMemberInvitedEvent } from './interfaces/workspace-member-invited-event.interface';
+import { ApplicationCreatedEvent } from './interfaces/application-created-event.interface';
+import { NotificationSendEvent } from './interfaces/notification-send-event.interface';
 
 @Injectable()
 export class QueueService implements OnModuleInit, OnModuleDestroy {
@@ -308,6 +312,70 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.log(
       `Published workspace.member.invited event for ${event.email}`,
+    );
+
+    return Promise.resolve();
+  }
+
+  async publishApplicationCreated(
+    event: ApplicationCreatedEvent,
+  ): Promise<void> {
+    if (!this.channel) {
+      this.logger.error('Cannot publish: channel not initialized');
+      throw new Error('RabbitMQ channel not initialized');
+    }
+
+    const message = Buffer.from(JSON.stringify(event));
+
+    const published = this.channel.publish(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_APPLICATION_CREATED,
+      message,
+      {
+        persistent: true,
+        contentType: 'application/json',
+        timestamp: Date.now(),
+      },
+    );
+
+    if (!published) {
+      this.logger.error('Message was not published - channel buffer full');
+      throw new Error('RabbitMQ outbound buffer full');
+    }
+
+    this.logger.log(
+      `Published application.created event for application ${event.applicationId}`,
+    );
+
+    return Promise.resolve();
+  }
+
+  async publishNotificationSend(event: NotificationSendEvent): Promise<void> {
+    if (!this.channel) {
+      this.logger.error('Cannot publish: channel not initialized');
+      throw new Error('RabbitMQ channel not initialized');
+    }
+
+    const message = Buffer.from(JSON.stringify(event));
+
+    const published = this.channel.publish(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_NOTIFICATION_SEND,
+      message,
+      {
+        persistent: true,
+        contentType: 'application/json',
+        timestamp: Date.now(),
+      },
+    );
+
+    if (!published) {
+      this.logger.error('Message was not published - channel buffer full');
+      throw new Error('RabbitMQ outbound buffer full');
+    }
+
+    this.logger.log(
+      `Published notification.send event for user ${event.userId}`,
     );
 
     return Promise.resolve();

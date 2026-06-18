@@ -121,7 +121,7 @@ export class NotificationService {
       subject: `Application Received: ${event.jobTitle}`,
       templateId: EmailTemplateId.APPLICATION_CONFIRMATION,
       templateData: {
-        applicantName: event.applicantName,
+        candidateName: event.applicantName,
         jobTitle: event.jobTitle,
       },
     });
@@ -160,9 +160,9 @@ export class NotificationService {
       subject: `CV Processed: ${event.jobTitle}`,
       templateId: EmailTemplateId.APPLICATION_RESULT,
       templateData: {
-        applicantName: event.applicantName,
+        candidateName: event.applicantName,
         jobTitle: event.jobTitle,
-        score: event.score ?? 'N/A',
+        result: `Score: ${event.score ?? 'N/A'}`,
       },
     });
 
