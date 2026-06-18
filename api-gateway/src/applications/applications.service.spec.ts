@@ -114,6 +114,7 @@ describe('ApplicationsService', () => {
 
   const mockQueueService = {
     publishCvUploaded: jest.fn(),
+    publishApplicationCreated: jest.fn(),
     isHealthy: jest.fn(),
   };
 
@@ -177,6 +178,15 @@ describe('ApplicationsService', () => {
       expect(result.jobId).toBe('job-1');
       expect(result.candidateId).toBe('candidate-1');
       expect(prisma.application.create).toHaveBeenCalled();
+      expect(mockQueueService.publishApplicationCreated).toHaveBeenCalledWith({
+        applicationId: 'app-1',
+        jobId: 'job-1',
+        jobTitle: 'Senior Developer',
+        applicantId: 'candidate-1',
+        applicantEmail: 'applicant@test.com',
+        applicantName: 'Test Applicant',
+        appliedAt: expect.any(String),
+      });
     });
 
     it('should throw NotFoundException when job not found', async () => {
@@ -306,6 +316,7 @@ describe('ApplicationsService', () => {
         cvFileUrl: 'http://localhost:9000/talentflow-cvs/cvs/file.pdf',
       } as never);
       mockQueueService.publishCvUploaded.mockResolvedValue(undefined);
+      mockQueueService.publishApplicationCreated.mockResolvedValue(undefined);
       mockStorageService.getSignedUrl.mockResolvedValue('https://signed-url');
 
       const result = await service.createWithCv('user-1', mockFile, {
@@ -333,6 +344,15 @@ describe('ApplicationsService', () => {
           fileUrl: expect.anything(),
         }),
       );
+      expect(mockQueueService.publishApplicationCreated).toHaveBeenCalledWith({
+        applicationId: 'app-1',
+        jobId: 'job-1',
+        jobTitle: 'Senior Developer',
+        applicantId: 'candidate-1',
+        applicantEmail: 'applicant@test.com',
+        applicantName: 'Test Applicant',
+        appliedAt: expect.any(String),
+      });
       expect(result).toEqual(
         expect.objectContaining({
           applicationId: 'app-1',

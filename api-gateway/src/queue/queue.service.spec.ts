@@ -8,7 +8,10 @@ import {
   CV_PARSING_DLQ,
   CV_PROCESSING_QUEUE,
   ROUTING_KEY_CV_UPLOADED,
+  ROUTING_KEY_APPLICATION_CREATED,
+  ROUTING_KEY_NOTIFICATION_SEND,
 } from './constants/queue.constants';
+import { NotificationType } from './interfaces/notification-send-event.interface';
 
 const mockChannel = {
   assertExchange: jest.fn(),
@@ -35,6 +38,25 @@ const mockEvent = {
   fileKey: 'cvs/key.pdf',
   mimeType: 'application/pdf',
   uploadedAt: new Date().toISOString(),
+};
+
+const mockAppCreatedEvent = {
+  applicationId: 'application-1',
+  jobId: 'job-1',
+  jobTitle: 'Software Engineer',
+  applicantId: 'candidate-1',
+  applicantEmail: 'test@example.com',
+  applicantName: 'John Doe',
+  appliedAt: new Date().toISOString(),
+};
+
+const mockNotificationSendEvent = {
+  userId: 'user-1',
+  to: 'test@example.com',
+  subject: 'Test Notification',
+  type: NotificationType.APPLICATION_CONFIRMATION,
+  templateId: 'application-confirmation',
+  templateData: { applicantName: 'John Doe' },
 };
 
 jest.mock('amqplib', () => ({
@@ -143,6 +165,38 @@ describe('QueueService', () => {
     expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_UPLOADED,
+      expect.any(Buffer),
+      expect.objectContaining({
+        persistent: true,
+        contentType: 'application/json',
+      }),
+    );
+  });
+
+  it('should publish application.created event', async () => {
+    await service.onModuleInit();
+
+    await service.publishApplicationCreated(mockAppCreatedEvent);
+
+    expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_APPLICATION_CREATED,
+      expect.any(Buffer),
+      expect.objectContaining({
+        persistent: true,
+        contentType: 'application/json',
+      }),
+    );
+  });
+
+  it('should publish notification.send event', async () => {
+    await service.onModuleInit();
+
+    await service.publishNotificationSend(mockNotificationSendEvent);
+
+    expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_NOTIFICATION_SEND,
       expect.any(Buffer),
       expect.objectContaining({
         persistent: true,
