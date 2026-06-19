@@ -10,21 +10,19 @@ datasource db {
 }
 
 model User {
-  id                              String                  @id @default(uuid())
-  email                           String                  @unique
-  password                        String
-  role                            Role                    @default(RECRUITER)
-  fullName                        String                  @map("full_name")
-  createdJobs                     Job[]                   @relation("JobCreator")
-  interviews                      Interview[]             @relation("InterviewInterviewer")
-  workspaceMembers                WorkspaceMember[]
-  invitedWorkspaceMembers         WorkspaceMember[]       @relation("WorkspaceInvitation")
-  subscriptions                   UserSubscription[]
-  purchasedWorkspaceSubscriptions WorkspaceSubscription[] @relation("WorkspaceSubscriptionPurchaser")
-  aiUsageRecords                  AiUsageRecord[]         @relation("AiUsageActor")
-  createdAt                       DateTime                @default(now()) @map("created_at")
-  updatedAt                       DateTime                @updatedAt @map("updated_at")
-  deletedAt                       DateTime?               @map("deleted_at")
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  password            String
+  role                Role                 @default(RECRUITER)
+  fullName            String               @map("full_name")
+  createdJobs         Job[]                @relation("JobCreator")
+  interviews          Interview[]          @relation("InterviewInterviewer")
+  subscriptions       UserSubscription[]
+  paymentTransactions PaymentTransaction[]
+  aiUsageRecords      AiUsageRecord[]      @relation("AiUsageActor")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  deletedAt           DateTime?            @map("deleted_at")
 
   @@map("users")
 }
@@ -52,101 +50,54 @@ model Job {
   @@map("jobs")
 }
 
-model Workspace {
-  id             String                  @id @default(uuid())
-  name           String
-  isBusiness     Boolean                 @default(false) @map("is_business")
-  members        WorkspaceMember[]
-  subscriptions  WorkspaceSubscription[]
-  aiUsageRecords AiUsageRecord[]
-  createdAt      DateTime                @default(now()) @map("created_at")
-  updatedAt      DateTime                @updatedAt @map("updated_at")
-
-  @@map("workspaces")
-}
-
-model WorkspaceMember {
-  id          String                @id @default(uuid())
-  workspaceId String                @map("workspace_id")
-  userId      String                @map("user_id")
-  role        WorkspaceMemberRole   @default(RECRUITER)
-  status      WorkspaceMemberStatus @default(ACTIVE)
-  invitedById String?               @map("invited_by_id")
-  invitedBy   User?                 @relation("WorkspaceInvitation", fields: [invitedById], references: [id], onDelete: SetNull)
-  workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime              @default(now()) @map("created_at")
-  updatedAt   DateTime              @updatedAt @map("updated_at")
-
-  @@unique([workspaceId, userId])
-  @@index([workspaceId, status])
-  @@index([userId, status])
-  @@map("workspace_members")
-}
-
 model SubscriptionPlan {
-  id                     String                  @id @default(uuid())
-  code                   SubscriptionPlanCode    @unique
-  name                   String
-  scope                  SubscriptionPlanScope
-  billingPeriod          BillingPeriod           @map("billing_period")
-  dailyAiRequestLimit    Int                     @map("daily_ai_request_limit")
-  trialAiRequestLimit    Int?                    @map("trial_ai_request_limit")
-  canScoreCv             Boolean                 @default(true) @map("can_score_cv")
-  canAnalyzeCvFit        Boolean                 @default(false) @map("can_analyze_cv_fit")
-  canActivateWorkspace   Boolean                 @default(false) @map("can_activate_workspace")
-  isActive               Boolean                 @default(true) @map("is_active")
-  userSubscriptions      UserSubscription[]
-  workspaceSubscriptions WorkspaceSubscription[]
-  aiUsageRecords         AiUsageRecord[]
-  createdAt              DateTime                @default(now()) @map("created_at")
-  updatedAt              DateTime                @updatedAt @map("updated_at")
+  id                  String                @id @default(uuid())
+  code                SubscriptionPlanCode  @unique
+  name                String
+  scope               SubscriptionPlanScope
+  billingPeriod       BillingPeriod         @map("billing_period")
+  dailyAiRequestLimit Int                   @map("daily_ai_request_limit")
+  trialAiRequestLimit Int?                  @map("trial_ai_request_limit")
+  isPaid              Boolean               @default(false) @map("is_paid")
+  priceAmount         Int                   @default(0) @map("price_amount")
+  currency            String                @default("VND")
+  checkoutEligible    Boolean               @default(false) @map("checkout_eligible")
+  canScoreCv          Boolean               @default(true) @map("can_score_cv")
+  canAnalyzeCvFit     Boolean               @default(false) @map("can_analyze_cv_fit")
+  isActive            Boolean               @default(true) @map("is_active")
+  userSubscriptions   UserSubscription[]
+  paymentTransactions PaymentTransaction[]
+  aiUsageRecords      AiUsageRecord[]
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
 
   @@map("subscription_plans")
 }
 
 model UserSubscription {
-  id          String             @id @default(uuid())
-  userId      String             @map("user_id")
-  planId      String             @map("plan_id")
-  status      SubscriptionStatus @default(ACTIVE)
-  periodStart DateTime           @default(now()) @map("period_start")
-  periodEnd   DateTime?          @map("period_end")
-  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan        SubscriptionPlan   @relation(fields: [planId], references: [id], onDelete: Restrict)
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
+  id                   String              @id @default(uuid())
+  userId               String              @map("user_id")
+  planId               String              @map("plan_id")
+  status               SubscriptionStatus  @default(ACTIVE)
+  periodStart          DateTime            @default(now()) @map("period_start")
+  periodEnd            DateTime?           @map("period_end")
+  paymentTransactionId String?             @unique @map("payment_transaction_id")
+  businessWorkspaceId  String?             @map("business_workspace_id")
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                 SubscriptionPlan    @relation(fields: [planId], references: [id], onDelete: Restrict)
+  paymentTransaction   PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id], onDelete: SetNull)
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
 
   @@index([userId, status])
   @@index([planId])
   @@map("user_subscriptions")
 }
 
-model WorkspaceSubscription {
-  id          String             @id @default(uuid())
-  workspaceId String             @map("workspace_id")
-  purchaserId String             @map("purchaser_id")
-  planId      String             @map("plan_id")
-  status      SubscriptionStatus @default(ACTIVE)
-  periodStart DateTime           @default(now()) @map("period_start")
-  periodEnd   DateTime           @map("period_end")
-  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  purchaser   User               @relation("WorkspaceSubscriptionPurchaser", fields: [purchaserId], references: [id], onDelete: Cascade)
-  plan        SubscriptionPlan   @relation(fields: [planId], references: [id], onDelete: Restrict)
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
-
-  @@index([workspaceId, status])
-  @@index([purchaserId])
-  @@index([planId])
-  @@map("workspace_subscriptions")
-}
-
 model AiUsageRecord {
   id          String             @id @default(uuid())
   actorId     String             @map("actor_id")
   contextType AiUsageContextType @map("context_type")
-  workspaceId String?            @map("workspace_id")
   planId      String             @map("plan_id")
   action      AiUsageAction
   usageDate   DateTime           @map("usage_date") @db.Date
@@ -154,14 +105,61 @@ model AiUsageRecord {
   decision    AiUsageDecision    @default(ALLOWED)
   denyReason  String?            @map("deny_reason")
   actor       User               @relation("AiUsageActor", fields: [actorId], references: [id], onDelete: Cascade)
-  workspace   Workspace?         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   plan        SubscriptionPlan   @relation(fields: [planId], references: [id], onDelete: Restrict)
   createdAt   DateTime           @default(now()) @map("created_at")
 
   @@index([actorId, contextType, usageDate])
-  @@index([workspaceId, usageDate])
   @@index([planId])
   @@map("ai_usage_records")
+}
+
+model PaymentTransaction {
+  id                    String                   @id @default(uuid())
+  userId                String                   @map("user_id")
+  planId                String                   @map("plan_id")
+  provider              PaymentProvider          @default(MOMO)
+  providerRequestId     String                   @unique @map("provider_request_id")
+  providerOrderId       String                   @unique @map("provider_order_id")
+  providerTransactionId String?                  @map("provider_transaction_id")
+  expectedAmount        Int                      @map("expected_amount")
+  currency              String                   @default("VND")
+  status                PaymentTransactionStatus @default(PENDING)
+  checkoutUrl           String?                  @map("checkout_url")
+  deeplink              String?
+  qrCodeUrl             String?                  @map("qr_code_url")
+  rawProviderRequest    Json?                    @map("raw_provider_request")
+  rawProviderResponse   Json?                    @map("raw_provider_response")
+  rejectionReason       String?                  @map("rejection_reason")
+  confirmedAt           DateTime?                @map("confirmed_at")
+  user                  User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                  SubscriptionPlan         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  confirmations         PaymentConfirmation[]
+  activatedSubscription UserSubscription?
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  updatedAt             DateTime                 @updatedAt @map("updated_at")
+
+  @@index([userId, status])
+  @@index([planId])
+  @@index([status])
+  @@map("payment_transactions")
+}
+
+model PaymentConfirmation {
+  id                   String                    @id @default(uuid())
+  paymentTransactionId String                    @map("payment_transaction_id")
+  source               PaymentConfirmationSource
+  resultCode           Int?                      @map("result_code")
+  message              String?
+  signatureValid       Boolean                   @default(false) @map("signature_valid")
+  accepted             Boolean                   @default(false)
+  rejectionReason      String?                   @map("rejection_reason")
+  rawPayload           Json?                     @map("raw_payload")
+  paymentTransaction   PaymentTransaction        @relation(fields: [paymentTransactionId], references: [id], onDelete: Cascade)
+  receivedAt           DateTime                  @default(now()) @map("received_at")
+
+  @@index([paymentTransactionId])
+  @@index([accepted])
+  @@map("payment_confirmations")
 }
 
 model Candidate {
@@ -290,19 +288,6 @@ enum InterviewStatus {
   NO_SHOW
 }
 
-enum WorkspaceMemberRole {
-  OWNER
-  ADMIN
-  RECRUITER
-  VIEWER
-}
-
-enum WorkspaceMemberStatus {
-  ACTIVE
-  INVITED
-  REMOVED
-}
-
 enum SubscriptionPlanCode {
   FREE
   PLUS
@@ -325,9 +310,27 @@ enum SubscriptionStatus {
   EXPIRED
 }
 
+enum PaymentProvider {
+  MOMO
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  EXPIRED
+  REJECTED
+}
+
+enum PaymentConfirmationSource {
+  MOMO_IPN
+  INTERNAL_OPERATOR
+  INTERNAL_REPLAY
+}
+
 enum AiUsageContextType {
   PERSONAL
-  WORKSPACE
 }
 
 enum AiUsageAction {

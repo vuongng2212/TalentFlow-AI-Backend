@@ -1,32 +1,28 @@
-/* eslint-disable @typescript-eslint/unbound-method */
-import { ForbiddenException } from '@nestjs/common';
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+import { BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
-  AiUsageAction,
-  AiUsageContextType,
-  AiUsageDecision,
   BillingPeriod,
+  PaymentConfirmationSource,
+  PaymentProvider,
+  PaymentTransactionStatus,
   SubscriptionPlanCode,
   SubscriptionPlanScope,
-  SubscriptionStatus,
-  WorkspaceMemberRole,
-  WorkspaceMemberStatus,
 } from '@prisma/client';
+import { MomoBillingClient } from './billing/momo-billing.client';
+import { MomoSignatureService } from './billing/momo-signature.service';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  EntitlementActionDto,
-  EntitlementContextDto,
-} from './dto/entitlement-check.dto';
 import { SubscriptionsService } from './subscriptions.service';
 
-type TransactionCallback = (tx: {
-  workspaceSubscription: {
+type TransactionClient = {
+  paymentConfirmation: { create: jest.Mock };
+  paymentTransaction: { update: jest.Mock };
+  userSubscription: {
+    findFirst: jest.Mock;
     updateMany: jest.Mock;
     create: jest.Mock;
   };
-  workspace: {
-    update: jest.Mock;
-  };
-}) => Promise<unknown>;
+};
 
 describe('SubscriptionsService', () => {
   let service: SubscriptionsService;
@@ -39,9 +35,13 @@ describe('SubscriptionsService', () => {
     billingPeriod: BillingPeriod.NONE,
     dailyAiRequestLimit: 5,
     trialAiRequestLimit: 15,
+    isPaid: false,
+    priceAmount: 0,
+    currency: 'VND',
+    checkoutEligible: false,
     canScoreCv: true,
     canAnalyzeCvFit: false,
-    canActivateWorkspace: false,
+    isActive: true,
   };
 
   const plusPlan = {
@@ -52,9 +52,13 @@ describe('SubscriptionsService', () => {
     billingPeriod: BillingPeriod.MONTHLY,
     dailyAiRequestLimit: 20,
     trialAiRequestLimit: null,
+    isPaid: true,
+    priceAmount: 99000,
+    currency: 'VND',
+    checkoutEligible: true,
     canScoreCv: true,
     canAnalyzeCvFit: true,
-    canActivateWorkspace: false,
+    isActive: true,
   };
 
   const businessPlan = {
@@ -65,42 +69,94 @@ describe('SubscriptionsService', () => {
     billingPeriod: BillingPeriod.MONTHLY,
     dailyAiRequestLimit: 500,
     trialAiRequestLimit: null,
+    isPaid: true,
+    priceAmount: 499000,
+    currency: 'VND',
+    checkoutEligible: true,
     canScoreCv: true,
     canAnalyzeCvFit: true,
-    canActivateWorkspace: true,
+    isActive: true,
+  };
+
+  const preparedCheckout = {
+    providerRequestId: 'req-1',
+    providerOrderId: 'order-1',
+    request: {
+      partnerCode: 'partner',
+      requestType: 'subscription' as const,
+      ipnUrl: 'http://localhost/ipn',
+      redirectUrl: 'http://localhost/redirect',
+      orderId: 'order-1',
+      amount: 99000,
+      lang: 'en' as const,
+      orderInfo: 'TalentFlow Plus subscription',
+      requestId: 'req-1',
+      partnerClientId: 'user-1',
+      extraData: '',
+      signature: 'signature',
+      subscriptionInfo: {
+        partnerSubsId: 'order-1',
+        name: 'TalentFlow Plus',
+        subsOwner: 'user-1',
+        type: 'VARIABLE' as const,
+        recurringAmount: 99000,
+        nextPaymentDate: '2026-07-12',
+        expiryDate: '2027-06-12',
+        frequency: 'MONTHLY' as const,
+      },
+    },
   };
 
   const mockPrisma = {
     $transaction: jest.fn(),
     subscriptionPlan: {
       upsert: jest.fn(),
+      findMany: jest.fn(),
     },
     userSubscription: {
       findFirst: jest.fn(),
       create: jest.fn(),
       updateMany: jest.fn(),
     },
-    workspaceSubscription: {
+    paymentTransaction: {
+      create: jest.fn(),
+      update: jest.fn(),
       findFirst: jest.fn(),
-      updateMany: jest.fn(),
-      create: jest.fn(),
-    },
-    aiUsageRecord: {
-      aggregate: jest.fn(),
-      create: jest.fn(),
-    },
-    workspace: {
+      findMany: jest.fn(),
       findUnique: jest.fn(),
-      update: jest.fn(),
     },
-    workspaceMember: {
-      findFirst: jest.fn(),
-      update: jest.fn(),
+    paymentConfirmation: {
+      create: jest.fn(),
     },
   };
 
+  const mockMomoBillingClient = {
+    prepareCheckout: jest.fn(),
+    submitPreparedCheckout: jest.fn(),
+  };
+
+  const mockMomoSignatureService = {
+    verifyPaymentResult: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn((key: string) => {
+      const values: Record<string, string> = {
+        MOMO_ACCESS_KEY: 'access',
+        MOMO_SECRET_KEY: 'secret',
+        SUBSCRIPTION_BUSINESS_WORKSPACE_ID: 'mock-business-workspace',
+      };
+      return values[key];
+    }),
+  };
+
   beforeEach(() => {
-    service = new SubscriptionsService(mockPrisma as unknown as PrismaService);
+    service = new SubscriptionsService(
+      mockPrisma as unknown as PrismaService,
+      mockMomoBillingClient as unknown as MomoBillingClient,
+      mockMomoSignatureService as unknown as MomoSignatureService,
+      mockConfigService as unknown as ConfigService,
+    );
     mockPrisma.subscriptionPlan.upsert.mockImplementation(
       ({ where }: { where: { code: SubscriptionPlanCode } }) => {
         if (where.code === SubscriptionPlanCode.FREE) return freePlan;
@@ -108,229 +164,301 @@ describe('SubscriptionsService', () => {
         return businessPlan;
       },
     );
+    mockPrisma.subscriptionPlan.findMany.mockResolvedValue([
+      businessPlan,
+      freePlan,
+      plusPlan,
+    ]);
     mockPrisma.userSubscription.updateMany.mockResolvedValue({ count: 0 });
-    mockPrisma.workspaceSubscription.updateMany.mockResolvedValue({ count: 0 });
-    mockPrisma.aiUsageRecord.aggregate.mockResolvedValue({
-      _sum: { count: 0 },
+    mockPrisma.paymentTransaction.findMany.mockResolvedValue([]);
+    mockMomoBillingClient.prepareCheckout.mockReturnValue(preparedCheckout);
+    mockMomoBillingClient.submitPreparedCheckout.mockResolvedValue({
+      ...preparedCheckout,
+      response: {
+        resultCode: 0,
+        message: 'Successful.',
+      },
+      checkoutUrl: 'https://test-payment.momo.vn/pay',
+      deeplink: 'momo://pay',
+      qrCodeUrl: 'https://test-payment.momo.vn/qr',
     });
-    mockPrisma.aiUsageRecord.create.mockResolvedValue({ id: 'usage-1' });
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('lists the fixed plans in product order', async () => {
+  it('lists active plans with billing metadata in product order', async () => {
     await expect(service.listPlans()).resolves.toEqual([
-      expect.objectContaining({ code: SubscriptionPlanCode.FREE }),
-      expect.objectContaining({ code: SubscriptionPlanCode.PLUS }),
-      expect.objectContaining({ code: SubscriptionPlanCode.BUSINESS }),
+      expect.objectContaining({
+        code: SubscriptionPlanCode.FREE,
+        isPaid: false,
+        checkoutEligible: false,
+        priceAmount: 0,
+      }),
+      expect.objectContaining({
+        code: SubscriptionPlanCode.PLUS,
+        isPaid: true,
+        checkoutEligible: true,
+        priceAmount: 99000,
+      }),
+      expect.objectContaining({
+        code: SubscriptionPlanCode.BUSINESS,
+        isPaid: true,
+        checkoutEligible: true,
+        priceAmount: 499000,
+      }),
     ]);
   });
 
-  it('creates Free entitlement by default when missing', async () => {
-    mockPrisma.userSubscription.findFirst.mockResolvedValue(null);
-    mockPrisma.userSubscription.create.mockResolvedValue({
-      id: 'sub-free',
-      userId: 'user-1',
-      planId: freePlan.id,
+  it('creates a pending MoMo checkout without activating a subscription', async () => {
+    mockPrisma.paymentTransaction.create.mockResolvedValue({
+      id: 'payment-1',
+      status: PaymentTransactionStatus.PENDING,
+      provider: PaymentProvider.MOMO,
+      plan: plusPlan,
+    });
+    mockPrisma.paymentTransaction.update.mockResolvedValue({
+      id: 'payment-1',
+      status: PaymentTransactionStatus.PENDING,
+      provider: PaymentProvider.MOMO,
+      checkoutUrl: 'https://test-payment.momo.vn/pay',
+      deeplink: 'momo://pay',
+      qrCodeUrl: 'https://test-payment.momo.vn/qr',
+      plan: plusPlan,
     });
 
-    await service.ensureDefaultFreeSubscription('user-1');
-
-    expect(mockPrisma.userSubscription.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        userId: 'user-1',
-        planId: freePlan.id,
-        status: SubscriptionStatus.ACTIVE,
-      }),
-    });
-  });
-
-  it('allows Free CV scoring with remaining trial and daily quota', async () => {
-    mockPrisma.userSubscription.findFirst
-      .mockResolvedValueOnce({ id: 'sub-free' })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: 'sub-free',
-        status: SubscriptionStatus.ACTIVE,
-        periodEnd: null,
-        plan: freePlan,
-      });
-
-    const decision = await service.checkEntitlement('user-1', {
-      contextType: EntitlementContextDto.PERSONAL,
-      action: EntitlementActionDto.CV_SCORE,
+    const result = await service.createCheckout('user-1', {
+      planCode: SubscriptionPlanCode.PLUS,
     });
 
-    expect(decision).toMatchObject({
-      allowed: true,
-      resolvedPlan: 'Free',
-      remainingDailyQuota: 5,
-      remainingTrialQuota: 15,
-    });
-  });
-
-  it('denies Free CV fit analysis and records denial without quota count', async () => {
-    mockPrisma.userSubscription.findFirst
-      .mockResolvedValueOnce({ id: 'sub-free' })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: 'sub-free',
-        status: SubscriptionStatus.ACTIVE,
-        periodEnd: null,
-        plan: freePlan,
-      });
-
-    const decision = await service.checkEntitlement('user-1', {
-      contextType: EntitlementContextDto.PERSONAL,
-      action: EntitlementActionDto.CV_FIT_ANALYSIS,
-      consume: true,
-    });
-
-    expect(decision).toMatchObject({
-      allowed: false,
-      reason: 'feature_not_allowed',
-    });
-    expect(mockPrisma.aiUsageRecord.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        action: AiUsageAction.CV_FIT_ANALYSIS,
-        decision: AiUsageDecision.DENIED,
-        count: 0,
-      }),
-    });
-  });
-
-  it('activates Plus for one monthly personal period', async () => {
-    mockPrisma.userSubscription.findFirst
-      .mockResolvedValueOnce({ id: 'sub-free' })
-      .mockResolvedValueOnce({ id: 'sub-free' })
-      .mockResolvedValueOnce({
-        id: 'sub-plus',
-        status: SubscriptionStatus.ACTIVE,
-        periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        plan: plusPlan,
-      });
-    mockPrisma.userSubscription.create.mockResolvedValue({ id: 'sub-plus' });
-
-    const status = await service.activatePlus('user-1');
-
-    expect(mockPrisma.userSubscription.create).toHaveBeenCalledWith({
+    expect(mockPrisma.paymentTransaction.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         userId: 'user-1',
         planId: plusPlan.id,
-        status: SubscriptionStatus.ACTIVE,
-        periodEnd: expect.any(Date),
+        provider: PaymentProvider.MOMO,
+        status: PaymentTransactionStatus.PENDING,
       }),
+      include: { plan: true },
     });
-    expect(status.effectivePlan.code).toBe(SubscriptionPlanCode.PLUS);
-    expect(status.remainingDailyQuota).toBe(20);
+    expect(mockMomoBillingClient.submitPreparedCheckout).toHaveBeenCalled();
+    expect(mockPrisma.userSubscription.create).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      paymentId: 'payment-1',
+      planCode: SubscriptionPlanCode.PLUS,
+      status: PaymentTransactionStatus.PENDING,
+    });
   });
 
-  it('activates Business and preserves owner/admin capability', async () => {
-    const tx = {
-      workspaceSubscription: {
+  it('rejects Free checkout before creating a payment', async () => {
+    await expect(
+      service.createCheckout('user-1', {
+        planCode: 'FREE' as 'PLUS',
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(mockPrisma.paymentTransaction.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects MoMo IPN with an invalid signature and stores audit', async () => {
+    mockPrisma.paymentTransaction.findFirst.mockResolvedValue({
+      id: 'payment-1',
+      expectedAmount: plusPlan.priceAmount,
+      providerRequestId: 'req-1',
+      providerOrderId: 'order-1',
+      userId: 'user-1',
+      providerTransactionId: null,
+      confirmedAt: null,
+      plan: plusPlan,
+      activatedSubscription: null,
+    });
+    mockMomoSignatureService.verifyPaymentResult.mockReturnValue(false);
+
+    await expect(
+      service.receiveMomoIpn({
+        partnerCode: 'partner',
+        requestId: 'req-1',
+        orderId: 'order-1',
+        amount: plusPlan.priceAmount,
+        resultCode: 0,
+        message: 'Successful.',
+        responseTime: 1,
+        signature: 'bad',
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(mockPrisma.paymentConfirmation.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        paymentTransactionId: 'payment-1',
+        source: PaymentConfirmationSource.MOMO_IPN,
+        signatureValid: false,
+        accepted: false,
+        rejectionReason: 'invalid_signature',
+      }),
+    });
+  });
+
+  it('accepts a matching successful MoMo IPN without activating subscription', async () => {
+    const tx: TransactionClient = {
+      paymentConfirmation: { create: jest.fn() },
+      paymentTransaction: { update: jest.fn() },
+      userSubscription: {
+        findFirst: jest.fn(),
         updateMany: jest.fn(),
         create: jest.fn(),
       },
-      workspace: {
-        update: jest.fn(),
+    };
+    mockPrisma.$transaction.mockImplementation(
+      (callback: (client: TransactionClient) => Promise<unknown>) =>
+        callback(tx),
+    );
+    mockPrisma.paymentTransaction.findFirst.mockResolvedValue({
+      id: 'payment-1',
+      expectedAmount: plusPlan.priceAmount,
+      providerRequestId: 'req-1',
+      providerOrderId: 'order-1',
+      userId: 'user-1',
+      providerTransactionId: null,
+      confirmedAt: null,
+      plan: plusPlan,
+      activatedSubscription: null,
+    });
+    mockPrisma.paymentTransaction.findUnique.mockResolvedValue({
+      id: 'payment-1',
+      status: PaymentTransactionStatus.SUCCEEDED,
+      rejectionReason: null,
+      activatedSubscription: null,
+      plan: plusPlan,
+    });
+    mockMomoSignatureService.verifyPaymentResult.mockReturnValue(true);
+
+    const result = await service.receiveMomoIpn({
+      partnerCode: 'partner',
+      requestId: 'req-1',
+      orderId: 'order-1',
+      amount: plusPlan.priceAmount,
+      partnerClientId: 'user-1',
+      resultCode: 0,
+      message: 'Successful.',
+      responseTime: 1,
+      signature: 'valid',
+    });
+
+    expect(tx.paymentTransaction.update).toHaveBeenCalledWith({
+      where: { id: 'payment-1' },
+      data: expect.objectContaining({
+        status: PaymentTransactionStatus.SUCCEEDED,
+        rejectionReason: null,
+      }),
+    });
+    expect(result.subscriptionActivated).toBe(false);
+  });
+
+  it('activates Business with the mock business workspace id after internal confirmation', async () => {
+    const payment = {
+      id: 'payment-1',
+      userId: 'user-1',
+      planId: businessPlan.id,
+      status: PaymentTransactionStatus.SUCCEEDED,
+      rejectionReason: null,
+      plan: businessPlan,
+      activatedSubscription: null,
+    };
+    const activated = {
+      id: 'sub-business',
+      businessWorkspaceId: 'mock-business-workspace',
+    };
+    const tx: TransactionClient = {
+      paymentConfirmation: { create: jest.fn() },
+      paymentTransaction: { update: jest.fn() },
+      userSubscription: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        updateMany: jest.fn(),
+        create: jest.fn().mockResolvedValue(activated),
       },
     };
     mockPrisma.$transaction.mockImplementation(
-      (callback: TransactionCallback) => callback(tx),
+      (callback: (client: TransactionClient) => Promise<unknown>) =>
+        callback(tx),
     );
-    mockPrisma.workspace.findUnique.mockResolvedValue({ id: 'workspace-1' });
-    mockPrisma.workspaceMember.findFirst
+    mockPrisma.paymentTransaction.findUnique
+      .mockResolvedValueOnce(payment)
       .mockResolvedValueOnce({
-        id: 'member-1',
-        role: WorkspaceMemberRole.OWNER,
-      })
-      .mockResolvedValueOnce({ id: 'member-1' });
-    mockPrisma.workspaceSubscription.findFirst.mockResolvedValue({
-      id: 'workspace-sub-1',
-      purchaserId: 'user-1',
-      periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      plan: businessPlan,
-    });
-
-    const status = await service.activateBusiness('workspace-1', 'user-1');
-
-    expect(tx.workspaceSubscription.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        workspaceId: 'workspace-1',
-        purchaserId: 'user-1',
-        planId: businessPlan.id,
-      }),
-    });
-    expect(tx.workspace.update).toHaveBeenCalledWith({
-      where: { id: 'workspace-1' },
-      data: { isBusiness: true },
-    });
-    expect(status.isBusinessActive).toBe(true);
-    expect(status.remainingDailyQuota).toBe(500);
-  });
-
-  it('rejects workspace entitlement when requester is not an active member', async () => {
-    mockPrisma.workspaceMember.findFirst.mockResolvedValue(null);
-
-    await expect(
-      service.checkEntitlement('user-1', {
-        contextType: EntitlementContextDto.WORKSPACE,
-        workspaceId: 'workspace-1',
-        action: EntitlementActionDto.CV_SCORE,
-      }),
-    ).rejects.toThrow(ForbiddenException);
-  });
-
-  it('keeps Plus personal quota separate from Business workspace quota', async () => {
-    mockPrisma.userSubscription.findFirst
-      .mockResolvedValueOnce({ id: 'sub-free' })
-      .mockResolvedValueOnce({
-        id: 'sub-plus',
-        status: SubscriptionStatus.ACTIVE,
-        periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        plan: plusPlan,
+        ...payment,
+        activatedSubscription: activated,
       });
-    mockPrisma.aiUsageRecord.aggregate
-      .mockResolvedValueOnce({ _sum: { count: 20 } })
-      .mockResolvedValueOnce({ _sum: { count: 0 } });
 
-    const personalDecision = await service.checkEntitlement('user-1', {
-      contextType: EntitlementContextDto.PERSONAL,
-      action: EntitlementActionDto.CV_SCORE,
+    const result = await service.confirmPaymentInternally('payment-1', {
+      note: 'verified',
     });
 
-    expect(personalDecision).toMatchObject({
-      allowed: false,
-      reason: 'daily_quota_exhausted',
-      resolvedPlan: 'Plus',
+    expect(tx.userSubscription.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'user-1',
+        planId: businessPlan.id,
+        paymentTransactionId: 'payment-1',
+        businessWorkspaceId: 'mock-business-workspace',
+      }),
     });
+    expect(result).toMatchObject({
+      subscriptionActivated: true,
+      subscriptionId: 'sub-business',
+      businessWorkspaceId: 'mock-business-workspace',
+    });
+  });
 
-    mockPrisma.workspaceMember.findFirst.mockResolvedValue({
-      id: 'member-1',
-      status: WorkspaceMemberStatus.ACTIVE,
-    });
-    mockPrisma.workspaceSubscription.findFirst.mockResolvedValue({
-      id: 'workspace-sub-1',
-      purchaserId: 'owner-1',
-      periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      plan: businessPlan,
-    });
-    mockPrisma.aiUsageRecord.aggregate
-      .mockResolvedValueOnce({ _sum: { count: 0 } })
-      .mockResolvedValueOnce({ _sum: { count: 0 } });
+  it('does not attach a business workspace id for Plus activation', async () => {
+    const payment = {
+      id: 'payment-1',
+      userId: 'user-1',
+      planId: plusPlan.id,
+      status: PaymentTransactionStatus.SUCCEEDED,
+      rejectionReason: null,
+      plan: plusPlan,
+      activatedSubscription: null,
+    };
+    const tx: TransactionClient = {
+      paymentConfirmation: { create: jest.fn() },
+      paymentTransaction: { update: jest.fn() },
+      userSubscription: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        updateMany: jest.fn(),
+        create: jest.fn().mockResolvedValue({
+          id: 'sub-plus',
+          businessWorkspaceId: null,
+        }),
+      },
+    };
+    mockPrisma.$transaction.mockImplementation(
+      (callback: (client: TransactionClient) => Promise<unknown>) =>
+        callback(tx),
+    );
+    mockPrisma.paymentTransaction.findUnique
+      .mockResolvedValueOnce(payment)
+      .mockResolvedValueOnce({
+        ...payment,
+        activatedSubscription: {
+          id: 'sub-plus',
+          businessWorkspaceId: null,
+        },
+      });
 
-    const workspaceDecision = await service.checkEntitlement('user-1', {
-      contextType: EntitlementContextDto.WORKSPACE,
-      workspaceId: 'workspace-1',
-      action: EntitlementActionDto.CV_SCORE,
-    });
+    await service.confirmPaymentInternally('payment-1');
 
-    expect(workspaceDecision).toMatchObject({
-      allowed: true,
-      resolvedPlan: 'Business',
-      remainingDailyQuota: 500,
+    expect(tx.userSubscription.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        businessWorkspaceId: null,
+      }),
     });
+  });
+
+  it('does not call workspace mutations during paid activation', () => {
+    expect(Object.keys(mockPrisma)).not.toContain('workspace');
+    expect(Object.keys(mockPrisma)).not.toContain(
+      ['workspace', 'Member'].join(''),
+    );
+    expect(Object.keys(mockPrisma)).not.toContain(
+      ['workspace', 'Subscription'].join(''),
+    );
   });
 });

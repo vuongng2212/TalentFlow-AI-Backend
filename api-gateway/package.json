@@ -12,7 +12,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/src/main",
-    "swagger:generate": "GENERATE_SWAGGER=true EXIT_AFTER_GENERATE=true ts-node src/main.ts",
+    "swagger:generate": "node -r ts-node/register -e \"process.env.GENERATE_SWAGGER='true'; process.env.EXIT_AFTER_GENERATE='true'; require('./src/main')\"",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",

@@ -1,18 +1,25 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { EntitlementCheckDto } from './dto/entitlement-check.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
+import {
+  ConfirmPaymentParamsDto,
+  CreateSubscriptionCheckoutDto,
+  InternalConfirmPaymentDto,
+  MomoPaymentResultDto,
+} from './dto/subscription-billing.dto';
 import { SubscriptionsService } from './subscriptions.service';
 
 interface UserPayload {
   id: string;
   email: string;
-  role: string;
+  role: Role;
   fullName: string;
 }
 
@@ -30,46 +37,44 @@ export class SubscriptionsController {
   }
 
   @Get('subscriptions/me')
-  @ApiOperation({ summary: 'Get current personal subscription status' })
-  @ApiResponse({ status: 200, description: 'Personal subscription returned' })
+  @ApiOperation({ summary: 'Get current subscription and payment status' })
+  @ApiResponse({ status: 200, description: 'Subscription status returned' })
   getMySubscription(@CurrentUser() user: UserPayload) {
     return this.subscriptionsService.getPersonalStatus(user.id);
   }
 
-  @Post('subscriptions/me/plus')
-  @ApiOperation({ summary: 'Activate Plus for current user' })
-  @ApiResponse({ status: 201, description: 'Plus activated' })
-  activatePlus(@CurrentUser() user: UserPayload) {
-    return this.subscriptionsService.activatePlus(user.id);
+  @Post('subscriptions/checkout')
+  @ApiOperation({ summary: 'Start MoMo checkout for a paid plan' })
+  @ApiResponse({ status: 201, description: 'Pending payment created' })
+  createCheckout(
+    @CurrentUser() user: UserPayload,
+    @Body() dto: CreateSubscriptionCheckoutDto,
+  ) {
+    return this.subscriptionsService.createCheckout(user.id, dto);
   }
 
-  @Post('subscriptions/entitlement/check')
-  @ApiOperation({ summary: 'Check and optionally consume AI entitlement' })
-  @ApiResponse({ status: 200, description: 'Entitlement decision returned' })
-  checkEntitlement(
-    @CurrentUser() user: UserPayload,
-    @Body() dto: EntitlementCheckDto,
-  ) {
-    return this.subscriptionsService.checkEntitlement(user.id, dto);
+  @Post('subscriptions/momo/ipn')
+  @HttpCode(202)
+  @ApiOperation({ summary: 'Receive and verify MoMo payment result' })
+  @ApiResponse({ status: 202, description: 'Payment result accepted' })
+  receiveMomoIpn(@Body() dto: MomoPaymentResultDto) {
+    return this.subscriptionsService.receiveMomoIpn(dto);
   }
 
-  @Get('workspaces/:workspaceId/subscription')
-  @ApiOperation({ summary: 'Get workspace Business subscription status' })
-  @ApiResponse({ status: 200, description: 'Workspace subscription returned' })
-  getWorkspaceSubscription(
-    @Param('workspaceId') workspaceId: string,
-    @CurrentUser() user: UserPayload,
+  @Post('internal/subscriptions/payments/:paymentId/confirm')
+  @HttpCode(200)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Confirm a verified payment and activate subscription',
+  })
+  @ApiResponse({ status: 200, description: 'Subscription activation returned' })
+  confirmPayment(
+    @Param() params: ConfirmPaymentParamsDto,
+    @Body() dto: InternalConfirmPaymentDto = {},
   ) {
-    return this.subscriptionsService.getWorkspaceStatus(workspaceId, user.id);
-  }
-
-  @Post('workspaces/:workspaceId/subscription/business')
-  @ApiOperation({ summary: 'Activate Business for workspace' })
-  @ApiResponse({ status: 201, description: 'Business activated' })
-  activateBusiness(
-    @Param('workspaceId') workspaceId: string,
-    @CurrentUser() user: UserPayload,
-  ) {
-    return this.subscriptionsService.activateBusiness(workspaceId, user.id);
+    return this.subscriptionsService.confirmPaymentInternally(
+      params.paymentId,
+      dto,
+    );
   }
 }

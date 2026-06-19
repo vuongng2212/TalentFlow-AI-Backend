@@ -4,8 +4,7 @@ This directory contains checked-in OpenAPI contracts for completed API surfaces.
 
 ## API Gateway
 
-- [API Gateway Full OpenAPI](api-gateway.openapi.json): Generated from the current API Gateway runtime decorators. Covers auth, users, jobs, applications, candidates, interviews, analytics, workspaces, subscriptions, health, readiness, and metrics.
-- [Subscription Plans API](subscription-plans.openapi.yaml): Detailed hand-curated contract for Free, Plus, and Business subscription plan catalog, personal subscription status, Plus activation, Business workspace activation, workspace subscription status, and AI entitlement/quota checks.
+- [API Gateway Full OpenAPI](api-gateway.openapi.json): Generated from the current API Gateway runtime decorators. Covers auth, users, jobs, applications, candidates, interviews, analytics, billing-only subscriptions, health, readiness, and metrics.
 
 ## Current API Gateway Paths
 
@@ -44,15 +43,11 @@ This directory contains checked-in OpenAPI contracts for completed API surfaces.
 - `GET /api/v1/analytics/pipeline`
 - `GET /api/v1/analytics/trends`
 - `GET /api/v1/analytics/top-jobs`
-- `POST /api/v1/workspaces`
-- `GET /api/v1/workspaces/{id}/members`
-- `POST /api/v1/workspaces/{id}/members`
 - `GET /api/v1/subscriptions/plans`
 - `GET /api/v1/subscriptions/me`
-- `POST /api/v1/subscriptions/me/plus`
-- `POST /api/v1/subscriptions/entitlement/check`
-- `GET /api/v1/workspaces/{workspaceId}/subscription`
-- `POST /api/v1/workspaces/{workspaceId}/subscription/business`
+- `POST /api/v1/subscriptions/checkout`
+- `POST /api/v1/subscriptions/momo/ipn`
+- `POST /api/v1/internal/subscriptions/payments/{paymentId}/confirm`
 - `GET /health`
 - `GET /ready`
 - `GET /metrics`

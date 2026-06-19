@@ -846,7 +846,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Personal subscription returned"
+            "description": "Subscription status returned"
           }
         },
         "security": [
@@ -854,49 +854,98 @@
             "access-token": []
           }
         ],
-        "summary": "Get current personal subscription status",
+        "summary": "Get current subscription and payment status",
         "tags": [
           "Subscriptions"
         ]
       }
     },
-    "/api/v1/subscriptions/me/plus": {
+    "/api/v1/subscriptions/checkout": {
       "post": {
-        "operationId": "SubscriptionsController_activatePlus",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": "Plus activated"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Activate Plus for current user",
-        "tags": [
-          "Subscriptions"
-        ]
-      }
-    },
-    "/api/v1/subscriptions/entitlement/check": {
-      "post": {
-        "operationId": "SubscriptionsController_checkEntitlement",
+        "operationId": "SubscriptionsController_createCheckout",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EntitlementCheckDto"
+                "$ref": "#/components/schemas/CreateSubscriptionCheckoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Pending payment created"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start MoMo checkout for a paid plan",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/api/v1/subscriptions/momo/ipn": {
+      "post": {
+        "operationId": "SubscriptionsController_receiveMomoIpn",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MomoPaymentResultDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Payment result accepted"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Receive and verify MoMo payment result",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/api/v1/internal/subscriptions/payments/{paymentId}/confirm": {
+      "post": {
+        "operationId": "SubscriptionsController_confirmPayment",
+        "parameters": [
+          {
+            "name": "paymentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InternalConfirmPaymentDto"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Entitlement decision returned"
+            "description": "Subscription activation returned"
           }
         },
         "security": [
@@ -904,65 +953,7 @@
             "access-token": []
           }
         ],
-        "summary": "Check and optionally consume AI entitlement",
-        "tags": [
-          "Subscriptions"
-        ]
-      }
-    },
-    "/api/v1/workspaces/{workspaceId}/subscription": {
-      "get": {
-        "operationId": "SubscriptionsController_getWorkspaceSubscription",
-        "parameters": [
-          {
-            "name": "workspaceId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Workspace subscription returned"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Get workspace Business subscription status",
-        "tags": [
-          "Subscriptions"
-        ]
-      }
-    },
-    "/api/v1/workspaces/{workspaceId}/subscription/business": {
-      "post": {
-        "operationId": "SubscriptionsController_activateBusiness",
-        "parameters": [
-          {
-            "name": "workspaceId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Business activated"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Activate Business for workspace",
+        "summary": "Confirm a verified payment and activate subscription",
         "tags": [
           "Subscriptions"
         ]
@@ -2294,102 +2285,6 @@
           "interviews"
         ]
       }
-    },
-    "/api/v1/workspaces": {
-      "post": {
-        "operationId": "WorkspacesController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateWorkspaceDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Workspace created successfully"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Create a workspace",
-        "tags": [
-          "Workspaces"
-        ]
-      }
-    },
-    "/api/v1/workspaces/{id}/members": {
-      "post": {
-        "operationId": "WorkspacesController_addMember",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddWorkspaceMemberDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Member added successfully"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Add a member to workspace",
-        "tags": [
-          "Workspaces"
-        ]
-      },
-      "get": {
-        "operationId": "WorkspacesController_listMembers",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Workspace members returned"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "List active workspace members",
-        "tags": [
-          "Workspaces"
-        ]
-      }
     }
   },
   "info": {
@@ -2603,38 +2498,89 @@
           "role"
         ]
       },
-      "EntitlementCheckDto": {
+      "CreateSubscriptionCheckoutDto": {
         "type": "object",
         "properties": {
-          "contextType": {
+          "planCode": {
             "type": "string",
             "enum": [
-              "personal",
-              "workspace"
+              "PLUS",
+              "BUSINESS"
             ]
-          },
-          "workspaceId": {
-            "type": "string",
-            "description": "Required when contextType is workspace",
-            "format": "uuid"
-          },
-          "action": {
-            "type": "string",
-            "enum": [
-              "cv_score",
-              "cv_fit_analysis"
-            ]
-          },
-          "consume": {
-            "type": "boolean",
-            "default": false,
-            "description": "Consume one quota unit when the action is allowed"
           }
         },
         "required": [
-          "contextType",
-          "action"
+          "planCode"
         ]
+      },
+      "MomoPaymentResultDto": {
+        "type": "object",
+        "properties": {
+          "partnerCode": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "orderInfo": {
+            "type": "string"
+          },
+          "orderType": {
+            "type": "string"
+          },
+          "partnerClientId": {
+            "type": "string"
+          },
+          "callbackToken": {
+            "type": "string"
+          },
+          "transId": {
+            "type": "string"
+          },
+          "resultCode": {
+            "type": "number"
+          },
+          "message": {
+            "type": "string"
+          },
+          "payType": {
+            "type": "string"
+          },
+          "responseTime": {
+            "type": "number"
+          },
+          "extraData": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "partnerCode",
+          "requestId",
+          "orderId",
+          "amount",
+          "resultCode",
+          "message",
+          "responseTime",
+          "signature"
+        ]
+      },
+      "InternalConfirmPaymentDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
       },
       "JobRequirementsDto": {
         "type": "object",
@@ -3396,57 +3342,6 @@
             "description": "Interviewer user ID"
           }
         }
-      },
-      "CreateWorkspaceDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "example": "TalentFlow Hiring Team",
-            "maxLength": 150
-          },
-          "isBusiness": {
-            "type": "boolean",
-            "example": true,
-            "description": "Enable Business capabilities for workspace",
-            "default": false
-          }
-        },
-        "required": [
-          "name"
-        ]
-      },
-      "WorkspaceMemberRole": {
-        "type": "string",
-        "enum": [
-          "OWNER",
-          "ADMIN",
-          "RECRUITER",
-          "VIEWER"
-        ],
-        "description": "Role assigned to the invited member. Defaults to RECRUITER when omitted."
-      },
-      "AddWorkspaceMemberDto": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string",
-            "example": "recruiter@company.com",
-            "description": "Email of an existing user in system"
-          },
-          "role": {
-            "description": "Role assigned to the invited member. Defaults to RECRUITER when omitted.",
-            "default": "RECRUITER",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/WorkspaceMemberRole"
-              }
-            ]
-          }
-        },
-        "required": [
-          "email"
-        ]
       }
     }
   }

@@ -1,0 +1,306 @@
+openapi: 3.0.3
+info:
+  title: TalentFlow Subscription Billing API
+  version: 0.1.0
+  description: Billing-only subscription contract for MoMo checkout and internal confirmation.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+paths:
+  /subscriptions/plans:
+    get:
+      tags: [Subscriptions]
+      summary: List active subscription plans
+      operationId: listSubscriptionPlans
+      responses:
+        '200':
+          description: Active subscription plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubscriptionPlan'
+  /subscriptions/me:
+    get:
+      tags: [Subscriptions]
+      summary: Get current user subscription and payment status
+      operationId: getMySubscriptionStatus
+      responses:
+        '200':
+          description: Current subscription status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionStatus'
+  /subscriptions/checkout:
+    post:
+      tags: [Subscriptions]
+      summary: Start MoMo checkout for a paid plan
+      operationId: createSubscriptionCheckout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCheckoutRequest'
+      responses:
+        '201':
+          description: Pending payment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateCheckoutResponse'
+        '400':
+          description: Plan is free, inactive, unsupported, or not checkout eligible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /subscriptions/momo/ipn:
+    post:
+      tags: [Subscriptions]
+      summary: Receive and verify MoMo server-to-server payment result
+      operationId: receiveMomoPaymentResult
+      security:
+        - momoSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MomoPaymentResult'
+      responses:
+        '202':
+          description: Result accepted for internal confirmation or idempotent processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentConfirmationResult'
+        '400':
+          description: Invalid signature or mismatched payment result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /internal/subscriptions/payments/{paymentId}/confirm:
+    post:
+      tags: [Internal Subscriptions]
+      summary: Confirm a verified successful MoMo payment and activate subscription
+      operationId: confirmSubscriptionPayment
+      security:
+        - internalAuth: []
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InternalConfirmRequest'
+      responses:
+        '200':
+          description: Subscription activated or existing activation returned idempotently
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentConfirmationResult'
+        '400':
+          description: Payment is not successful, not verified, or mismatched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller cannot perform internal confirmation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    internalAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Internal operator or trusted service credential.
+    momoSignature:
+      type: apiKey
+      in: header
+      name: x-momo-signature
+      description: Signature validation is performed against MoMo payload fields and configured secret.
+  schemas:
+    SubscriptionPlan:
+      type: object
+      required: [code, name, billingPeriod, isPaid, priceAmount, currency, isActive, checkoutEligible]
+      properties:
+        code:
+          type: string
+          enum: [FREE, PLUS, BUSINESS]
+        name:
+          type: string
+        billingPeriod:
+          type: string
+          enum: [NONE, MONTHLY]
+        isPaid:
+          type: boolean
+        priceAmount:
+          type: integer
+          minimum: 0
+        currency:
+          type: string
+          example: VND
+        isActive:
+          type: boolean
+        checkoutEligible:
+          type: boolean
+    SubscriptionStatus:
+      type: object
+      required: [currentPlan, status, pendingPayments]
+      properties:
+        currentPlan:
+          $ref: '#/components/schemas/SubscriptionPlan'
+        status:
+          type: string
+          enum: [ACTIVE, CANCELLED, EXPIRED]
+        periodEnd:
+          type: string
+          format: date-time
+          nullable: true
+        businessWorkspaceId:
+          type: string
+          nullable: true
+          description: Mock Business workspace id for Business only; not a real workspace relation.
+        pendingPayments:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentTransactionSummary'
+    CreateCheckoutRequest:
+      type: object
+      required: [planCode]
+      properties:
+        planCode:
+          type: string
+          enum: [PLUS, BUSINESS]
+    CreateCheckoutResponse:
+      type: object
+      required: [paymentId, planCode, provider, status]
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        planCode:
+          type: string
+          enum: [PLUS, BUSINESS]
+        provider:
+          type: string
+          enum: [MOMO]
+        status:
+          type: string
+          enum: [PENDING]
+        checkoutUrl:
+          type: string
+          format: uri
+          nullable: true
+        deeplink:
+          type: string
+          nullable: true
+        qrCodeUrl:
+          type: string
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+    PaymentTransactionSummary:
+      type: object
+      required: [paymentId, planCode, provider, status, expectedAmount, currency]
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        planCode:
+          type: string
+          enum: [PLUS, BUSINESS]
+        provider:
+          type: string
+          enum: [MOMO]
+        status:
+          type: string
+          enum: [PENDING, SUCCEEDED, FAILED, CANCELLED, EXPIRED, REJECTED]
+        expectedAmount:
+          type: integer
+        currency:
+          type: string
+          example: VND
+    MomoPaymentResult:
+      type: object
+      required: [partnerCode, requestId, orderId, amount, resultCode, message, responseTime, signature]
+      additionalProperties: true
+      properties:
+        partnerCode:
+          type: string
+        requestId:
+          type: string
+        orderId:
+          type: string
+        amount:
+          type: integer
+        transId:
+          type: string
+        resultCode:
+          type: integer
+        message:
+          type: string
+        responseTime:
+          type: integer
+        signature:
+          type: string
+    InternalConfirmRequest:
+      type: object
+      properties:
+        note:
+          type: string
+          maxLength: 500
+    PaymentConfirmationResult:
+      type: object
+      required: [paymentId, accepted, paymentStatus, subscriptionActivated]
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        accepted:
+          type: boolean
+        paymentStatus:
+          type: string
+          enum: [PENDING, SUCCEEDED, FAILED, CANCELLED, EXPIRED, REJECTED]
+        subscriptionActivated:
+          type: boolean
+        subscriptionId:
+          type: string
+          format: uuid
+          nullable: true
+        businessWorkspaceId:
+          type: string
+          nullable: true
+        rejectionReason:
+          type: string
+          nullable: true
+    ErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        code:
+          type: string

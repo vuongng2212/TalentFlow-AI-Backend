@@ -87,7 +87,7 @@ export class UsersService {
     ]);
 
     return {
-      data: users as SafeUser[],
+      data: users,
       meta: {
         total,
         page,
@@ -115,7 +115,7 @@ export class UsersService {
       throw new NotFoundException(`User with ID "${id}" not found`);
     }
 
-    return user as SafeUser;
+    return user;
   }
 
   async update(id: string, data: Partial<{ fullName: string; role: Role }>) {
@@ -162,7 +162,7 @@ export class UsersService {
       },
     });
 
-    return updated as SafeUser;
+    return updated;
   }
 
   async updateRole(targetId: string, newRole: Role): Promise<SafeUser> {
@@ -190,7 +190,7 @@ export class UsersService {
       },
     });
 
-    return updated as SafeUser;
+    return updated;
   }
 
   async softDelete(id: string) {

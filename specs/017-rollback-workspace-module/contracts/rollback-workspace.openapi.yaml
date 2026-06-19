@@ -1,0 +1,220 @@
+openapi: 3.0.3
+info:
+  title: TalentFlow API Gateway - Workspace Rollback Contract
+  version: 017-rollback-workspace-module
+  description: |
+    Contract guard for feature 017. Workspace management APIs are removed from
+    the active API Gateway surface. Subscription billing APIs from spec 016
+    remain active and may expose a mock Business workspace identifier only as
+    subscription-owned placeholder data.
+servers:
+  - url: /api/v1
+tags:
+  - name: Subscriptions
+    description: Active billing-only subscription API retained from spec 016.
+x-removed-workspace-operations:
+  - method: POST
+    path: /workspaces
+    reason: Workspace creation removed from active release.
+  - method: POST
+    path: /workspaces/{workspaceId}/members
+    reason: Workspace invitation/member addition removed from active release.
+  - method: GET
+    path: /workspaces/{workspaceId}/members
+    reason: Workspace member listing removed from active release.
+  - method: PATCH
+    path: /workspaces/{workspaceId}/members/{memberId}
+    reason: Workspace role assignment/member administration removed from active release.
+paths:
+  /subscriptions/plans:
+    get:
+      tags:
+        - Subscriptions
+      summary: List active subscription plans
+      description: Returns Free, Plus, and Business plans for billing-only subscription scope.
+      responses:
+        "200":
+          description: Active plans returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlansResponse"
+  /subscriptions/checkout:
+    post:
+      tags:
+        - Subscriptions
+      summary: Start paid subscription checkout
+      description: Starts MoMo checkout for active paid plans only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartCheckoutRequest"
+      responses:
+        "201":
+          description: Pending payment transaction created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+        "400":
+          description: Unsupported, inactive, or free plan selected for checkout.
+  /subscriptions/payments/{paymentId}/confirm:
+    post:
+      tags:
+        - Subscriptions
+      summary: Confirm a paid subscription payment internally
+      description: Trusted internal confirmation path; untrusted client claims must not activate subscriptions.
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InternalPaymentConfirmationRequest"
+      responses:
+        "200":
+          description: Confirmation accepted or idempotently matched.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionStatusResponse"
+        "400":
+          description: Confirmation rejected; no paid subscription activated.
+  /subscriptions/me:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get current user's subscription status
+      responses:
+        "200":
+          description: Subscription status returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionStatusResponse"
+components:
+  schemas:
+    SubscriptionPlanCode:
+      type: string
+      enum:
+        - FREE
+        - PLUS
+        - BUSINESS
+    SubscriptionPlan:
+      type: object
+      required:
+        - code
+        - name
+        - isPaid
+        - isActive
+        - checkoutEligible
+      properties:
+        code:
+          $ref: "#/components/schemas/SubscriptionPlanCode"
+        name:
+          type: string
+        isPaid:
+          type: boolean
+        isActive:
+          type: boolean
+        checkoutEligible:
+          type: boolean
+        priceAmount:
+          type: integer
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+    SubscriptionPlansResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubscriptionPlan"
+    StartCheckoutRequest:
+      type: object
+      required:
+        - planCode
+      properties:
+        planCode:
+          $ref: "#/components/schemas/SubscriptionPlanCode"
+    CheckoutResponse:
+      type: object
+      required:
+        - paymentId
+        - provider
+        - status
+      properties:
+        paymentId:
+          type: string
+        provider:
+          type: string
+          enum:
+            - MOMO
+        status:
+          type: string
+          enum:
+            - PENDING
+        checkoutUrl:
+          type: string
+          nullable: true
+    InternalPaymentConfirmationRequest:
+      type: object
+      required:
+        - provider
+        - providerOrderId
+        - providerRequestId
+        - amount
+        - currency
+        - resultCode
+      properties:
+        provider:
+          type: string
+          enum:
+            - MOMO
+        providerOrderId:
+          type: string
+        providerRequestId:
+          type: string
+        providerTransactionId:
+          type: string
+          nullable: true
+        amount:
+          type: integer
+        currency:
+          type: string
+        resultCode:
+          type: string
+    SubscriptionStatusResponse:
+      type: object
+      required:
+        - planCode
+        - status
+        - businessWorkspaceId
+      properties:
+        planCode:
+          $ref: "#/components/schemas/SubscriptionPlanCode"
+        status:
+          type: string
+        periodStart:
+          type: string
+          format: date-time
+          nullable: true
+        periodEnd:
+          type: string
+          format: date-time
+          nullable: true
+        businessWorkspaceId:
+          type: string
+          nullable: true
+          description: Mock Business workspace id for Business subscriptions only; not a real workspace relation.

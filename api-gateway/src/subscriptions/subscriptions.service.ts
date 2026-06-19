@@ -1,43 +1,65 @@
 import {
+  BadGatewayException,
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
-  AiUsageAction,
-  AiUsageContextType,
-  AiUsageDecision,
+  PaymentConfirmationSource,
+  PaymentProvider,
+  PaymentTransactionStatus,
+  Prisma,
   SubscriptionPlanCode,
   SubscriptionStatus,
-  WorkspaceMemberRole,
-  WorkspaceMemberStatus,
 } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
 import {
-  EntitlementCheckDto,
-  EntitlementContextDto,
-} from './dto/entitlement-check.dto';
-import {
-  AI_ACTION_BY_REQUEST,
+  DEFAULT_BUSINESS_WORKSPACE_ID,
   PLAN_ORDER,
-  SUBSCRIPTION_POLICY,
-} from './interfaces/subscription-policy.interface';
+  SUBSCRIPTION_PERIOD_MONTHS,
+  SUBSCRIPTION_PLAN_CATALOG,
+} from './constants/subscription.constants';
+import { MomoBillingClient } from './billing/momo-billing.client';
+import { MomoSignatureService } from './billing/momo-signature.service';
+import type { MomoPaymentResult } from './billing/momo.types';
+import {
+  CreateSubscriptionCheckoutDto,
+  InternalConfirmPaymentDto,
+  MomoPaymentResultDto,
+} from './dto/subscription-billing.dto';
 import type {
-  EntitlementDecisionResponse,
-  PersonalSubscriptionStatusResponse,
-  PlanResponse,
-  WorkspaceSubscriptionStatusResponse,
-} from './interfaces/subscription-response.interface';
+  CreateCheckoutResponse,
+  PaymentConfirmationResultResponse,
+  PaymentTransactionSummaryResponse,
+  SubscriptionStatusResponse,
+} from './interfaces/subscription-billing-response.interface';
+import type { PlanResponse } from './interfaces/subscription-response.interface';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly momoBillingClient: MomoBillingClient,
+    private readonly momoSignatureService: MomoSignatureService,
+    private readonly configService: ConfigService,
+  ) {}
 
   async listPlans(): Promise<PlanResponse[]> {
-    return Promise.all(
-      PLAN_ORDER.map(async (code) => this.mapPlan(await this.ensurePlan(code))),
-    );
+    await this.ensurePlanCatalog();
+    const plans = await this.prisma.subscriptionPlan.findMany({
+      where: {
+        code: { in: [...PLAN_ORDER] },
+        isActive: true,
+      },
+    });
+
+    return plans
+      .sort(
+        (left, right) =>
+          PLAN_ORDER.indexOf(left.code) - PLAN_ORDER.indexOf(right.code),
+      )
+      .map((plan) => this.mapPlan(plan));
   }
 
   async ensureDefaultFreeSubscription(userId: string) {
@@ -64,323 +86,293 @@ export class SubscriptionsService {
     });
   }
 
-  async getPersonalStatus(
-    userId: string,
-  ): Promise<PersonalSubscriptionStatusResponse> {
-    const subscription = await this.resolvePersonalSubscription(userId);
-    const quota = await this.getQuotaSnapshot({
-      actorId: userId,
-      contextType: AiUsageContextType.PERSONAL,
-      planId: subscription.plan.id,
+  async getPersonalStatus(userId: string): Promise<SubscriptionStatusResponse> {
+    const subscription = await this.resolveCurrentSubscription(userId);
+    const pendingPayments = await this.prisma.paymentTransaction.findMany({
+      where: {
+        userId,
+        status: PaymentTransactionStatus.PENDING,
+      },
+      include: { plan: true },
+      orderBy: { createdAt: 'desc' },
     });
 
     return {
-      effectivePlan: this.mapPlan(subscription.plan),
+      currentPlan: this.mapPlan(subscription.plan),
       status: subscription.status,
       periodEnd: subscription.periodEnd,
-      remainingDailyQuota: Math.max(
-        subscription.plan.dailyAiRequestLimit - quota.dailyUsed,
-        0,
+      businessWorkspaceId: subscription.businessWorkspaceId,
+      pendingPayments: pendingPayments.map((payment) =>
+        this.mapPaymentSummary(payment),
       ),
-      remainingTrialQuota:
-        subscription.plan.trialAiRequestLimit === null
-          ? null
-          : Math.max(
-              subscription.plan.trialAiRequestLimit - quota.trialUsed,
-              0,
-            ),
     };
   }
 
-  async activatePlus(
+  async createCheckout(
     userId: string,
-  ): Promise<PersonalSubscriptionStatusResponse> {
-    await this.ensureDefaultFreeSubscription(userId);
-    const plusPlan = await this.ensurePlan(SubscriptionPlanCode.PLUS);
-    const now = new Date();
+    dto: CreateSubscriptionCheckoutDto,
+  ): Promise<CreateCheckoutResponse> {
+    const plan = await this.ensurePlan(dto.planCode);
 
-    await this.prisma.userSubscription.updateMany({
-      where: {
-        userId,
-        status: SubscriptionStatus.ACTIVE,
-        plan: { code: SubscriptionPlanCode.PLUS },
-      },
-      data: { status: SubscriptionStatus.CANCELLED },
+    if (!plan.isActive || !plan.isPaid || !plan.checkoutEligible) {
+      throw new BadRequestException('Plan is not eligible for checkout');
+    }
+
+    if (plan.priceAmount <= 0 || plan.currency !== 'VND') {
+      throw new BadRequestException('Plan has invalid checkout pricing');
+    }
+
+    const prepared = this.momoBillingClient.prepareCheckout({
+      userId,
+      planCode: plan.code,
+      planName: plan.name,
+      amount: plan.priceAmount,
+      currency: plan.currency,
     });
 
-    await this.prisma.userSubscription.create({
+    const payment = await this.prisma.paymentTransaction.create({
       data: {
         userId,
-        planId: plusPlan.id,
-        status: SubscriptionStatus.ACTIVE,
-        periodStart: now,
-        periodEnd: this.addMonths(now, 1),
+        planId: plan.id,
+        provider: PaymentProvider.MOMO,
+        providerRequestId: prepared.providerRequestId,
+        providerOrderId: prepared.providerOrderId,
+        expectedAmount: plan.priceAmount,
+        currency: plan.currency,
+        status: PaymentTransactionStatus.PENDING,
+        rawProviderRequest: this.toJson(prepared.request),
+      },
+      include: { plan: true },
+    });
+
+    try {
+      const checkout =
+        await this.momoBillingClient.submitPreparedCheckout(prepared);
+
+      if (checkout.response.resultCode !== 0) {
+        await this.prisma.paymentTransaction.update({
+          where: { id: payment.id },
+          data: {
+            status: PaymentTransactionStatus.REJECTED,
+            rejectionReason: checkout.response.message,
+            rawProviderResponse: this.toJson(checkout.response),
+          },
+        });
+        throw new BadGatewayException(checkout.response.message);
+      }
+
+      const updatedPayment = await this.prisma.paymentTransaction.update({
+        where: { id: payment.id },
+        data: {
+          checkoutUrl: checkout.checkoutUrl,
+          deeplink: checkout.deeplink,
+          qrCodeUrl: checkout.qrCodeUrl,
+          rawProviderResponse: this.toJson(checkout.response),
+        },
+        include: { plan: true },
+      });
+
+      return this.mapCheckoutResponse(updatedPayment);
+    } catch (error) {
+      if (error instanceof BadGatewayException) {
+        throw error;
+      }
+
+      await this.prisma.paymentTransaction.update({
+        where: { id: payment.id },
+        data: {
+          status: PaymentTransactionStatus.REJECTED,
+          rejectionReason: this.getErrorMessage(error),
+        },
+      });
+      throw error;
+    }
+  }
+
+  async receiveMomoIpn(
+    dto: MomoPaymentResultDto,
+  ): Promise<PaymentConfirmationResultResponse> {
+    const payment = await this.prisma.paymentTransaction.findFirst({
+      where: {
+        provider: PaymentProvider.MOMO,
+        providerRequestId: dto.requestId,
+        providerOrderId: dto.orderId,
+      },
+      include: {
+        plan: true,
+        activatedSubscription: true,
       },
     });
 
-    return this.getPersonalStatus(userId);
-  }
+    if (!payment) {
+      throw new NotFoundException('Payment transaction not found');
+    }
 
-  async activateBusiness(
-    workspaceId: string,
-    purchaserId: string,
-  ): Promise<WorkspaceSubscriptionStatusResponse> {
-    await this.ensureWorkspaceExists(workspaceId);
-    await this.ensureWorkspaceAdmin(workspaceId, purchaserId);
+    const result = dto as MomoPaymentResult;
+    const signatureValid = this.momoSignatureService.verifyPaymentResult(
+      this.getConfig('MOMO_ACCESS_KEY'),
+      this.getConfig('MOMO_SECRET_KEY'),
+      result,
+    );
 
-    const businessPlan = await this.ensurePlan(SubscriptionPlanCode.BUSINESS);
-    const now = new Date();
+    if (!signatureValid) {
+      await this.createConfirmationAudit({
+        paymentTransactionId: payment.id,
+        source: PaymentConfirmationSource.MOMO_IPN,
+        resultCode: dto.resultCode,
+        message: dto.message,
+        signatureValid: false,
+        accepted: false,
+        rejectionReason: 'invalid_signature',
+        rawPayload: dto,
+      });
+      throw new BadRequestException('Invalid MoMo signature');
+    }
+
+    const mismatch = this.getMomoMismatchReason(payment, result);
+    const nextStatus = this.mapMomoResultStatus(dto.resultCode);
+    const accepted = mismatch === null;
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.workspaceSubscription.updateMany({
+      await tx.paymentConfirmation.create({
+        data: {
+          paymentTransactionId: payment.id,
+          source: PaymentConfirmationSource.MOMO_IPN,
+          resultCode: dto.resultCode,
+          message: dto.message,
+          signatureValid,
+          accepted,
+          rejectionReason: mismatch,
+          rawPayload: this.toJson(dto),
+        },
+      });
+
+      await tx.paymentTransaction.update({
+        where: { id: payment.id },
+        data: {
+          status: accepted ? nextStatus : PaymentTransactionStatus.REJECTED,
+          providerTransactionId:
+            dto.transId === undefined
+              ? payment.providerTransactionId
+              : String(dto.transId),
+          rawProviderResponse: this.toJson(dto),
+          rejectionReason: mismatch,
+          confirmedAt: accepted ? new Date() : payment.confirmedAt,
+        },
+      });
+    });
+
+    if (!accepted) {
+      throw new BadRequestException(mismatch);
+    }
+
+    const updated = await this.getPaymentWithActivation(payment.id);
+    return this.mapConfirmationResult(updated, false, null);
+  }
+
+  async confirmPaymentInternally(
+    paymentId: string,
+    dto: InternalConfirmPaymentDto = {},
+  ): Promise<PaymentConfirmationResultResponse> {
+    const payment = await this.getPaymentWithActivation(paymentId);
+
+    if (
+      payment.status === PaymentTransactionStatus.SUCCEEDED &&
+      payment.activatedSubscription
+    ) {
+      await this.createConfirmationAudit({
+        paymentTransactionId: payment.id,
+        source: PaymentConfirmationSource.INTERNAL_REPLAY,
+        resultCode: 0,
+        message: dto.note ?? 'Duplicate internal confirmation',
+        signatureValid: true,
+        accepted: true,
+        rawPayload: dto,
+      });
+      return this.mapConfirmationResult(payment, true, null);
+    }
+
+    if (payment.status !== PaymentTransactionStatus.SUCCEEDED) {
+      await this.createConfirmationAudit({
+        paymentTransactionId: payment.id,
+        source: PaymentConfirmationSource.INTERNAL_OPERATOR,
+        resultCode: null,
+        message: dto.note ?? 'Internal confirmation rejected',
+        signatureValid: true,
+        accepted: false,
+        rejectionReason: 'payment_not_successful',
+        rawPayload: dto,
+      });
+      throw new BadRequestException('Payment is not successful');
+    }
+
+    const subscription = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.userSubscription.findFirst({
         where: {
-          workspaceId,
+          userId: payment.userId,
           status: SubscriptionStatus.ACTIVE,
+          plan: {
+            code: {
+              in: [SubscriptionPlanCode.PLUS, SubscriptionPlanCode.BUSINESS],
+            },
+          },
+          periodEnd: { gt: new Date() },
+        },
+      });
+
+      if (current?.paymentTransactionId === payment.id) {
+        return current;
+      }
+
+      await tx.userSubscription.updateMany({
+        where: {
+          userId: payment.userId,
+          status: SubscriptionStatus.ACTIVE,
+          plan: {
+            code: {
+              in: [SubscriptionPlanCode.PLUS, SubscriptionPlanCode.BUSINESS],
+            },
+          },
         },
         data: { status: SubscriptionStatus.CANCELLED },
       });
 
-      await tx.workspaceSubscription.create({
+      const now = new Date();
+      const activated = await tx.userSubscription.create({
         data: {
-          workspaceId,
-          purchaserId,
-          planId: businessPlan.id,
+          userId: payment.userId,
+          planId: payment.planId,
           status: SubscriptionStatus.ACTIVE,
           periodStart: now,
-          periodEnd: this.addMonths(now, 1),
+          periodEnd: this.addMonths(now, SUBSCRIPTION_PERIOD_MONTHS),
+          paymentTransactionId: payment.id,
+          businessWorkspaceId:
+            payment.plan.code === SubscriptionPlanCode.BUSINESS
+              ? this.getBusinessWorkspaceId()
+              : null,
         },
       });
 
-      await tx.workspace.update({
-        where: { id: workspaceId },
-        data: { isBusiness: true },
+      await tx.paymentConfirmation.create({
+        data: {
+          paymentTransactionId: payment.id,
+          source: PaymentConfirmationSource.INTERNAL_OPERATOR,
+          resultCode: 0,
+          message: dto.note ?? 'Internal confirmation accepted',
+          signatureValid: true,
+          accepted: true,
+          rawPayload: this.toJson(dto),
+        },
       });
+
+      return activated;
     });
 
-    return this.getWorkspaceStatus(workspaceId, purchaserId);
+    const updated = await this.getPaymentWithActivation(payment.id);
+    return this.mapConfirmationResult(updated, true, subscription.id);
   }
 
-  async getWorkspaceStatus(
-    workspaceId: string,
-    requesterId: string,
-  ): Promise<WorkspaceSubscriptionStatusResponse> {
-    await this.ensureWorkspaceExists(workspaceId);
-    await this.ensureActiveWorkspaceMember(workspaceId, requesterId);
-
-    const subscription = await this.resolveBusinessSubscription(workspaceId);
-
-    if (!subscription) {
-      return {
-        workspaceId,
-        isBusinessActive: false,
-        purchaserId: null,
-        periodEnd: null,
-        remainingDailyQuota: 0,
-      };
-    }
-
-    const quota = await this.getQuotaSnapshot({
-      actorId: requesterId,
-      contextType: AiUsageContextType.WORKSPACE,
-      workspaceId,
-      planId: subscription.plan.id,
-    });
-
-    return {
-      workspaceId,
-      isBusinessActive: true,
-      purchaserId: subscription.purchaserId,
-      periodEnd: subscription.periodEnd,
-      remainingDailyQuota: Math.max(
-        subscription.plan.dailyAiRequestLimit - quota.dailyUsed,
-        0,
-      ),
-    };
-  }
-
-  async hasActiveBusinessEntitlement(workspaceId: string): Promise<boolean> {
-    const subscription = await this.resolveBusinessSubscription(workspaceId);
-    return Boolean(subscription);
-  }
-
-  async checkEntitlement(
-    userId: string,
-    dto: EntitlementCheckDto,
-  ): Promise<EntitlementDecisionResponse> {
-    const action = AI_ACTION_BY_REQUEST[dto.action];
-
-    if (!action) {
-      throw new BadRequestException('Unsupported AI action');
-    }
-
-    if (dto.contextType === EntitlementContextDto.WORKSPACE) {
-      if (!dto.workspaceId) {
-        throw new BadRequestException('workspaceId is required');
-      }
-
-      return this.checkWorkspaceEntitlement(
-        userId,
-        dto.workspaceId,
-        dto.action,
-        action,
-        dto.consume === true,
-      );
-    }
-
-    return this.checkPersonalEntitlement(
-      userId,
-      dto.action,
-      action,
-      dto.consume === true,
-    );
-  }
-
-  private async checkPersonalEntitlement(
-    userId: string,
-    requestedAction: EntitlementCheckDto['action'],
-    action: AiUsageAction,
-    consume: boolean,
-  ): Promise<EntitlementDecisionResponse> {
-    const subscription = await this.resolvePersonalSubscription(userId);
-    const quota = await this.getQuotaSnapshot({
-      actorId: userId,
-      contextType: AiUsageContextType.PERSONAL,
-      planId: subscription.plan.id,
-    });
-    const baseDecision = this.createDecision({
-      contextType: 'personal',
-      planName: subscription.plan.name as 'Free' | 'Plus' | 'Business',
-      action: requestedAction,
-      dailyLimit: subscription.plan.dailyAiRequestLimit,
-      dailyUsed: quota.dailyUsed,
-      trialLimit: subscription.plan.trialAiRequestLimit,
-      trialUsed: quota.trialUsed,
-    });
-    const reason =
-      this.getPlanPermissionDenyReason(subscription.plan, action) ??
-      this.getQuotaDenyReason(baseDecision);
-
-    if (reason) {
-      await this.recordUsageDecision({
-        actorId: userId,
-        contextType: AiUsageContextType.PERSONAL,
-        planId: subscription.plan.id,
-        action,
-        decision: AiUsageDecision.DENIED,
-        denyReason: reason,
-      });
-
-      return { ...baseDecision, allowed: false, reason };
-    }
-
-    if (consume) {
-      await this.recordUsageDecision({
-        actorId: userId,
-        contextType: AiUsageContextType.PERSONAL,
-        planId: subscription.plan.id,
-        action,
-        decision: AiUsageDecision.ALLOWED,
-      });
-      return {
-        ...baseDecision,
-        remainingDailyQuota: Math.max(baseDecision.remainingDailyQuota - 1, 0),
-        remainingTrialQuota:
-          baseDecision.remainingTrialQuota === null
-            ? null
-            : Math.max(baseDecision.remainingTrialQuota - 1, 0),
-      };
-    }
-
-    return baseDecision;
-  }
-
-  private async checkWorkspaceEntitlement(
-    userId: string,
-    workspaceId: string,
-    requestedAction: EntitlementCheckDto['action'],
-    action: AiUsageAction,
-    consume: boolean,
-  ): Promise<EntitlementDecisionResponse> {
-    await this.ensureActiveWorkspaceMember(workspaceId, userId);
-    const businessPlan = await this.ensurePlan(SubscriptionPlanCode.BUSINESS);
-    const subscription = await this.resolveBusinessSubscription(workspaceId);
-
-    if (!subscription) {
-      const decision = this.createDecision({
-        contextType: 'workspace',
-        planName: 'Business',
-        action: requestedAction,
-        dailyLimit: businessPlan.dailyAiRequestLimit,
-        dailyUsed: businessPlan.dailyAiRequestLimit,
-        trialLimit: null,
-        trialUsed: 0,
-      });
-
-      await this.recordUsageDecision({
-        actorId: userId,
-        contextType: AiUsageContextType.WORKSPACE,
-        workspaceId,
-        planId: businessPlan.id,
-        action,
-        decision: AiUsageDecision.DENIED,
-        denyReason: 'business_required',
-      });
-
-      return { ...decision, allowed: false, reason: 'business_required' };
-    }
-
-    const quota = await this.getQuotaSnapshot({
-      actorId: userId,
-      contextType: AiUsageContextType.WORKSPACE,
-      workspaceId,
-      planId: subscription.plan.id,
-    });
-    const baseDecision = this.createDecision({
-      contextType: 'workspace',
-      planName: subscription.plan.name as 'Free' | 'Plus' | 'Business',
-      action: requestedAction,
-      dailyLimit: subscription.plan.dailyAiRequestLimit,
-      dailyUsed: quota.dailyUsed,
-      trialLimit: null,
-      trialUsed: 0,
-    });
-    const reason =
-      this.getPlanPermissionDenyReason(subscription.plan, action) ??
-      this.getQuotaDenyReason(baseDecision);
-
-    if (reason) {
-      await this.recordUsageDecision({
-        actorId: userId,
-        contextType: AiUsageContextType.WORKSPACE,
-        workspaceId,
-        planId: subscription.plan.id,
-        action,
-        decision: AiUsageDecision.DENIED,
-        denyReason: reason,
-      });
-
-      return { ...baseDecision, allowed: false, reason };
-    }
-
-    if (consume) {
-      await this.recordUsageDecision({
-        actorId: userId,
-        contextType: AiUsageContextType.WORKSPACE,
-        workspaceId,
-        planId: subscription.plan.id,
-        action,
-        decision: AiUsageDecision.ALLOWED,
-      });
-      return {
-        ...baseDecision,
-        remainingDailyQuota: Math.max(baseDecision.remainingDailyQuota - 1, 0),
-      };
-    }
-
-    return baseDecision;
-  }
-
-  private async resolvePersonalSubscription(userId: string) {
+  private async resolveCurrentSubscription(userId: string) {
     await this.expirePersonalSubscriptions(userId);
     await this.ensureDefaultFreeSubscription(userId);
 
@@ -389,7 +381,11 @@ export class SubscriptionsService {
         userId,
         status: SubscriptionStatus.ACTIVE,
         periodEnd: { gt: new Date() },
-        plan: { code: SubscriptionPlanCode.PLUS },
+        plan: {
+          code: {
+            in: [SubscriptionPlanCode.PLUS, SubscriptionPlanCode.BUSINESS],
+          },
+        },
       },
       include: { plan: true },
       orderBy: { periodEnd: 'desc' },
@@ -416,23 +412,12 @@ export class SubscriptionsService {
     return free;
   }
 
-  private async resolveBusinessSubscription(workspaceId: string) {
-    await this.expireWorkspaceSubscriptions(workspaceId);
-
-    return this.prisma.workspaceSubscription.findFirst({
-      where: {
-        workspaceId,
-        status: SubscriptionStatus.ACTIVE,
-        periodEnd: { gt: new Date() },
-        plan: { code: SubscriptionPlanCode.BUSINESS },
-      },
-      include: { plan: true },
-      orderBy: { periodEnd: 'desc' },
-    });
+  private async ensurePlanCatalog() {
+    await Promise.all(PLAN_ORDER.map((code) => this.ensurePlan(code)));
   }
 
   private async ensurePlan(code: SubscriptionPlanCode) {
-    const policy = SUBSCRIPTION_POLICY[code];
+    const policy = SUBSCRIPTION_PLAN_CATALOG[code];
 
     return this.prisma.subscriptionPlan.upsert({
       where: { code },
@@ -442,10 +427,12 @@ export class SubscriptionsService {
         billingPeriod: policy.billingPeriod,
         dailyAiRequestLimit: policy.dailyAiRequestLimit,
         trialAiRequestLimit: policy.trialAiRequestLimit,
+        isPaid: policy.isPaid,
+        priceAmount: policy.priceAmount,
+        currency: policy.currency,
+        checkoutEligible: policy.checkoutEligible,
         canScoreCv: policy.canScoreCv,
         canAnalyzeCvFit: policy.canAnalyzeCvFit,
-        canActivateWorkspace: policy.canActivateWorkspace,
-        isActive: true,
       },
       create: {
         code,
@@ -454,69 +441,14 @@ export class SubscriptionsService {
         billingPeriod: policy.billingPeriod,
         dailyAiRequestLimit: policy.dailyAiRequestLimit,
         trialAiRequestLimit: policy.trialAiRequestLimit,
+        isPaid: policy.isPaid,
+        priceAmount: policy.priceAmount,
+        currency: policy.currency,
+        checkoutEligible: policy.checkoutEligible,
         canScoreCv: policy.canScoreCv,
         canAnalyzeCvFit: policy.canAnalyzeCvFit,
-        canActivateWorkspace: policy.canActivateWorkspace,
         isActive: true,
       },
-    });
-  }
-
-  private async ensureWorkspaceExists(workspaceId: string) {
-    const workspace = await this.prisma.workspace.findUnique({
-      where: { id: workspaceId },
-      select: { id: true },
-    });
-
-    if (!workspace) {
-      throw new NotFoundException(`Workspace with ID ${workspaceId} not found`);
-    }
-  }
-
-  private async ensureActiveWorkspaceMember(
-    workspaceId: string,
-    userId: string,
-  ) {
-    const membership = await this.prisma.workspaceMember.findFirst({
-      where: {
-        workspaceId,
-        userId,
-        status: WorkspaceMemberStatus.ACTIVE,
-      },
-      select: { id: true },
-    });
-
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this workspace');
-    }
-
-    return membership;
-  }
-
-  private async ensureWorkspaceAdmin(workspaceId: string, userId: string) {
-    const membership = await this.prisma.workspaceMember.findFirst({
-      where: {
-        workspaceId,
-        userId,
-        status: WorkspaceMemberStatus.ACTIVE,
-      },
-      select: { id: true, role: true },
-    });
-
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this workspace');
-    }
-
-    if (
-      membership.role === WorkspaceMemberRole.OWNER ||
-      membership.role === WorkspaceMemberRole.ADMIN
-    ) {
-      return membership;
-    }
-
-    return this.prisma.workspaceMember.update({
-      where: { id: membership.id },
-      data: { role: WorkspaceMemberRole.ADMIN },
     });
   }
 
@@ -531,176 +463,192 @@ export class SubscriptionsService {
     });
   }
 
-  private async expireWorkspaceSubscriptions(workspaceId: string) {
-    await this.prisma.workspaceSubscription.updateMany({
-      where: {
-        workspaceId,
-        status: SubscriptionStatus.ACTIVE,
-        periodEnd: { lt: new Date() },
+  private async getPaymentWithActivation(paymentId: string) {
+    const payment = await this.prisma.paymentTransaction.findUnique({
+      where: { id: paymentId },
+      include: {
+        plan: true,
+        activatedSubscription: true,
       },
-      data: { status: SubscriptionStatus.EXPIRED },
     });
+
+    if (!payment) {
+      throw new NotFoundException('Payment transaction not found');
+    }
+
+    return payment;
   }
 
-  private async getQuotaSnapshot(input: {
-    actorId: string;
-    contextType: AiUsageContextType;
-    workspaceId?: string;
-    planId: string;
+  private async createConfirmationAudit(input: {
+    paymentTransactionId: string;
+    source: PaymentConfirmationSource;
+    resultCode?: number | null;
+    message?: string | null;
+    signatureValid: boolean;
+    accepted: boolean;
+    rejectionReason?: string | null;
+    rawPayload?: unknown;
   }) {
-    const usageDate = this.getUsageDate();
-    const dailyWhere =
-      input.contextType === AiUsageContextType.WORKSPACE
-        ? {
-            contextType: input.contextType,
-            workspaceId: input.workspaceId,
-            usageDate,
-            decision: AiUsageDecision.ALLOWED,
-          }
-        : {
-            actorId: input.actorId,
-            contextType: input.contextType,
-            usageDate,
-            decision: AiUsageDecision.ALLOWED,
-          };
-
-    const [daily, trial] = await Promise.all([
-      this.prisma.aiUsageRecord.aggregate({
-        where: dailyWhere,
-        _sum: { count: true },
-      }),
-      this.prisma.aiUsageRecord.aggregate({
-        where: {
-          actorId: input.actorId,
-          contextType: AiUsageContextType.PERSONAL,
-          planId: input.planId,
-          action: AiUsageAction.CV_SCORE,
-          decision: AiUsageDecision.ALLOWED,
-        },
-        _sum: { count: true },
-      }),
-    ]);
-
-    return {
-      dailyUsed: daily._sum.count ?? 0,
-      trialUsed: trial._sum.count ?? 0,
-    };
-  }
-
-  private async recordUsageDecision(input: {
-    actorId: string;
-    contextType: AiUsageContextType;
-    workspaceId?: string;
-    planId: string;
-    action: AiUsageAction;
-    decision: AiUsageDecision;
-    denyReason?: string;
-  }) {
-    return this.prisma.aiUsageRecord.create({
+    return this.prisma.paymentConfirmation.create({
       data: {
-        actorId: input.actorId,
-        contextType: input.contextType,
-        workspaceId: input.workspaceId,
-        planId: input.planId,
-        action: input.action,
-        usageDate: this.getUsageDate(),
-        count: input.decision === AiUsageDecision.ALLOWED ? 1 : 0,
-        decision: input.decision,
-        denyReason: input.denyReason,
+        paymentTransactionId: input.paymentTransactionId,
+        source: input.source,
+        resultCode: input.resultCode,
+        message: input.message,
+        signatureValid: input.signatureValid,
+        accepted: input.accepted,
+        rejectionReason: input.rejectionReason,
+        rawPayload: this.toJson(input.rawPayload ?? {}),
       },
     });
   }
 
-  private createDecision(input: {
-    contextType: 'personal' | 'workspace';
-    planName: 'Free' | 'Plus' | 'Business';
-    action: EntitlementCheckDto['action'];
-    dailyLimit: number;
-    dailyUsed: number;
-    trialLimit: number | null;
-    trialUsed: number;
-  }): EntitlementDecisionResponse {
-    return {
-      allowed: true,
-      contextType: input.contextType,
-      resolvedPlan: input.planName,
-      action: input.action,
-      remainingDailyQuota: Math.max(input.dailyLimit - input.dailyUsed, 0),
-      remainingTrialQuota:
-        input.trialLimit === null
-          ? null
-          : Math.max(input.trialLimit - input.trialUsed, 0),
-    };
-  }
-
-  private getPlanPermissionDenyReason(
-    plan: {
-      canScoreCv: boolean;
-      canAnalyzeCvFit: boolean;
+  private getMomoMismatchReason(
+    payment: {
+      expectedAmount: number;
+      currency: string;
+      providerRequestId: string;
+      providerOrderId: string;
+      userId: string;
     },
-    action: AiUsageAction,
+    result: MomoPaymentResult,
   ): string | null {
-    if (action === AiUsageAction.CV_SCORE && !plan.canScoreCv) {
-      return 'feature_not_allowed';
+    if (result.requestId !== payment.providerRequestId)
+      return 'request_id_mismatch';
+    if (result.orderId !== payment.providerOrderId) return 'order_id_mismatch';
+    if (Number(result.amount) !== payment.expectedAmount)
+      return 'amount_mismatch';
+    if (result.partnerClientId && result.partnerClientId !== payment.userId) {
+      return 'user_mismatch';
     }
-
-    if (action === AiUsageAction.CV_FIT_ANALYSIS && !plan.canAnalyzeCvFit) {
-      return 'feature_not_allowed';
-    }
-
     return null;
   }
 
-  private getQuotaDenyReason(
-    decision: EntitlementDecisionResponse,
-  ): string | null {
-    if (decision.remainingDailyQuota <= 0) {
-      return 'daily_quota_exhausted';
-    }
-
-    if (
-      decision.remainingTrialQuota !== null &&
-      decision.remainingTrialQuota <= 0
-    ) {
-      return 'trial_quota_exhausted';
-    }
-
-    return null;
+  private mapMomoResultStatus(resultCode: number): PaymentTransactionStatus {
+    if (resultCode === 0) return PaymentTransactionStatus.SUCCEEDED;
+    if (resultCode === 1006) return PaymentTransactionStatus.PENDING;
+    if ([49, 1005].includes(resultCode))
+      return PaymentTransactionStatus.CANCELLED;
+    if ([1004, 7002].includes(resultCode))
+      return PaymentTransactionStatus.EXPIRED;
+    return PaymentTransactionStatus.FAILED;
   }
 
   private mapPlan(plan: {
     code: SubscriptionPlanCode;
     name: string;
-    scope: string;
     billingPeriod: string;
-    dailyAiRequestLimit: number;
-    trialAiRequestLimit: number | null;
-    canScoreCv: boolean;
-    canAnalyzeCvFit: boolean;
-    canActivateWorkspace: boolean;
+    isPaid: boolean;
+    priceAmount: number;
+    currency: string;
+    isActive: boolean;
+    checkoutEligible: boolean;
   }): PlanResponse {
     return {
       code: plan.code,
       name: plan.name,
-      scope: plan.scope,
       billingPeriod: plan.billingPeriod,
-      dailyAiRequestLimit: plan.dailyAiRequestLimit,
-      trialAiRequestLimit: plan.trialAiRequestLimit,
-      canScoreCv: plan.canScoreCv,
-      canAnalyzeCvFit: plan.canAnalyzeCvFit,
-      canActivateWorkspace: plan.canActivateWorkspace,
+      isPaid: plan.isPaid,
+      priceAmount: plan.priceAmount,
+      currency: plan.currency,
+      isActive: plan.isActive,
+      checkoutEligible: plan.checkoutEligible,
     };
   }
 
-  private getUsageDate(date = new Date()) {
-    return new Date(
-      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  private mapPaymentSummary(input: {
+    id: string;
+    plan: { code: SubscriptionPlanCode };
+    provider: PaymentProvider;
+    status: PaymentTransactionStatus;
+    expectedAmount: number;
+    currency: string;
+  }): PaymentTransactionSummaryResponse {
+    return {
+      paymentId: input.id,
+      planCode: input.plan.code,
+      provider: input.provider,
+      status: input.status,
+      expectedAmount: input.expectedAmount,
+      currency: input.currency,
+    };
+  }
+
+  private mapCheckoutResponse(input: {
+    id: string;
+    plan: { code: SubscriptionPlanCode };
+    provider: PaymentProvider;
+    status: PaymentTransactionStatus;
+    checkoutUrl: string | null;
+    deeplink: string | null;
+    qrCodeUrl: string | null;
+  }): CreateCheckoutResponse {
+    return {
+      paymentId: input.id,
+      planCode: input.plan.code,
+      provider: input.provider,
+      status: input.status,
+      checkoutUrl: input.checkoutUrl,
+      deeplink: input.deeplink,
+      qrCodeUrl: input.qrCodeUrl,
+      expiresAt: null,
+    };
+  }
+
+  private mapConfirmationResult(
+    payment: {
+      id: string;
+      status: PaymentTransactionStatus;
+      rejectionReason: string | null;
+      activatedSubscription: {
+        id: string;
+        businessWorkspaceId: string | null;
+      } | null;
+    },
+    subscriptionActivated: boolean,
+    subscriptionId: string | null,
+  ): PaymentConfirmationResultResponse {
+    const activated = payment.activatedSubscription;
+
+    return {
+      paymentId: payment.id,
+      accepted: payment.rejectionReason === null,
+      paymentStatus: payment.status,
+      subscriptionActivated,
+      subscriptionId: subscriptionId ?? activated?.id ?? null,
+      businessWorkspaceId: activated?.businessWorkspaceId ?? null,
+      rejectionReason: payment.rejectionReason,
+    };
+  }
+
+  private getConfig(key: string): string {
+    const value = this.configService.get<string>(key);
+
+    if (!value) {
+      throw new BadGatewayException(`Missing MoMo configuration: ${key}`);
+    }
+
+    return value;
+  }
+
+  private getBusinessWorkspaceId(): string {
+    return (
+      this.configService.get<string>('SUBSCRIPTION_BUSINESS_WORKSPACE_ID') ??
+      DEFAULT_BUSINESS_WORKSPACE_ID
     );
   }
 
-  private addMonths(date: Date, months: number) {
+  private toJson(value: unknown): Prisma.InputJsonValue {
+    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  }
+
+  private addMonths(date: Date, months: number): Date {
     const result = new Date(date);
     result.setUTCMonth(result.getUTCMonth() + months);
     return result;
+  }
+
+  private getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : 'unknown error';
   }
 }

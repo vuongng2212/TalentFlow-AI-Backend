@@ -2,10 +2,13 @@
 node_modules
 
 # Build output
-#dist
+dist/
+build/
 
 # Development files
 .env
+.env*
+!.env.example
 .env.local
 .env.*.local
 
@@ -40,6 +43,7 @@ docker-compose*.yml
 
 # Logs
 *.log
+*.log*
 npm-debug.log*
 pnpm-debug.log*
 

@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { PrismaClient, Role, User } from '@prisma/client';
+import { PrismaClient, Role, SubscriptionPlanCode, User } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -48,6 +48,12 @@ const seededJobTitles = [
   'Senior Backend Engineer',
   'Frontend Engineer',
   'DevOps Engineer',
+] as const;
+
+const retainedSubscriptionPlanCodes = [
+  SubscriptionPlanCode.FREE,
+  SubscriptionPlanCode.PLUS,
+  SubscriptionPlanCode.BUSINESS,
 ] as const;
 
 const runSeed = () => {
@@ -296,5 +302,52 @@ describe('Prisma seed (e2e)', () => {
     };
 
     expect(after).toEqual(before);
+  });
+
+  it('should retain billing plans without workspace management tables', async () => {
+    runSeed();
+
+    const plans = await prisma.subscriptionPlan.findMany({
+      where: { code: { in: [...retainedSubscriptionPlanCodes] } },
+      select: {
+        code: true,
+        isPaid: true,
+        priceAmount: true,
+        checkoutEligible: true,
+      },
+      orderBy: { code: 'asc' },
+    });
+
+    expect(plans).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: SubscriptionPlanCode.FREE,
+          isPaid: false,
+          priceAmount: 0,
+          checkoutEligible: false,
+        }),
+        expect.objectContaining({
+          code: SubscriptionPlanCode.PLUS,
+          isPaid: true,
+          priceAmount: 99000,
+          checkoutEligible: true,
+        }),
+        expect.objectContaining({
+          code: SubscriptionPlanCode.BUSINESS,
+          isPaid: true,
+          priceAmount: 499000,
+          checkoutEligible: true,
+        }),
+      ]),
+    );
+
+    const workspaceTables = await prisma.$queryRaw<{ table_name: string }[]>`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name IN ('workspaces', 'workspace_members')
+    `;
+
+    expect(workspaceTables).toEqual([]);
   });
 });

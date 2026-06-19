@@ -19,7 +19,6 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { InterviewsModule } from './interviews/interviews.module';
 import { StorageModule } from './storage/storage.module';
 import { QueueModule } from './queue/queue.module';
-import { WorkspacesModule } from './workspaces/workspaces.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { LoggerModule } from './common/logger';
 import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
@@ -77,7 +76,6 @@ import { randomUUID } from 'crypto';
     InterviewsModule,
     StorageModule,
     QueueModule,
-    WorkspacesModule,
     SubscriptionsModule,
   ],
   controllers: [AppController],

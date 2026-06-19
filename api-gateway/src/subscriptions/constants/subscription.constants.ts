@@ -1,20 +1,26 @@
 import {
-  AiUsageAction,
   BillingPeriod,
   SubscriptionPlanCode,
   SubscriptionPlanScope,
 } from '@prisma/client';
 
-export const SUBSCRIPTION_POLICY = {
+export const DEFAULT_BUSINESS_WORKSPACE_ID = 'mock-business-workspace';
+export const SUBSCRIPTION_CURRENCY = 'VND';
+export const SUBSCRIPTION_PERIOD_MONTHS = 1;
+
+export const SUBSCRIPTION_PLAN_CATALOG = {
   [SubscriptionPlanCode.FREE]: {
     name: 'Free',
     scope: SubscriptionPlanScope.PERSONAL,
     billingPeriod: BillingPeriod.NONE,
     dailyAiRequestLimit: 5,
     trialAiRequestLimit: 15,
+    isPaid: false,
+    priceAmount: 0,
+    currency: SUBSCRIPTION_CURRENCY,
+    checkoutEligible: false,
     canScoreCv: true,
     canAnalyzeCvFit: false,
-    canActivateWorkspace: false,
   },
   [SubscriptionPlanCode.PLUS]: {
     name: 'Plus',
@@ -22,9 +28,12 @@ export const SUBSCRIPTION_POLICY = {
     billingPeriod: BillingPeriod.MONTHLY,
     dailyAiRequestLimit: 20,
     trialAiRequestLimit: null,
+    isPaid: true,
+    priceAmount: 99000,
+    currency: SUBSCRIPTION_CURRENCY,
+    checkoutEligible: true,
     canScoreCv: true,
     canAnalyzeCvFit: true,
-    canActivateWorkspace: false,
   },
   [SubscriptionPlanCode.BUSINESS]: {
     name: 'Business',
@@ -32,9 +41,12 @@ export const SUBSCRIPTION_POLICY = {
     billingPeriod: BillingPeriod.MONTHLY,
     dailyAiRequestLimit: 500,
     trialAiRequestLimit: null,
+    isPaid: true,
+    priceAmount: 499000,
+    currency: SUBSCRIPTION_CURRENCY,
+    checkoutEligible: true,
     canScoreCv: true,
     canAnalyzeCvFit: true,
-    canActivateWorkspace: true,
   },
 } as const;
 
@@ -43,11 +55,3 @@ export const PLAN_ORDER = [
   SubscriptionPlanCode.PLUS,
   SubscriptionPlanCode.BUSINESS,
 ] as const;
-
-export const AI_ACTION_BY_REQUEST = {
-  cv_score: AiUsageAction.CV_SCORE,
-  cv_fit_analysis: AiUsageAction.CV_FIT_ANALYSIS,
-} as const;
-
-export type EntitlementContextType = 'personal' | 'workspace';
-export type EntitlementActionRequest = keyof typeof AI_ACTION_BY_REQUEST;

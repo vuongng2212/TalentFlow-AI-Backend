@@ -7,7 +7,6 @@ import { Role } from '@prisma/client';
 import { QueryUsersDto } from './dto/query-users.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { UserResponseDto } from './dto/user-response.dto';
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -94,9 +93,7 @@ describe('UsersController', () => {
       const updateUserDto: UpdateUserDto = { fullName: 'Updated Name' };
       const expectedResult = { ...mockUser, fullName: 'Updated Name' };
 
-      mockUsersService.updateProfile.mockResolvedValue(
-        expectedResult as UserResponseDto,
-      );
+      mockUsersService.updateProfile.mockResolvedValue(expectedResult);
 
       const result = await controller.update(
         '1',
@@ -119,9 +116,7 @@ describe('UsersController', () => {
       const updateRoleDto: UpdateRoleDto = { role: Role.RECRUITER };
       const expectedResult = { ...mockUser, role: Role.RECRUITER };
 
-      mockUsersService.updateRole.mockResolvedValue(
-        expectedResult as UserResponseDto,
-      );
+      mockUsersService.updateRole.mockResolvedValue(expectedResult);
 
       const result = await controller.updateRole('1', updateRoleDto);
 

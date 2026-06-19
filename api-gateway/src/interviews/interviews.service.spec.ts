@@ -122,7 +122,7 @@ describe('InterviewsService', () => {
             string,
             unknown
           >,
-        } as Record<string, unknown>),
+        }),
       );
     });
   });

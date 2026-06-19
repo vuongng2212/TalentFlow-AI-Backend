@@ -65,16 +65,17 @@ describe('CandidatesService', () => {
 
       await service.findAll({ page: 1, limit: 10, search: 'alice' });
 
-      expect(prisma.candidate.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            OR: expect.arrayContaining([
-              { fullName: { contains: 'alice', mode: 'insensitive' } },
-              { email: { contains: 'alice', mode: 'insensitive' } },
-            ] as unknown[]),
-          } as Record<string, unknown>),
-        } as Record<string, unknown>),
-      );
+      const expectedWhere: unknown = expect.objectContaining({
+        OR: expect.arrayContaining([
+          { fullName: { contains: 'alice', mode: 'insensitive' } },
+          { email: { contains: 'alice', mode: 'insensitive' } },
+        ] as unknown[]) as unknown,
+      });
+      const expectedQuery: unknown = expect.objectContaining({
+        where: expectedWhere,
+      });
+
+      expect(prisma.candidate.findMany).toHaveBeenCalledWith(expectedQuery);
     });
   });
 

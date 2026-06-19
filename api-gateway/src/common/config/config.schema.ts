@@ -65,7 +65,31 @@ export const appConfigSchema = Joi.object({
 
   RATE_LIMIT_TTL_SEC: Joi.number().integer().min(1).default(60),
   RATE_LIMIT_MAX: Joi.number().integer().min(1).default(100),
-  WORKSPACE_MAX_ACTIVE_MEMBERS: Joi.number().integer().min(1).default(50),
+  MOMO_PARTNER_CODE: requiredOutsideTest(
+    Joi.string().min(1),
+    'MOMO_TEST_PARTNER',
+  ),
+  MOMO_ACCESS_KEY: requiredOutsideTest(Joi.string().min(1), 'test-access-key'),
+  MOMO_SECRET_KEY: requiredOutsideTest(Joi.string().min(1), 'test-secret-key'),
+  MOMO_ENDPOINT_BASE_URL: requiredOutsideTest(
+    Joi.string().uri(),
+    'https://test-payment.momo.vn',
+  ),
+  MOMO_REQUEST_TYPE: Joi.string()
+    .valid('captureWallet', 'subscription')
+    .default('captureWallet'),
+  MOMO_REDIRECT_URL: requiredOutsideTest(
+    Joi.string().uri(),
+    'http://localhost:3000/api/v1/subscriptions/momo/redirect',
+  ),
+  MOMO_IPN_URL: requiredOutsideTest(
+    Joi.string().uri(),
+    'http://localhost:3000/api/v1/subscriptions/momo/ipn',
+  ),
+  MOMO_LANGUAGE: Joi.string().valid('vi', 'en').default('en'),
+  SUBSCRIPTION_BUSINESS_WORKSPACE_ID: Joi.string()
+    .min(1)
+    .default('mock-business-workspace'),
 
   BODY_LIMIT_MB: Joi.number().integer().min(1).default(10),
   TIMEOUT_MS: Joi.number().integer().min(1000).default(15000),

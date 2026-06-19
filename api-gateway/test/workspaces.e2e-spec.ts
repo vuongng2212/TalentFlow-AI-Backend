@@ -1,36 +1,87 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import request from 'supertest';
 import cookieParser from 'cookie-parser';
+import request from 'supertest';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { AppModule } from '../src/app.module';
-import { PrismaService } from '../src/prisma/prisma.service';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
+import { PrismaService } from '../src/prisma/prisma.service';
+import { QueueService } from '../src/queue/queue.service';
+import { RedisService } from '../src/redis/redis.service';
 
-const extractCookies = (header: string[] | string | undefined): string[] => {
-  if (!header) {
-    return [];
-  }
-
-  return Array.isArray(header) ? header : [header];
-};
-
-describe('Workspaces (e2e)', () => {
+describe('Workspace rollback (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  let ownerCookie: string;
-  let memberCookie: string;
-  let outsiderCookie: string;
-  let workspaceId: string;
+  const removedBasePath = ['/api/v1', 'workspaces'].join('/');
+  const removedControllerSymbol = ['Workspaces', 'Controller'].join('');
+  const removedCreateDtoSymbol = ['Create', 'Workspace', 'Dto'].join('');
+  const removedAddMemberDtoSymbol = ['Add', 'Workspace', 'Member', 'Dto'].join(
+    '',
+  );
+
+  const removedWorkspaceRequests = [
+    {
+      method: 'post' as const,
+      path: removedBasePath,
+      body: { name: 'Removed Workspace', isBusiness: true },
+    },
+    {
+      method: 'post' as const,
+      path: `${removedBasePath}/00000000-0000-4000-8000-000000000001/members`,
+      body: { email: 'removed-member@test.com' },
+    },
+    {
+      method: 'get' as const,
+      path: `${removedBasePath}/00000000-0000-4000-8000-000000000001/members`,
+    },
+    {
+      method: 'patch' as const,
+      path: `${removedBasePath}/00000000-0000-4000-8000-000000000001/members/00000000-0000-4000-8000-000000000002`,
+      body: { role: 'ADMIN' },
+    },
+  ];
 
   beforeAll(async () => {
+    process.env.NODE_ENV = 'test';
+    const redisStore = new Map<string, string>();
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(RedisService)
+      .useValue({
+        get: jest.fn((key: string) =>
+          Promise.resolve(redisStore.get(key) ?? null),
+        ),
+        set: jest.fn((key: string, value: string) => {
+          redisStore.set(key, value);
+          return Promise.resolve('OK');
+        }),
+        del: jest.fn((key: string) => {
+          const existed = redisStore.delete(key);
+          return Promise.resolve(existed ? 1 : 0);
+        }),
+        incr: jest.fn((key: string) => {
+          const next = Number(redisStore.get(key) ?? '0') + 1;
+          redisStore.set(key, String(next));
+          return Promise.resolve(next);
+        }),
+        expire: jest.fn(() => Promise.resolve(1)),
+        ping: jest.fn().mockResolvedValue('PONG'),
+        onModuleDestroy: jest.fn(),
+      })
+      .overrideProvider(QueueService)
+      .useValue({
+        isHealthy: jest.fn().mockResolvedValue(true),
+        getQueueStats: jest.fn().mockResolvedValue([]),
+        publishCvUploaded: jest.fn(),
+        onModuleInit: jest.fn(),
+        onModuleDestroy: jest.fn(),
+      })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1', { exclude: ['health', 'ready', 'metrics'] });
-
     app.use(cookieParser());
     app.useGlobalPipes(
       new ValidationPipe({
@@ -42,186 +93,89 @@ describe('Workspaces (e2e)', () => {
     app.useGlobalInterceptors(new TransformInterceptor());
 
     await app.init();
-
     prisma = app.get<PrismaService>(PrismaService);
-
-    await prisma.workspaceMember.deleteMany();
-    await prisma.workspace.deleteMany();
-    await prisma.application.deleteMany();
-    await prisma.candidate.deleteMany();
-    await prisma.job.deleteMany();
-    await prisma.user.deleteMany();
-
-    await request(app.getHttpServer()).post('/api/v1/auth/signup').send({
-      email: 'workspace-owner@test.com',
-      password: 'Password123!',
-      fullName: 'Workspace Owner',
-      role: 'RECRUITER',
-    });
-
-    const ownerLogin = await request(app.getHttpServer())
-      .post('/api/v1/auth/login')
-      .send({
-        email: 'workspace-owner@test.com',
-        password: 'Password123!',
-      });
-
-    const ownerCookies = extractCookies(ownerLogin.headers['set-cookie']);
-    ownerCookie = ownerCookies.find((c) => c.startsWith('access_token')) ?? '';
-
-    await request(app.getHttpServer()).post('/api/v1/auth/signup').send({
-      email: 'workspace-member@test.com',
-      password: 'Password123!',
-      fullName: 'Workspace Member',
-      role: 'RECRUITER',
-    });
-
-    const memberLogin = await request(app.getHttpServer())
-      .post('/api/v1/auth/login')
-      .send({
-        email: 'workspace-member@test.com',
-        password: 'Password123!',
-      });
-
-    const memberCookies = extractCookies(memberLogin.headers['set-cookie']);
-    memberCookie =
-      memberCookies.find((c) => c.startsWith('access_token')) ?? '';
-
-    await request(app.getHttpServer()).post('/api/v1/auth/signup').send({
-      email: 'workspace-outsider@test.com',
-      password: 'Password123!',
-      fullName: 'Workspace Outsider',
-      role: 'RECRUITER',
-    });
-
-    const outsiderLogin = await request(app.getHttpServer())
-      .post('/api/v1/auth/login')
-      .send({
-        email: 'workspace-outsider@test.com',
-        password: 'Password123!',
-      });
-
-    const outsiderCookies = extractCookies(outsiderLogin.headers['set-cookie']);
-    outsiderCookie =
-      outsiderCookies.find((c) => c.startsWith('access_token')) ?? '';
   });
+
   afterAll(async () => {
-    await prisma.workspaceMember.deleteMany();
-    await prisma.workspace.deleteMany();
-    await prisma.application.deleteMany();
-    await prisma.candidate.deleteMany();
-    await prisma.job.deleteMany();
-    await prisma.user.deleteMany();
     await app.close();
   });
 
-  describe('POST /api/v1/workspaces', () => {
-    it('should create a workspace and owner membership', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/api/v1/workspaces')
-        .set('Cookie', [ownerCookie])
-        .send({
-          name: 'TalentFlow Workspace',
-          isBusiness: true,
-        })
-        .expect(201);
+  it.each(removedWorkspaceRequests)(
+    '$method $path is absent from the active API surface',
+    async ({ method, path, body }) => {
+      const response = request(app.getHttpServer())[method](path);
 
-      expect(response.body).toMatchObject({
-        status: 201,
-        message: 'Success',
-      });
-      expect(response.body.data).toMatchObject({
-        name: 'TalentFlow Workspace',
-        isBusiness: true,
-      });
+      if (body) {
+        response.send(body);
+      }
 
-      workspaceId = response.body.data.id;
+      await response.expect(404);
+    },
+  );
 
-      const ownerUser = await prisma.user.findUnique({
-        where: { email: 'workspace-owner@test.com' },
-      });
+  it('does not mutate active persistence when removed workspace paths are called', async () => {
+    const before = await countActiveState();
 
-      const membership = await prisma.workspaceMember.findUnique({
-        where: {
-          workspaceId_userId: {
-            workspaceId,
-            userId: ownerUser?.id ?? '',
-          },
-        },
-      });
-
-      expect(membership).not.toBeNull();
-      expect(membership?.role).toBe('OWNER');
-      expect(membership?.status).toBe('ACTIVE');
-    });
-  });
-
-  describe('POST /api/v1/workspaces/:id/members', () => {
-    it('should add member when requester is owner', async () => {
-      const response = await request(app.getHttpServer())
-        .post(`/api/v1/workspaces/${workspaceId}/members`)
-        .set('Cookie', [ownerCookie])
-        .send({ email: 'workspace-member@test.com' })
-        .expect(201);
-
-      expect(response.body).toHaveProperty('status', 201);
-      expect(response.body).toHaveProperty('data.id');
-      expect(response.body).toHaveProperty(
-        'data.user.email',
-        'workspace-member@test.com',
+    for (const removedRequest of removedWorkspaceRequests) {
+      const response = request(app.getHttpServer())[removedRequest.method](
+        removedRequest.path,
       );
-    });
 
-    it('should reject non-owner/admin from adding member', async () => {
-      await request(app.getHttpServer())
-        .post(`/api/v1/workspaces/${workspaceId}/members`)
-        .set('Cookie', [memberCookie])
-        .send({ email: 'workspace-owner@test.com' })
-        .expect(403);
-    });
+      if (removedRequest.body) {
+        response.send(removedRequest.body);
+      }
 
-    it('should reject adding member when workspace is not business', async () => {
-      const personalWorkspace = await request(app.getHttpServer())
-        .post('/api/v1/workspaces')
-        .set('Cookie', [ownerCookie])
-        .send({
-          name: 'Personal Workspace',
-          isBusiness: false,
-        })
-        .expect(201);
+      await response.expect(404);
+    }
 
-      await request(app.getHttpServer())
-        .post(`/api/v1/workspaces/${personalWorkspace.body.data.id}/members`)
-        .set('Cookie', [ownerCookie])
-        .send({ email: 'workspace-outsider@test.com' })
-        .expect(403);
-    });
+    await expect(countActiveState()).resolves.toEqual(before);
   });
 
-  describe('GET /api/v1/workspaces/:id/members', () => {
-    it('should list active members for workspace member', async () => {
-      const response = await request(app.getHttpServer())
-        .get(`/api/v1/workspaces/${workspaceId}/members`)
-        .set('Cookie', [ownerCookie])
-        .expect(200);
+  it('does not expose workspace management operations in generated contracts', () => {
+    const gatewayContract = readJson(
+      join(__dirname, '..', 'swagger-spec.json'),
+    );
+    const publicContract = readJson(
+      join(
+        __dirname,
+        '..',
+        '..',
+        'docs',
+        'openapi',
+        'api-gateway.openapi.json',
+      ),
+    );
 
-      expect(response.body).toHaveProperty('status', 200);
-      expect(Array.isArray(response.body.data)).toBe(true);
-      expect(response.body.data.length).toBeGreaterThanOrEqual(2);
-    });
-
-    it('should reject non-member from listing members', async () => {
-      await request(app.getHttpServer())
-        .get(`/api/v1/workspaces/${workspaceId}/members`)
-        .set('Cookie', [outsiderCookie])
-        .expect(403);
-    });
-
-    it('should return 404 when workspace does not exist', async () => {
-      await request(app.getHttpServer())
-        .get('/api/v1/workspaces/00000000-0000-4000-8000-000000000999/members')
-        .set('Cookie', [ownerCookie])
-        .expect(404);
-    });
+    for (const contract of [gatewayContract, publicContract]) {
+      expect(JSON.stringify(contract)).not.toContain(removedControllerSymbol);
+      expect(JSON.stringify(contract.paths)).not.toContain(
+        removedBasePath.replace('/api/v1', ''),
+      );
+      expect(contract.components?.schemas).not.toHaveProperty(
+        removedCreateDtoSymbol,
+      );
+      expect(contract.components?.schemas).not.toHaveProperty(
+        removedAddMemberDtoSymbol,
+      );
+    }
   });
+
+  const countActiveState = async () => ({
+    users: await prisma.user.count(),
+    jobs: await prisma.job.count(),
+    candidates: await prisma.candidate.count(),
+    applications: await prisma.application.count(),
+    interviews: await prisma.interview.count(),
+    subscriptionPlans: await prisma.subscriptionPlan.count(),
+    userSubscriptions: await prisma.userSubscription.count(),
+    paymentTransactions: await prisma.paymentTransaction.count(),
+    paymentConfirmations: await prisma.paymentConfirmation.count(),
+    aiUsageRecords: await prisma.aiUsageRecord.count(),
+  });
+
+  const readJson = (path: string) =>
+    JSON.parse(readFileSync(path, 'utf8')) as {
+      paths?: Record<string, unknown>;
+      components?: { schemas?: Record<string, unknown> };
+    };
 });
