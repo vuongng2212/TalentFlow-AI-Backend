@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 TalentFlow AI is a backend system for an Applicant Tracking System (ATS) using a polyglot 3-service architecture:
 1.  **API Gateway (NestJS)**: Main entry point, Auth, Jobs, Applications.
 2.  **CV Parser (Java/Spring Boot)**: Handles file parsing and AI scoring (currently in `cv-parser/`).
-3.  **Notification Service (C#/.NET)**: Handles emails and WebSockets (currently in `notification/`).
+3.  **Notification Service (NestJS)**: Handles emails and WebSockets (currently in `notification/`).
 
 Infrastructure includes PostgreSQL, Redis, and MinIO (local S3) managed via Docker Compose.
 
@@ -73,6 +73,5 @@ Primary development happens here.
 -   **Strict Linting in Tests**: ESLint rules apply strictly to test files as well. Fix type issues instead of using `// eslint-disable` or `@ts-ignore`.
 
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+See active plan at: /home/vuongnguyen/Projects/TalentFlow/TalentFlow-AI-Backend/specs/017-api-gateway-cv-event-orchestration/plan.md
 <!-- SPECKIT END -->

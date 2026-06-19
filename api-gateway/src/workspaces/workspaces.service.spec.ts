@@ -931,7 +931,7 @@ describe('WorkspacesService', () => {
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
       } as never);
-      prisma.workspace.update = jest.fn().mockResolvedValue(updated);
+      (prisma.workspace.update as jest.Mock).mockResolvedValue(updated);
 
       const result = await service.update('ws-1', 'owner-1', {
         name: 'New Name',
@@ -953,7 +953,7 @@ describe('WorkspacesService', () => {
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.ADMIN,
       } as never);
-      prisma.workspace.update = jest.fn().mockResolvedValue(updated);
+      (prisma.workspace.update as jest.Mock).mockResolvedValue(updated);
 
       const result = await service.update('ws-1', 'admin-1', {
         name: 'Admin Rename',
@@ -969,7 +969,7 @@ describe('WorkspacesService', () => {
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
       } as never);
-      prisma.workspace.update = jest.fn().mockResolvedValue(upgraded);
+      (prisma.workspace.update as jest.Mock).mockResolvedValue(upgraded);
 
       const result = await service.update('ws-1', 'owner-1', {
         isBusiness: true,
@@ -994,7 +994,7 @@ describe('WorkspacesService', () => {
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
       } as never);
-      prisma.workspace.update = jest.fn().mockResolvedValue(updated);
+      (prisma.workspace.update as jest.Mock).mockResolvedValue(updated);
 
       const result = await service.update('ws-1', 'owner-1', {
         name: 'Acme Biz',
@@ -1017,7 +1017,7 @@ describe('WorkspacesService', () => {
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
       } as never);
-      prisma.workspace.update = jest.fn().mockResolvedValue(updated);
+      (prisma.workspace.update as jest.Mock).mockResolvedValue(updated);
 
       await service.update('ws-1', 'owner-1', { isBusiness: true });
 
@@ -1040,7 +1040,7 @@ describe('WorkspacesService', () => {
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
       } as never);
-      prisma.workspace.update = jest.fn().mockResolvedValue(updatedRecord);
+      (prisma.workspace.update as jest.Mock).mockResolvedValue(updatedRecord);
 
       await service.update('ws-1', 'owner-1', { name: 'Selected' });
 

@@ -81,7 +81,7 @@ describe('AnalyticsService', () => {
 
   describe('getPipeline', () => {
     it('should return all stages with counts scoped to workspace', async () => {
-      prisma.application.groupBy.mockResolvedValue([
+      (prisma.application.groupBy as jest.Mock).mockResolvedValue([
         { stage: 'APPLIED', _count: { id: 20 } },
         { stage: 'SCREENING', _count: { id: 10 } },
         { stage: 'HIRED', _count: { id: 3 } },
