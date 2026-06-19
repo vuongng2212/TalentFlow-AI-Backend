@@ -22,6 +22,7 @@ import {
   PrismaClient,
   User,
   Application,
+  CvParsingStatus,
 } from '@prisma/client';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 
@@ -92,6 +93,10 @@ describe('ApplicationsService', () => {
     cvFileUrl: null,
     coverLetter: 'I am interested',
     notes: null,
+    cvParsingStatus: CvParsingStatus.PENDING,
+    aiScore: null,
+    scoringReasoning: null,
+    parsedData: null,
     appliedAt: new Date(),
     reviewedAt: null,
     createdAt: new Date(),
@@ -116,7 +121,9 @@ describe('ApplicationsService', () => {
     publishCvUploaded: jest.fn(),
     publishApplicationCreated: jest.fn(),
     isHealthy: jest.fn(),
-  };
+    publishEnrichedCvParsed: jest.fn(),
+    publishEnrichedCvFailed: jest.fn(),
+  } as any;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -921,6 +928,113 @@ describe('ApplicationsService', () => {
       await expect(
         service.remove('app-1', 'other-user', 'RECRUITER'),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('handleCvParsedEvent', () => {
+    it('should update application and publish enriched success event', async () => {
+      // Arrange
+      const event = {
+        candidateId: 'candidate-1',
+        applicationId: 'app-1',
+        jobId: 'job-1',
+        aiScore: 85,
+        parsedData: { skills: ['Node.js'] },
+        scoringReasoning: 'Good match',
+        parsedAt: new Date().toISOString(),
+      };
+
+      prisma.application.findFirst.mockResolvedValue({
+        ...mockApplication,
+        job: {
+          id: 'job-1',
+          title: 'Senior Developer',
+          createdById: 'recruiter-1',
+        },
+        candidate: {
+          id: 'candidate-1',
+          email: 'applicant@test.com',
+          fullName: 'Test Applicant',
+        },
+      } as any);
+
+      prisma.application.update.mockResolvedValue({
+        ...mockApplication,
+      } as any);
+      mockQueueService.publishEnrichedCvParsed = jest
+        .fn()
+        .mockResolvedValue(undefined);
+
+      // Act
+      await service.handleCvParsedEvent(event);
+
+      // Assert
+      expect(prisma.application.update).toHaveBeenCalledWith({
+        where: { id: 'app-1' },
+        data: {
+          cvParsingStatus: CvParsingStatus.COMPLETED,
+          aiScore: 85,
+          scoringReasoning: 'Good match',
+          parsedData: { skills: ['Node.js'] },
+        },
+      });
+    });
+  });
+
+  describe('handleCvFailedEvent', () => {
+    it('should update application to failed and publish enriched failure event', async () => {
+      // Arrange
+      const event = {
+        candidateId: 'candidate-1',
+        applicationId: 'app-1',
+        jobId: 'job-1',
+        errorCode: 'PARSE_ERR',
+        errorMessage: 'Invalid format',
+        retryable: false,
+        failedAt: new Date().toISOString(),
+      };
+
+      prisma.application.findFirst.mockResolvedValue({
+        ...mockApplication,
+        job: {
+          id: 'job-1',
+          title: 'Senior Developer',
+          createdById: 'recruiter-1',
+          createdBy: { email: 'recruiter@test.com' },
+        },
+        candidate: {
+          id: 'candidate-1',
+          email: 'applicant@test.com',
+          fullName: 'Test Applicant',
+        },
+      } as any);
+
+      prisma.application.update.mockResolvedValue({
+        ...mockApplication,
+      } as any);
+      mockQueueService.publishEnrichedCvFailed = jest
+        .fn()
+        .mockResolvedValue(undefined);
+
+      // Act
+      await service.handleCvFailedEvent(event);
+
+      // Assert
+      expect(prisma.application.update).toHaveBeenCalledWith({
+        where: { id: 'app-1' },
+        data: {
+          cvParsingStatus: CvParsingStatus.FAILED,
+        },
+      });
+      expect(mockQueueService.publishEnrichedCvFailed).toHaveBeenCalledWith({
+        applicationId: 'app-1',
+        recruiterId: 'recruiter-1',
+        jobTitle: 'Senior Developer',
+        applicantEmail: 'applicant@test.com',
+        applicantName: 'Test Applicant',
+        errorMessage: 'Invalid format',
+        timestamp: expect.any(String),
+      });
     });
   });
 });

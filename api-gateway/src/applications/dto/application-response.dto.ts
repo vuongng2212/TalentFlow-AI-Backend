@@ -1,5 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ApplicationStatus, ApplicationStage } from '@prisma/client';
+import {
+  ApplicationStatus,
+  ApplicationStage,
+  CvParsingStatus,
+  Prisma,
+} from '@prisma/client';
 
 export class ApplicationResponseDto {
   @ApiProperty()
@@ -28,6 +33,22 @@ export class ApplicationResponseDto {
 
   @ApiProperty({ nullable: true })
   notes: string | null;
+
+  @ApiProperty({
+    enum: CvParsingStatus,
+    enumName: 'CvParsingStatus',
+    description: 'Trạng thái xử lý parsing CV của hệ thống AI',
+  })
+  cvParsingStatus: CvParsingStatus;
+
+  @ApiProperty({ nullable: true })
+  aiScore: number | null;
+
+  @ApiProperty({ nullable: true })
+  scoringReasoning: string | null;
+
+  @ApiProperty({ nullable: true })
+  parsedData: Prisma.JsonValue | null;
 
   @ApiProperty()
   appliedAt: Date;

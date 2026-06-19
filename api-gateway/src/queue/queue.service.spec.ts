@@ -1,7 +1,14 @@
+import {
+  ROUTING_KEY_APPLICATION_CV_PROCESSED_SUCCESSFULLY,
+  ROUTING_KEY_APPLICATION_CV_PROCESSED_FAILED,
+} from './constants/queue.constants';
+/* eslint-disable @typescript-eslint/unbound-method */
+
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { connect } from 'amqplib';
+import { ApplicationsService } from '../applications/applications.service';
 import { QueueService } from './queue.service';
 import {
   TALENTFLOW_EVENTS_EXCHANGE,
@@ -10,6 +17,8 @@ import {
   ROUTING_KEY_CV_UPLOADED,
   ROUTING_KEY_APPLICATION_CREATED,
   ROUTING_KEY_NOTIFICATION_SEND,
+  ROUTING_KEY_CV_PARSED,
+  ROUTING_KEY_CV_FAILED,
 } from './constants/queue.constants';
 import { NotificationType } from './interfaces/notification-send-event.interface';
 
@@ -20,6 +29,9 @@ const mockChannel = {
   publish: jest.fn(),
   checkQueue: jest.fn(),
   close: jest.fn(),
+  consume: jest.fn(),
+  ack: jest.fn(),
+  nack: jest.fn(),
 };
 
 const mockConnection = {
@@ -78,6 +90,7 @@ function getPrivateAsyncMethod<TResult>(
 
 describe('QueueService', () => {
   let service: QueueService;
+  let applicationsService: ApplicationsService;
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -103,6 +116,13 @@ describe('QueueService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        {
+          provide: ApplicationsService,
+          useValue: {
+            handleCvParsedEvent: jest.fn(),
+            handleCvFailedEvent: jest.fn(),
+          },
+        },
         QueueService,
         {
           provide: ConfigService,
@@ -114,6 +134,7 @@ describe('QueueService', () => {
     }).compile();
 
     service = module.get<QueueService>(QueueService);
+    applicationsService = module.get<ApplicationsService>(ApplicationsService);
   });
 
   afterEach(() => {
@@ -154,6 +175,16 @@ describe('QueueService', () => {
       CV_PROCESSING_QUEUE,
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_UPLOADED,
+    );
+    expect(jest.mocked(mockChannel.bindQueue)).toHaveBeenCalledWith(
+      CV_PROCESSING_QUEUE,
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_CV_PARSED,
+    );
+    expect(jest.mocked(mockChannel.bindQueue)).toHaveBeenCalledWith(
+      CV_PROCESSING_QUEUE,
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_CV_FAILED,
     );
   });
 
@@ -202,6 +233,50 @@ describe('QueueService', () => {
         persistent: true,
         contentType: 'application/json',
       }),
+    );
+  });
+
+  it('should publish enriched cv.parsed event', async () => {
+    await service.onModuleInit();
+
+    const event = {
+      applicationId: 'app-1',
+      recruiterId: 'rec-1',
+      jobTitle: 'Title',
+      applicantEmail: 'a@a.com',
+      applicantName: 'A Name',
+      aiScore: 90,
+      timestamp: new Date().toISOString(),
+    };
+    await service.publishEnrichedCvParsed(event);
+
+    expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_APPLICATION_CV_PROCESSED_SUCCESSFULLY,
+      expect.any(Buffer),
+      expect.any(Object),
+    );
+  });
+
+  it('should publish enriched cv.failed event', async () => {
+    await service.onModuleInit();
+
+    const event = {
+      applicationId: 'app-1',
+      recruiterId: 'rec-1',
+      jobTitle: 'Title',
+      applicantEmail: 'a@a.com',
+      applicantName: 'A Name',
+      errorMessage: 'failed',
+      timestamp: new Date().toISOString(),
+    };
+    await service.publishEnrichedCvFailed(event);
+
+    expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_APPLICATION_CV_PROCESSED_FAILED,
+      expect.any(Buffer),
+      expect.any(Object),
     );
   });
 
@@ -391,6 +466,42 @@ describe('QueueService', () => {
         'Failed to get queue stats',
         expect.any(Object),
       );
+    });
+  });
+
+  describe('setupConsumers', () => {
+    it('should route cv.parsed message to handleCvParsedEvent', async () => {
+      await service.onModuleInit();
+
+      const consumeCallback = mockChannel.consume.mock.calls[0][1];
+      const mockMsg = {
+        fields: { routingKey: ROUTING_KEY_CV_PARSED },
+        content: Buffer.from(JSON.stringify({ applicationId: 'app-1' })),
+      };
+
+      await consumeCallback(mockMsg);
+
+      expect(applicationsService.handleCvParsedEvent).toHaveBeenCalledWith({
+        applicationId: 'app-1',
+      });
+      expect(mockChannel.ack).toHaveBeenCalledWith(mockMsg);
+    });
+
+    it('should route cv.failed message to handleCvFailedEvent', async () => {
+      await service.onModuleInit();
+
+      const consumeCallback = mockChannel.consume.mock.calls[0][1];
+      const mockMsg = {
+        fields: { routingKey: ROUTING_KEY_CV_FAILED },
+        content: Buffer.from(JSON.stringify({ applicationId: 'app-1' })),
+      };
+
+      await consumeCallback(mockMsg);
+
+      expect(applicationsService.handleCvFailedEvent).toHaveBeenCalledWith({
+        applicationId: 'app-1',
+      });
+      expect(mockChannel.ack).toHaveBeenCalledWith(mockMsg);
     });
   });
 });

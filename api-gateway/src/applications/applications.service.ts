@@ -1,5 +1,7 @@
 import {
   Injectable,
+  Inject,
+  forwardRef,
   Logger,
   NotFoundException,
   ForbiddenException,
@@ -10,10 +12,21 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { QueryApplicationsDto } from './dto/query-applications.dto';
-import { Prisma, ApplicationStatus, ApplicationStage } from '@prisma/client';
+import {
+  Prisma,
+  ApplicationStatus,
+  ApplicationStage,
+  CvParsingStatus,
+} from '@prisma/client';
 import { StorageService } from '../storage/storage.service';
 import { QueueService } from '../queue/queue.service';
 import { UploadCvDto } from './dto/upload-cv.dto';
+import {
+  RawCvParsedEvent,
+  EnrichedCvParsedEvent,
+  RawCvFailedEvent,
+  EnrichedCvFailedEvent,
+} from '../queue/interfaces/cv-events.interface';
 import { UploadCvResponseDto } from './dto/upload-cv-response.dto';
 import { generateCvFileKey } from '../common/utils/file-key.util';
 import { sanitizeError } from '../common/utils/sanitize.util';
@@ -30,6 +43,10 @@ interface ApplicationWithRelations {
   cvFileUrl: string | null;
   coverLetter: string | null;
   notes: string | null;
+  cvParsingStatus: CvParsingStatus;
+  aiScore: number | null;
+  scoringReasoning: string | null;
+  parsedData: Prisma.JsonValue | null;
   appliedAt: Date;
   reviewedAt: Date | null;
   createdAt: Date;
@@ -62,6 +79,7 @@ export class ApplicationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
+    @Inject(forwardRef(() => QueueService))
     private readonly queueService: QueueService,
     private readonly workspaceContext: WorkspaceContextService,
   ) {}
@@ -659,5 +677,160 @@ export class ApplicationsService {
         status: 'WITHDRAWN',
       },
     });
+  }
+
+  async handleCvParsedEvent(event: RawCvParsedEvent): Promise<void> {
+    const { applicationId, aiScore, parsedData, scoringReasoning } = event;
+
+    this.logger.log(
+      `Handling cv.parsed event for application ${applicationId}`,
+    );
+
+    const application = await this.prisma.application.findFirst({
+      where: { id: applicationId, deletedAt: null },
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            createdById: true,
+            createdBy: {
+              select: { email: true },
+            },
+          },
+        },
+        candidate: {
+          select: { id: true, email: true, fullName: true },
+        },
+      },
+    });
+
+    if (!application) {
+      this.logger.warn(
+        `Application ${applicationId} not found for cv.parsed event`,
+      );
+      return;
+    }
+
+    await this.prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        cvParsingStatus: CvParsingStatus.COMPLETED,
+        aiScore,
+        scoringReasoning,
+        parsedData: parsedData as Prisma.InputJsonValue,
+      },
+    });
+
+    if (!(application.job.createdBy as { email?: string } | undefined)?.email) {
+      const recruiterUser = await this.prisma.user.findUnique({
+        where: { id: application.job.createdById },
+      });
+      if (recruiterUser && application.job.createdBy) {
+        application.job.createdBy.email = recruiterUser.email;
+      }
+    }
+
+    if (!(application.job.createdBy as { email?: string } | undefined)?.email) {
+      this.logger.warn(
+        `Could not find recruiter email for job ${application.job.id}, skipping success notification.`,
+      );
+      return;
+    }
+
+    const enrichedEvent: EnrichedCvParsedEvent = {
+      applicationId,
+      recruiterId: application.job.createdById,
+      jobTitle: application.job.title,
+      applicantEmail: application.candidate.email,
+      applicantName: application.candidate.fullName,
+      aiScore: aiScore || 0,
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      await this.queueService.publishEnrichedCvParsed(enrichedEvent);
+    } catch (error) {
+      this.logger.error(
+        `Failed to publish enriched cv.parsed event for application ${applicationId}`,
+        sanitizeError(error),
+      );
+    }
+  }
+
+  async handleCvFailedEvent(event: RawCvFailedEvent): Promise<void> {
+    const { applicationId, errorMessage } = event;
+
+    this.logger.log(
+      `Handling cv.failed event for application ${applicationId}`,
+    );
+
+    const application = await this.prisma.application.findFirst({
+      where: { id: applicationId, deletedAt: null },
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            createdById: true,
+            createdBy: {
+              select: { email: true },
+            },
+          },
+        },
+        candidate: {
+          select: { id: true, email: true, fullName: true },
+        },
+      },
+    });
+
+    if (!application) {
+      this.logger.warn(
+        `Application ${applicationId} not found for cv.failed event`,
+      );
+      return;
+    }
+
+    await this.prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        cvParsingStatus: CvParsingStatus.FAILED,
+      },
+    });
+
+    if (!(application.job.createdBy as { email?: string } | undefined)?.email) {
+      const recruiterUser = await this.prisma.user.findUnique({
+        where: { id: application.job.createdById },
+      });
+      if (recruiterUser && application.job.createdBy) {
+        application.job.createdBy.email = recruiterUser.email;
+      }
+    }
+
+    if (!(application.job.createdBy as { email?: string } | undefined)?.email) {
+      this.logger.warn(
+        `Could not find recruiter email for job ${application.job.id}, skipping failure notification.`,
+      );
+      return;
+    }
+
+    const enrichedEvent: EnrichedCvFailedEvent = {
+      applicationId,
+      recruiterId: application.job.createdById,
+      jobTitle: application.job.title,
+      applicantEmail: application.candidate.email,
+      applicantName: application.candidate.fullName,
+      errorMessage: errorMessage,
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      await this.queueService.publishEnrichedCvFailed(enrichedEvent);
+    } catch (error) {
+      this.logger.error(
+        `Failed to publish enriched cv.failed event for application ${applicationId}`,
+        sanitizeError(error),
+      );
+    }
   }
 }

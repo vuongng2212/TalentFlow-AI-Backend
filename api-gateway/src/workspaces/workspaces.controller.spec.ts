@@ -132,7 +132,7 @@ describe('WorkspacesController', () => {
   describe('addMember', () => {
     it('should call service.addMember with correct parameters', async () => {
       const dto: AddWorkspaceMemberDto = {
-        userId: 'user-456',
+        email: 'user@example.com',
         role: WorkspaceMemberRole.RECRUITER,
       };
       const expectedResult = { id: 'membership-123', userId: 'user-456' };

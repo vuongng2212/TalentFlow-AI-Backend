@@ -150,6 +150,10 @@ model Application {
   cvFileUrl   String?           @map("cv_file_url")
   coverLetter String?           @map("cover_letter")
   notes       String?
+  cvParsingStatus CvParsingStatus @default(PENDING) @map("cv_parsing_status")
+  aiScore     Int?              @map("ai_score")
+  scoringReasoning String?      @map("scoring_reasoning") @db.Text
+  parsedData  Json?             @map("parsed_data")
   appliedAt   DateTime          @default(now()) @map("applied_at")
   reviewedAt  DateTime?         @map("reviewed_at")
   createdAt   DateTime          @default(now()) @map("created_at")
@@ -276,4 +280,11 @@ enum WorkspaceMemberStatus {
   INVITED
   REMOVED
   EXPIRED
+}
+
+enum CvParsingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
