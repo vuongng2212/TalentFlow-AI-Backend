@@ -2,21 +2,40 @@ import {
   CallHandler,
   ExecutionContext,
   Injectable,
-  NestInterceptor,
   Logger,
+  NestInterceptor,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { Request, Response } from 'express';
 import { Observable, tap } from 'rxjs';
 import { sanitizeUrl, sanitizeError } from '../utils/sanitize.util';
+import { ElkLoggerService } from '../logger';
 
 const REQUEST_ID_HEADER = 'x-request-id';
 
 type RequestWithId = Request & { id?: string; [REQUEST_ID_HEADER]?: string };
 
+/**
+ * Logs every incoming HTTP request and its outcome (status, duration, requestId).
+ *
+ * When ElkLoggerService is available (ELK_HOST configured) the log entries are
+ * structured JSON and forwarded to Elasticsearch. Falls back to the NestJS
+ * built-in Logger (console) otherwise.
+ *
+ * Registered as APP_INTERCEPTOR in app.module.ts so it has full DI support.
+ */
 @Injectable()
 export class RequestLoggerInterceptor implements NestInterceptor {
-  private readonly logger = new Logger('HTTP');
+  private readonly fallbackLogger = new Logger('HTTP');
+
+  constructor(
+    @Optional() private readonly elkLogger?: ElkLoggerService,
+  ) {
+    if (elkLogger) {
+      elkLogger.setContext('HTTP');
+    }
+  }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const http = context.switchToHttp();
@@ -64,16 +83,13 @@ export class RequestLoggerInterceptor implements NestInterceptor {
     const method = request.method ?? 'UNKNOWN';
     const url = sanitizeUrl(request.url ?? '');
     const status = response.statusCode ?? 0;
+    const meta = { msg: 'HTTP Request', method, url, status, duration, requestId, timestamp: new Date().toISOString() };
 
-    this.logger.log({
-      msg: 'HTTP Request',
-      method,
-      url,
-      status,
-      duration,
-      requestId,
-      timestamp: new Date().toISOString(),
-    });
+    if (this.elkLogger) {
+      this.elkLogger.log(JSON.stringify(meta), 'HTTP');
+    } else {
+      this.fallbackLogger.log(meta);
+    }
   }
 
   /**
@@ -89,17 +105,21 @@ export class RequestLoggerInterceptor implements NestInterceptor {
     const method = request.method ?? 'UNKNOWN';
     const url = sanitizeUrl(request.url ?? '');
     const status = response.statusCode ?? 500;
-
-    this.logger.error({
+    const meta = {
       msg: 'HTTP Request Failed',
       method,
       url,
       status,
       duration,
       requestId,
-
       error: sanitizeError(error),
       timestamp: new Date().toISOString(),
-    });
+    };
+
+    if (this.elkLogger) {
+      this.elkLogger.error(JSON.stringify(meta), undefined, 'HTTP');
+    } else {
+      this.fallbackLogger.error(meta);
+    }
   }
 }

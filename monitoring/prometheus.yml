@@ -1,0 +1,62 @@
+# Prometheus configuration for TalentFlow local development
+# Scrapes metrics from all 3 services every 15 seconds.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: 'development'
+    project: 'talentflow'
+
+# AlertManager connection
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+# Alert rules
+rule_files:
+  - '/etc/prometheus/rules/*.yml'
+
+scrape_configs:
+  # API Gateway — NestJS / prom-client
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'api-gateway'
+
+  # Notification service — NestJS / prom-client
+  - job_name: 'notification'
+    static_configs:
+      - targets: ['notification:5000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'notification'
+
+  # CV Parser — Spring Boot Actuator / Micrometer
+  # NOTE: Requires micrometer-registry-prometheus in pom.xml (handled separately)
+  - job_name: 'cv-parser'
+    static_configs:
+      - targets: ['cv-parser:8081']
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'cv-parser'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

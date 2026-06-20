@@ -1,0 +1,67 @@
+global:
+  resolve_timeout: 5m
+  # Slack webhook — set SLACK_WEBHOOK_URL env var or replace directly
+  # slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+
+# Deduplicate + group alerts before sending
+route:
+  group_by: ['alertname', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default'
+
+  routes:
+    # Critical alerts — send immediately
+    - matchers:
+        - severity="critical"
+      receiver: 'slack-critical'
+      group_wait: 10s
+      repeat_interval: 1h
+
+    # Warning alerts — normal routing
+    - matchers:
+        - severity="warning"
+      receiver: 'slack-warning'
+      repeat_interval: 4h
+
+receivers:
+  # Fallback — no-op (log only)
+  - name: 'default'
+
+  # Critical channel — #talentflow-alerts-critical
+  - name: 'slack-critical'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#talentflow-alerts'
+        username: 'TalentFlow AlertManager'
+        icon_emoji: ':rotating_light:'
+        send_resolved: true
+        title: '{{ if .Status | eq "firing" }}🔴 CRITICAL{{ else }}✅ RESOLVED{{ end }}: {{ .CommonAnnotations.summary }}'
+        text: |
+          *Service:* {{ .CommonLabels.service | default "unknown" }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Severity:* {{ .CommonLabels.severity | toUpper }}
+          *Started:* {{ .StartsAt | timeFormat "2006-01-02 15:04:05" }}
+          {{ if .Status | eq "resolved" }}*Resolved at:* {{ .EndsAt | timeFormat "2006-01-02 15:04:05" }}{{ end }}
+
+  # Warning channel
+  - name: 'slack-warning'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#talentflow-alerts'
+        username: 'TalentFlow AlertManager'
+        icon_emoji: ':warning:'
+        send_resolved: true
+        title: '{{ if .Status | eq "firing" }}🟡 WARNING{{ else }}✅ RESOLVED{{ end }}: {{ .CommonAnnotations.summary }}'
+        text: |
+          *Service:* {{ .CommonLabels.service | default "unknown" }}
+          *Description:* {{ .CommonAnnotations.description }}
+
+inhibit_rules:
+  # If critical alert is firing for a service, suppress warnings for same service
+  - source_matchers:
+      - severity="critical"
+    target_matchers:
+      - severity="warning"
+    equal: ['service']

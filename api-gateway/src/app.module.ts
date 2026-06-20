@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
+import { APP_INTERCEPTOR, APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -26,6 +26,8 @@ import { EmailTemplatesModule } from './email-templates/email-templates.module';
 import { LoggerModule } from './common/logger';
 import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
 import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { WorkspaceContextGuard } from './auth/guards/workspace-context.guard';
@@ -96,6 +98,14 @@ import { randomUUID } from 'crypto';
     {
       provide: APP_INTERCEPTOR,
       useClass: MetricsInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TransformInterceptor,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
     },
     {
       provide: APP_GUARD,
