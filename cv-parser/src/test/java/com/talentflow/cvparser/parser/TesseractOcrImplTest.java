@@ -88,6 +88,7 @@ class TesseractOcrImplTest {
             ReflectionTestUtils.setField(ocr, "maxParallelPages", 2);
             ReflectionTestUtils.setField(ocr, "maxRenderedPixelsPerPage", 20_000_000L);
             ReflectionTestUtils.setField(ocr, "dpi", 100);
+            ReflectionTestUtils.setField(ocr, "ocrPageTimeoutSeconds", 30);
 
             String text = ocr.extractText(pdfPath, "application/pdf").join();
 
@@ -173,6 +174,7 @@ class TesseractOcrImplTest {
             ReflectionTestUtils.setField(ocr, "maxParallelPages",         1);
             ReflectionTestUtils.setField(ocr, "maxRenderedPixelsPerPage", 20_000_000L);
             ReflectionTestUtils.setField(ocr, "dpi",                      dpi);
+            ReflectionTestUtils.setField(ocr, "ocrPageTimeoutSeconds",    30);
 
             ocr.extractText(pdfPath, "application/pdf").join();
 
@@ -213,6 +215,7 @@ class TesseractOcrImplTest {
             ReflectionTestUtils.setField(ocr, "maxParallelPages",          2);
             ReflectionTestUtils.setField(ocr, "maxRenderedPixelsPerPage",  20_000_000L);
             ReflectionTestUtils.setField(ocr, "dpi",                       100);
+            ReflectionTestUtils.setField(ocr, "ocrPageTimeoutSeconds",     30);
 
             // extractText blocks testRunner while page tasks wait on releaseAll
             Future<String> ocrFuture = testRunner.submit(
@@ -233,6 +236,50 @@ class TesseractOcrImplTest {
             releaseAll.countDown(); // safety: unblock tasks if assertion failed
             testRunner.shutdownNow();
             pageExecutor.shutdownNow();
+            Files.deleteIfExists(pdfPath);
+        }
+    }
+
+    @Test
+    void ocrScannedPdfCompletesWithinPageTimeoutWhenRunTesseractHangs() throws IOException {
+        // Without a per-page timeout, a hung Tesseract call (e.g. JNI stuck on corrupt image)
+        // blocks the ocrPageExecutor thread indefinitely. The allOf(...).join() in ocrScannedPdf
+        // never returns, leaving the pipeline stalled until the outer 30s OCR timeout fires.
+        // After fix: orTimeout(ocrPageTimeoutSeconds) ensures each page task completes (with empty
+        // text) within the budget so the overall pipeline is not blocked by a single hung page.
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        Path pdfPath = createPdf(2);
+
+        try {
+            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor) {
+                @Override
+                protected String runTesseract(BufferedImage image, Path filePath, int pageNumber) {
+                    try {
+                        Thread.sleep(60_000); // simulate hung Tesseract call
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return "blocked";
+                }
+            };
+            ReflectionTestUtils.setField(ocr, "maxPages",                  10);
+            ReflectionTestUtils.setField(ocr, "maxParallelPages",          2);
+            ReflectionTestUtils.setField(ocr, "maxRenderedPixelsPerPage",  20_000_000L);
+            ReflectionTestUtils.setField(ocr, "dpi",                       100);
+            ReflectionTestUtils.setField(ocr, "ocrPageTimeoutSeconds",     1);
+
+            long start = System.currentTimeMillis();
+            String result = ocr.extractText(pdfPath, "application/pdf").join();
+            long elapsed = System.currentTimeMillis() - start;
+
+            assertThat(elapsed)
+                    .as("extractText must complete within ~page-timeout (1s) even when runTesseract hangs")
+                    .isLessThan(5_000L);
+            assertThat(result)
+                    .as("timed-out pages yield empty text, not 'blocked'")
+                    .doesNotContain("blocked");
+        } finally {
+            executor.shutdownNow();
             Files.deleteIfExists(pdfPath);
         }
     }

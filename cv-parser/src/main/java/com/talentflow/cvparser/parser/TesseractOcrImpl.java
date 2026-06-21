@@ -58,6 +58,11 @@ public class TesseractOcrImpl {
     @Value("${app.ocr.pool-borrow-timeout-seconds:30}")
     private int poolBorrowTimeoutSeconds;
 
+    // Per-page OCR timeout. A hung Tesseract call (JNI stuck on corrupt image) would otherwise
+    // block an ocrPageExecutor thread indefinitely and stall the entire pipeline.
+    @Value("${app.ocr.page-timeout-seconds:15}")
+    private int ocrPageTimeoutSeconds;
+
     public TesseractOcrImpl(
             @Qualifier("ocrExecutor") Executor ocrExecutor,
             @Qualifier("ocrPageExecutor") Executor ocrPageExecutor
@@ -162,7 +167,14 @@ public class TesseractOcrImpl {
                                 image.flush();
                             }
                         },
-                        ocrPageExecutor));
+                        ocrPageExecutor)
+                    .orTimeout(ocrPageTimeoutSeconds, TimeUnit.SECONDS)
+                    .exceptionally(ex -> {
+                        log.warn("OCR page {} exceeded {}s budget. file=[{}]",
+                                pageIndex + 1, ocrPageTimeoutSeconds, filePath.getFileName());
+                        image.flush();
+                        return new PageOcrResult(pageIndex, "");
+                    }));
             }
 
             CompletableFuture.allOf(tasks.toArray(new CompletableFuture[0])).join();
