@@ -149,9 +149,18 @@ public class TesseractOcrImpl {
             // on a single thread removes the need for any lock and eliminates the old
             // per-batch blocking barrier that prevented cross-batch OCR concurrency.
             List<BufferedImage> images = new ArrayList<>(pageCount);
-            for (int i = 0; i < pageCount; i++) {
-                validateRenderedPageSize(document.getPage(i), i + 1, filePath);
-                images.add(renderPage(renderer, i));
+            try {
+                for (int i = 0; i < pageCount; i++) {
+                    validateRenderedPageSize(document.getPage(i), i + 1, filePath);
+                    images.add(renderPage(renderer, i));
+                }
+            } catch (Exception e) {
+                for (BufferedImage img : images) {
+                    if (img != null) {
+                        img.flush();
+                    }
+                }
+                throw e;
             }
 
             // Phase B — submit all OCR tasks concurrently now that images are ready.
@@ -172,6 +181,10 @@ public class TesseractOcrImpl {
                     .exceptionally(ex -> {
                         log.warn("OCR page {} exceeded {}s budget. file=[{}]",
                                 pageIndex + 1, ocrPageTimeoutSeconds, filePath.getFileName());
+                        // Replace the potentially hung Tesseract instance in the pool to prevent depletion
+                        if (tesseractPool != null) {
+                            tesseractPool.offer(buildTesseract());
+                        }
                         image.flush();
                         return new PageOcrResult(pageIndex, "");
                     }));

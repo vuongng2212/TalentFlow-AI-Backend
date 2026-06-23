@@ -59,7 +59,7 @@ public class CvParserListener {
     private void runPipeline(CvUploadedEvent event) {
         try {
             cvParsingUseCase.execute(event);
-        } catch (Exception ex) {
+        } catch (Throwable ex) {
             throw new CompletionException(ex);
         }
     }
@@ -74,6 +74,11 @@ public class CvParserListener {
             }
         } else {
             Throwable cause = ex instanceof CompletionException ? ex.getCause() : ex;
+            if (cause instanceof Error) {
+                log.error("[CVP-LISTENER] Fatal JVM Error occurred during pipeline execution. candidateId={}, error={}",
+                        event.getCandidateId(), cause.getMessage(), cause);
+                return;
+            }
             Exception pipelineEx = cause instanceof Exception e ? e : new RuntimeException(cause);
             log.error("[CVP-LISTENER] Pipeline failed. candidateId={}, reason={}",
                     event.getCandidateId(), pipelineEx.getMessage(), pipelineEx);

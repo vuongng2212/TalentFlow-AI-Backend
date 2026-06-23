@@ -45,36 +45,45 @@ public class S3StorageService implements StorageService {
 
         long maxSizeBytes = (long) maxSizeMb * 1024 * 1024;
         Path tempFile = createTempFile();
+        boolean success = false;
 
-        try (ResponseInputStream<GetObjectResponse> s3Stream = s3Client.getObject(
-                GetObjectRequest.builder()
-                        .bucket(bucket)
-                        .key(fileKey)
-                        .build())) {
+        try {
+            try (ResponseInputStream<GetObjectResponse> s3Stream = s3Client.getObject(
+                    GetObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(fileKey)
+                            .build())) {
 
-            Long contentLength = s3Stream.response().contentLength();
-            if (contentLength != null && contentLength > maxSizeBytes) {
-                log.warn("File too large (pre-stream check). key={}, size={}, maxMb={}",
-                        fileKey, contentLength, maxSizeMb);
-                throw new PayloadTooLargeException(
-                        "File size " + contentLength + " exceeds limit " + maxSizeBytes + " bytes");
+                Long contentLength = s3Stream.response().contentLength();
+                if (contentLength != null && contentLength > maxSizeBytes) {
+                    log.warn("File too large (pre-stream check). key={}, size={}, maxMb={}",
+                            fileKey, contentLength, maxSizeMb);
+                    throw new PayloadTooLargeException(
+                            "File size " + contentLength + " exceeds limit " + maxSizeBytes + " bytes");
+                }
+
+                copyWithLimit(s3Stream, tempFile, maxSizeBytes, fileKey);
             }
 
-            copyWithLimit(s3Stream, tempFile, maxSizeBytes, fileKey);
+            success = true;
+            log.info("Downloaded s3://{}/{} → {}", bucket, fileKey, tempFile);
+            return tempFile;
 
         } catch (NoSuchKeyException e) {
-            Files.deleteIfExists(tempFile);
             throw new StorageObjectNotFoundException("File not found: " + fileKey);
         } catch (PayloadTooLargeException e) {
-            Files.deleteIfExists(tempFile);
             throw e;
         } catch (IOException e) {
-            Files.deleteIfExists(tempFile);
             throw new StorageReadException("Failed to read file: " + fileKey, e);
+        } finally {
+            if (!success) {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException deleteEx) {
+                    log.warn("Failed to delete temp file after download failure: {}", tempFile, deleteEx);
+                }
+            }
         }
-
-        log.info("Downloaded s3://{}/{} → {}", bucket, fileKey, tempFile);
-        return tempFile;
     }
 
     private Path createTempFile() throws IOException {
