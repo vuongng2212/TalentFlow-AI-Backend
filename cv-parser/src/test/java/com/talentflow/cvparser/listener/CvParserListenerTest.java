@@ -1,6 +1,8 @@
 package com.talentflow.cvparser.listener;
 
 import com.rabbitmq.client.Channel;
+import com.talentflow.cvparser.shared.config.RabbitMqConfig;
+import com.talentflow.cvparser.shared.dto.CvFailedEvent;
 import com.talentflow.cvparser.shared.dto.CvUploadedEvent;
 import com.talentflow.cvparser.usecase.CvParsingUseCase;
 import org.junit.jupiter.api.Test;
@@ -18,10 +20,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.*;
 
 class CvParserListenerTest {
 
@@ -99,6 +101,122 @@ class CvParserListenerTest {
             executor.shutdownNow();
             testRunner.shutdownNow();
         }
+    }
+
+    @Test
+    void onCvUploadedSuccessfullyAcksMessage() throws Exception {
+        CvParsingUseCase cvParsingUseCase = mock(CvParsingUseCase.class);
+        RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
+        Channel channel = mock(Channel.class);
+
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run);
+        CvUploadedEvent event = buildEvent();
+        long deliveryTag = 123L;
+
+        listener.onCvUploaded(event, channel, deliveryTag);
+
+        verify(cvParsingUseCase).execute(event);
+        verify(channel).basicAck(deliveryTag, false);
+        verifyNoInteractions(rabbitTemplate);
+    }
+
+    @Test
+    void onCvUploadedPipelineExceptionPublishesFailedEventAndNacksToDlq() throws Exception {
+        CvParsingUseCase cvParsingUseCase = mock(CvParsingUseCase.class);
+        RuntimeException exception = new RuntimeException("Parsing failed due to bad text");
+        doThrow(exception).when(cvParsingUseCase).execute(any());
+
+        RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
+        Channel channel = mock(Channel.class);
+
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run);
+        CvUploadedEvent event = buildEvent();
+        long deliveryTag = 123L;
+
+        listener.onCvUploaded(event, channel, deliveryTag);
+
+        verify(cvParsingUseCase).execute(event);
+
+        // Verify failed event published
+        org.mockito.ArgumentCaptor<CvFailedEvent> eventCaptor = org.mockito.ArgumentCaptor.forClass(CvFailedEvent.class);
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMqConfig.ROUTING_KEY_CV_FAILED), eventCaptor.capture());
+
+        CvFailedEvent failedEvent = eventCaptor.getValue();
+        assertThat(failedEvent.getCandidateId()).isEqualTo(event.getCandidateId());
+        assertThat(failedEvent.getApplicationId()).isEqualTo(event.getApplicationId());
+        assertThat(failedEvent.getJobId()).isEqualTo(event.getJobId());
+        assertThat(failedEvent.getErrorCode()).isEqualTo("PARSING_FAILED");
+        assertThat(failedEvent.getErrorMessage()).isEqualTo("Parsing failed due to bad text");
+        assertThat(failedEvent.getRetryable()).isFalse();
+        assertThat(failedEvent.getFailedAt()).isNotNull();
+
+        // Verify basicNack called to DLQ (requeue = false)
+        verify(channel).basicNack(deliveryTag, false, false);
+        // Verify basicAck NOT called
+        verify(channel, never()).basicAck(anyLong(), anyBoolean());
+    }
+
+    @Test
+    void onCvUploadedFatalErrorLogsAndDoesNotNackOrPublish() throws Exception {
+        CvParsingUseCase cvParsingUseCase = mock(CvParsingUseCase.class);
+        OutOfMemoryError oom = new OutOfMemoryError("OOM Test");
+        doThrow(oom).when(cvParsingUseCase).execute(any());
+
+        RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
+        Channel channel = mock(Channel.class);
+
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run);
+        CvUploadedEvent event = buildEvent();
+        long deliveryTag = 123L;
+
+        listener.onCvUploaded(event, channel, deliveryTag);
+
+        // Verify use case was invoked and threw OOM
+        verify(cvParsingUseCase).execute(event);
+
+        // Verify NO failed event published
+        verifyNoInteractions(rabbitTemplate);
+
+        // Verify NO ack or nack was sent
+        verify(channel, never()).basicAck(anyLong(), anyBoolean());
+        verify(channel, never()).basicNack(anyLong(), anyBoolean(), anyBoolean());
+    }
+
+    @Test
+    void onCvUploadedAckIOExceptionIsCaughtAndLogged() throws Exception {
+        CvParsingUseCase cvParsingUseCase = mock(CvParsingUseCase.class);
+        RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
+        Channel channel = mock(Channel.class);
+        doThrow(new java.io.IOException("Ack connection closed")).when(channel).basicAck(anyLong(), anyBoolean());
+
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run);
+        CvUploadedEvent event = buildEvent();
+
+        // Should not throw exception
+        assertThatCode(() -> listener.onCvUploaded(event, channel, 123L)).doesNotThrowAnyException();
+
+        verify(channel).basicAck(123L, false);
+    }
+
+    @Test
+    void onCvUploadedFailedEventPublishExceptionAndNackIOExceptionAreCaught() throws Exception {
+        CvParsingUseCase cvParsingUseCase = mock(CvParsingUseCase.class);
+        doThrow(new RuntimeException("Parsing failure")).when(cvParsingUseCase).execute(any());
+
+        RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
+        doThrow(new RuntimeException("Rabbit MQ down")).when(rabbitTemplate).convertAndSend(anyString(), any(Object.class));
+
+        Channel channel = mock(Channel.class);
+        doThrow(new java.io.IOException("Nack connection closed")).when(channel).basicNack(anyLong(), anyBoolean(), anyBoolean());
+
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run);
+        CvUploadedEvent event = buildEvent();
+
+        // Should not throw exception
+        assertThatCode(() -> listener.onCvUploaded(event, channel, 123L)).doesNotThrowAnyException();
+
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMqConfig.ROUTING_KEY_CV_FAILED), any(CvFailedEvent.class));
+        verify(channel).basicNack(123L, false, false);
     }
 
     private static CvUploadedEvent buildEvent() {

@@ -176,6 +176,15 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>0.8.12</version>
+                <configuration>
+                    <excludes>
+                        <exclude>com/talentflow/cvparser/CvParserApplication.class</exclude>
+                        <exclude>com/talentflow/cvparser/shared/config/**</exclude>
+                        <exclude>com/talentflow/cvparser/shared/exception/**</exclude>
+                        <exclude>com/talentflow/cvparser/shared/dto/**</exclude>
+                        <exclude>com/talentflow/cvparser/repository/**</exclude>
+                    </excludes>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>

@@ -56,6 +56,25 @@ class PdfTextParserSecurityLimitTest {
                 .isFalse();
     }
 
+    @Test
+    void supportsMimeTypeCorrectly() {
+        PdfTextParser parser = new PdfTextParser();
+        assertThat(parser.supports("application/pdf")).isTrue();
+        assertThat(parser.supports("APPLICATION/PDF")).isTrue();
+        assertThat(parser.supports("application/vnd.openxmlformats-officedocument.wordprocessingml.document")).isFalse();
+        assertThat(parser.supports(null)).isFalse();
+    }
+
+    @Test
+    void parseThrowsParsingExceptionOnIOException() {
+        PdfTextParser parser = new PdfTextParser();
+        Path nonExistentPath = Path.of("/non-existent-directory/cv.pdf");
+
+        assertThatThrownBy(() -> parser.parse(nonExistentPath))
+                .isInstanceOf(ParsingException.class)
+                .hasMessageContaining("Failed to parse PDF file:");
+    }
+
     private Path createPdf(int pages) throws IOException {
         Path pdfPath = Files.createTempFile("pdf-limit-", ".pdf");
         try (PDDocument document = new PDDocument()) {

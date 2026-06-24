@@ -7,25 +7,27 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class TesseractOcrImplTest {
 
@@ -100,31 +102,8 @@ class TesseractOcrImplTest {
         }
     }
 
-    private Path createPdf(int pages) throws IOException {
-        Path pdfPath = Files.createTempFile("ocr-pages-", ".pdf");
-        try (PDDocument document = new PDDocument()) {
-            for (int i = 0; i < pages; i++) {
-                document.addPage(new PDPage());
-            }
-            document.save(pdfPath.toFile());
-        }
-        return pdfPath;
-    }
-
-    private Path createPdfWithPageSize(float widthPoints, float heightPoints) throws IOException {
-        Path pdfPath = Files.createTempFile("ocr-pages-size-", ".pdf");
-        try (PDDocument document = new PDDocument()) {
-            document.addPage(new PDPage(new PDRectangle(widthPoints, heightPoints)));
-            document.save(pdfPath.toFile());
-        }
-        return pdfPath;
-    }
-
     @Test
     void initCreatesExactlyMaxParallelPagesTesseractInstances() {
-        // The pool capacity is maxParallelPages, so building maxParallelPages+1 instances
-        // silently discards one fully-initialized Tesseract (with tessdata already loaded).
-        // After the fix, buildTesseract() must be called exactly maxParallelPages times.
         int maxParallelPages = 2;
         AtomicInteger buildCount = new AtomicInteger(0);
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -134,7 +113,7 @@ class TesseractOcrImplTest {
                 @Override
                 protected ITesseract buildTesseract() {
                     buildCount.incrementAndGet();
-                    return new Tesseract(); // no native calls until doOCR(); safe to construct here
+                    return new Tesseract();
                 }
             };
             ReflectionTestUtils.setField(ocr, "maxParallelPages", maxParallelPages);
@@ -152,9 +131,6 @@ class TesseractOcrImplTest {
 
     @Test
     void renderedImagePixelAreaFitsWithinBudgetFor150Dpi() throws IOException {
-        // A4 page at 300 DPI → ~2480 × 3508 ≈ 8.7M pixels (old default — bottleneck B2).
-        // A4 page at 150 DPI → ~1240 × 1754 ≈ 2.2M pixels (target default).
-        // Assertion threshold sits between the two; the test fails at 300 DPI and passes at 150 DPI.
         int dpi = 150;
         long pixelBudget = 2_500_000L;
 
@@ -192,10 +168,6 @@ class TesseractOcrImplTest {
 
     @Test
     void ocrScannedPdfSubmitsAllPagesOcrConcurrentlyWithoutBatching() throws Exception {
-        // 4-page PDF, maxParallelPages=2.
-        // Old design batches pages in groups of maxParallelPages and blocks between batches —
-        // so at most 2 OCR tasks are ever in-flight simultaneously.
-        // New two-phase design submits all 4 tasks at once; all 4 must be in-flight before any completes.
         int pageCount = 4;
         ExecutorService pageExecutor = Executors.newFixedThreadPool(pageCount);
         ExecutorService testRunner   = Executors.newSingleThreadExecutor();
@@ -217,13 +189,9 @@ class TesseractOcrImplTest {
             ReflectionTestUtils.setField(ocr, "dpi",                       100);
             ReflectionTestUtils.setField(ocr, "ocrPageTimeoutSeconds",     30);
 
-            // extractText blocks testRunner while page tasks wait on releaseAll
             Future<String> ocrFuture = testRunner.submit(
                     () -> ocr.extractText(pdfPath, "application/pdf").join());
 
-            // All pageCount OCR tasks must start before any completes.
-            // Under old batching logic only maxParallelPages=2 tasks are submitted first,
-            // so this await times out and the assertion below fails.
             boolean allStarted = allTasksInFlight.await(5, TimeUnit.SECONDS);
             assertThat(allStarted)
                     .as("all %d OCR tasks should be in-flight concurrently before any completes", pageCount)
@@ -233,7 +201,7 @@ class TesseractOcrImplTest {
             assertThat(ocrFuture.get(5, TimeUnit.SECONDS))
                     .isEqualTo("page-1\npage-2\npage-3\npage-4");
         } finally {
-            releaseAll.countDown(); // safety: unblock tasks if assertion failed
+            releaseAll.countDown();
             testRunner.shutdownNow();
             pageExecutor.shutdownNow();
             Files.deleteIfExists(pdfPath);
@@ -242,11 +210,6 @@ class TesseractOcrImplTest {
 
     @Test
     void ocrScannedPdfCompletesWithinPageTimeoutWhenRunTesseractHangs() throws IOException {
-        // Without a per-page timeout, a hung Tesseract call (e.g. JNI stuck on corrupt image)
-        // blocks the ocrPageExecutor thread indefinitely. The allOf(...).join() in ocrScannedPdf
-        // never returns, leaving the pipeline stalled until the outer 30s OCR timeout fires.
-        // After fix: orTimeout(ocrPageTimeoutSeconds) ensures each page task completes (with empty
-        // text) within the budget so the overall pipeline is not blocked by a single hung page.
         ExecutorService executor = Executors.newFixedThreadPool(4);
         Path pdfPath = createPdf(2);
 
@@ -255,7 +218,7 @@ class TesseractOcrImplTest {
                 @Override
                 protected String runTesseract(BufferedImage image, Path filePath, int pageNumber) {
                     try {
-                        Thread.sleep(60_000); // simulate hung Tesseract call
+                        Thread.sleep(60_000);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
@@ -267,6 +230,9 @@ class TesseractOcrImplTest {
             ReflectionTestUtils.setField(ocr, "maxRenderedPixelsPerPage",  20_000_000L);
             ReflectionTestUtils.setField(ocr, "dpi",                       100);
             ReflectionTestUtils.setField(ocr, "ocrPageTimeoutSeconds",     1);
+
+            // Trigger pool initialization so tesseractPool != null checks pass
+            ocr.init();
 
             long start = System.currentTimeMillis();
             String result = ocr.extractText(pdfPath, "application/pdf").join();
@@ -282,6 +248,239 @@ class TesseractOcrImplTest {
             executor.shutdownNow();
             Files.deleteIfExists(pdfPath);
         }
+    }
+
+    // ── New unit tests to achieve 100% logic coverage ────────────────────────
+
+    private static class MockTesseractOcrImpl extends TesseractOcrImpl {
+        private final ITesseract mockTesseract;
+
+        public MockTesseractOcrImpl(Executor ocrExecutor, Executor ocrPageExecutor, ITesseract mockTesseract) {
+            super(ocrExecutor, ocrPageExecutor);
+            this.mockTesseract = mockTesseract;
+        }
+
+        @Override
+        protected ITesseract buildTesseract() {
+            return mockTesseract;
+        }
+    }
+
+    @Test
+    void extractTextReturnsEmptyStringForUnsupportedMimeType() throws IOException {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Path path = Files.createTempFile("test-unsupported-", ".txt");
+        try {
+            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor);
+            String result = ocr.extractText(path, "text/plain").join();
+            assertThat(result).isEmpty();
+        } finally {
+            executor.shutdownNow();
+            Files.deleteIfExists(path);
+        }
+    }
+
+    @Test
+    void extractTextProcessesImageSuccessfully() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Path path = Files.createTempFile("test-image-", ".png");
+        ITesseract mockTesseract = mock(ITesseract.class);
+        when(mockTesseract.doOCR(any(File.class))).thenReturn("  Hello World Image  ");
+
+        try {
+            MockTesseractOcrImpl ocr = new MockTesseractOcrImpl(executor, executor, mockTesseract);
+            ReflectionTestUtils.setField(ocr, "maxParallelPages", 1);
+            ReflectionTestUtils.setField(ocr, "poolBorrowTimeoutSeconds", 5);
+            ocr.init();
+
+            String result = ocr.extractText(path, "image/png").join();
+            assertThat(result).isEqualTo("Hello World Image");
+            Mockito.verify(mockTesseract).doOCR(path.toFile());
+        } finally {
+            executor.shutdownNow();
+            Files.deleteIfExists(path);
+        }
+    }
+
+    @Test
+    void extractTextReturnsEmptyStringWhenImageOcrThrowsTesseractException() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Path path = Files.createTempFile("test-image-fail-", ".png");
+        ITesseract mockTesseract = mock(ITesseract.class);
+        when(mockTesseract.doOCR(any(File.class))).thenThrow(new net.sourceforge.tess4j.TesseractException("Native OCR failed"));
+
+        try {
+            MockTesseractOcrImpl ocr = new MockTesseractOcrImpl(executor, executor, mockTesseract);
+            ReflectionTestUtils.setField(ocr, "maxParallelPages", 1);
+            ReflectionTestUtils.setField(ocr, "poolBorrowTimeoutSeconds", 5);
+            ocr.init();
+
+            String result = ocr.extractText(path, "image/png").join();
+            assertThat(result).isEmpty();
+        } finally {
+            executor.shutdownNow();
+            Files.deleteIfExists(path);
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void extractTextThrowsParsingExceptionOnPoolExhaustion() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Path path = Files.createTempFile("test-exhaustion-", ".png");
+        ITesseract mockTesseract = mock(ITesseract.class);
+
+        try {
+            MockTesseractOcrImpl ocr = new MockTesseractOcrImpl(executor, executor, mockTesseract);
+            ReflectionTestUtils.setField(ocr, "maxParallelPages", 1);
+            ReflectionTestUtils.setField(ocr, "poolBorrowTimeoutSeconds", 1);
+            ocr.init();
+
+            BlockingQueue<ITesseract> pool =
+                (BlockingQueue<ITesseract>) ReflectionTestUtils.getField(ocr, "tesseractPool");
+            assertThat(pool).isNotNull();
+            pool.clear(); // Simulate empty pool
+
+            // Direct call throws synchronously on proxyless instance
+            assertThatThrownBy(() -> ocr.extractText(path, "image/png"))
+                    .isInstanceOf(ParsingException.class)
+                    .satisfies(ex -> {
+                        ParsingException cause = (ParsingException) ex;
+                        assertThat(cause.getErrorCode()).isEqualTo("OCR_POOL_TIMEOUT");
+                    });
+        } finally {
+            executor.shutdownNow();
+            Files.deleteIfExists(path);
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void extractTextThrowsParsingExceptionOnInterruptedWaiting() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Path path = Files.createTempFile("test-interrupted-", ".png");
+        ITesseract mockTesseract = mock(ITesseract.class);
+
+        try {
+            MockTesseractOcrImpl ocr = new MockTesseractOcrImpl(executor, executor, mockTesseract);
+            ReflectionTestUtils.setField(ocr, "maxParallelPages", 1);
+            ReflectionTestUtils.setField(ocr, "poolBorrowTimeoutSeconds", 5);
+            ocr.init();
+
+            BlockingQueue<ITesseract> mockPool = mock(BlockingQueue.class);
+            when(mockPool.poll(anyLong(), any(TimeUnit.class)))
+                .thenThrow(new InterruptedException("Simulated interruption"));
+            ReflectionTestUtils.setField(ocr, "tesseractPool", mockPool);
+
+            // Direct call throws synchronously on proxyless instance
+            assertThatThrownBy(() -> ocr.extractText(path, "image/png"))
+                    .isInstanceOf(ParsingException.class)
+                    .satisfies(ex -> {
+                        ParsingException cause = (ParsingException) ex;
+                        assertThat(cause.getErrorCode()).isEqualTo("OCR_INTERRUPTED");
+                    });
+        } finally {
+            executor.shutdownNow();
+            Files.deleteIfExists(path);
+        }
+    }
+
+    @Test
+    void extractTextReturnsEmptyStringOnInvalidPdf() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Path nonExistentPath = Path.of("/non-existent-directory/non-existent.pdf");
+
+        try {
+            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor);
+            ReflectionTestUtils.setField(ocr, "maxPages", 10);
+            ReflectionTestUtils.setField(ocr, "maxParallelPages", 1);
+            ocr.init();
+
+            // Should catch the exception and return empty string completed future
+            String result = ocr.extractText(nonExistentPath, "application/pdf").join();
+            assertThat(result).isEmpty();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void ocrScannedPdfFlushesImagesWhenPhaseAFails() throws IOException {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Path pdfPath = Files.createTempFile("ocr-phase-a-fail-", ".pdf");
+
+        try (PDDocument document = new PDDocument()) {
+            document.addPage(new PDPage(PDRectangle.A4));
+            document.addPage(new PDPage(new PDRectangle(10_000f, 10_000f))); // Exceeds pixel limits
+            document.save(pdfPath.toFile());
+        }
+
+        try {
+            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor);
+            ReflectionTestUtils.setField(ocr, "maxPages", 5);
+            ReflectionTestUtils.setField(ocr, "maxParallelPages", 2);
+            ReflectionTestUtils.setField(ocr, "maxRenderedPixelsPerPage", 2_000_000L);
+            ReflectionTestUtils.setField(ocr, "dpi", 150);
+            ocr.init();
+
+            // Throws ParsingException synchronously on caller's thread during Phase A
+            assertThatThrownBy(() -> ocr.extractText(pdfPath, "application/pdf"))
+                    .isInstanceOf(ParsingException.class)
+                    .satisfies(ex -> {
+                        ParsingException cause = (ParsingException) ex;
+                        assertThat(cause.getErrorCode()).isEqualTo("PDF_PAGE_TOO_LARGE");
+                    });
+        } finally {
+            executor.shutdownNow();
+            Files.deleteIfExists(pdfPath);
+        }
+    }
+
+    @Test
+    void ocrScannedPdfHandlesTesseractExceptionOnPageOcr() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Path pdfPath = createPdf(1);
+        ITesseract mockTesseract = mock(ITesseract.class);
+        when(mockTesseract.doOCR(any(BufferedImage.class))).thenThrow(new net.sourceforge.tess4j.TesseractException("Native JNI failure"));
+
+        try {
+            MockTesseractOcrImpl ocr = new MockTesseractOcrImpl(executor, executor, mockTesseract);
+            ReflectionTestUtils.setField(ocr, "maxPages", 5);
+            ReflectionTestUtils.setField(ocr, "maxParallelPages", 1);
+            ReflectionTestUtils.setField(ocr, "maxRenderedPixelsPerPage", 20_000_000L);
+            ReflectionTestUtils.setField(ocr, "dpi", 150);
+            ReflectionTestUtils.setField(ocr, "ocrPageTimeoutSeconds", 5);
+            ocr.init();
+
+            String result = ocr.extractText(pdfPath, "application/pdf").join();
+            assertThat(result).isEmpty();
+            Mockito.verify(mockTesseract).doOCR(any(BufferedImage.class));
+        } finally {
+            executor.shutdownNow();
+            Files.deleteIfExists(pdfPath);
+        }
+    }
+
+    // ── original helpers ───────────────────────────────────────────────────
+
+    private Path createPdf(int pages) throws IOException {
+        Path pdfPath = Files.createTempFile("ocr-pages-", ".pdf");
+        try (PDDocument document = new PDDocument()) {
+            for (int i = 0; i < pages; i++) {
+                document.addPage(new PDPage());
+            }
+            document.save(pdfPath.toFile());
+        }
+        return pdfPath;
+    }
+
+    private Path createPdfWithPageSize(float widthPoints, float heightPoints) throws IOException {
+        Path pdfPath = Files.createTempFile("ocr-pages-size-", ".pdf");
+        try (PDDocument document = new PDDocument()) {
+            document.addPage(new PDPage(new PDRectangle(widthPoints, heightPoints)));
+            document.save(pdfPath.toFile());
+        }
+        return pdfPath;
     }
 
     private static final class StubTesseractOcrImpl extends TesseractOcrImpl {

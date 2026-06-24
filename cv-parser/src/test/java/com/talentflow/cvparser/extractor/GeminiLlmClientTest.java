@@ -1,6 +1,8 @@
 package com.talentflow.cvparser.extractor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.talentflow.cvparser.shared.config.GeminiConfig;
+import com.talentflow.cvparser.shared.exception.ExtractionException;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.ratelimiter.RateLimiterConfig;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
@@ -14,11 +16,14 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
 
 class GeminiLlmClientTest {
 
@@ -44,6 +49,178 @@ class GeminiLlmClientTest {
                 .as("with maxAttempts=%d, client must make exactly %d HTTP call(s), not %d",
                         expectedCalls, expectedCalls, maxAttempts)
                 .isEqualTo(expectedCalls);
+    }
+
+    @Test
+    void generate_withSuccessfulResponse_shouldReturnTrimmedText() {
+        GeminiLlmClient.Part part = new GeminiLlmClient.Part("   Extracted Text   ");
+        GeminiLlmClient.Content content = new GeminiLlmClient.Content("model", List.of(part));
+        GeminiLlmClient.Candidate candidate = new GeminiLlmClient.Candidate(content, "STOP");
+        GeminiLlmClient.GeminiResponse responseObj = new GeminiLlmClient.GeminiResponse(List.of(candidate));
+
+        WebClient stubClient = WebClient.builder()
+                .baseUrl("http://localhost")
+                .exchangeFunction(request -> Mono.just(org.springframework.web.reactive.function.client.ClientResponse
+                        .create(org.springframework.http.HttpStatus.OK)
+                        .header(HttpHeaders.CONTENT_TYPE, org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+                        .body(new ObjectMapper().valueToTree(responseObj).toString())
+                        .build()))
+                .build();
+
+        GeminiLlmClient client = createClient(stubClient);
+
+        StepVerifier.create(client.generate(new CvExtractionPrompt("system", "cv text")))
+                .expectNext("Extracted Text")
+                .verifyComplete();
+    }
+
+    @Test
+    void generate_whenResponseIsEmpty_shouldThrowExtractionException() {
+        GeminiLlmClient.GeminiResponse responseObj = new GeminiLlmClient.GeminiResponse(List.of());
+
+        WebClient stubClient = WebClient.builder()
+                .baseUrl("http://localhost")
+                .exchangeFunction(request -> Mono.just(org.springframework.web.reactive.function.client.ClientResponse
+                        .create(org.springframework.http.HttpStatus.OK)
+                        .header(HttpHeaders.CONTENT_TYPE, org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+                        .body(new ObjectMapper().valueToTree(responseObj).toString())
+                        .build()))
+                .build();
+
+        GeminiLlmClient client = createClient(stubClient);
+
+        StepVerifier.create(client.generate(new CvExtractionPrompt("system", "cv text")))
+                .expectErrorMatches(throwable -> throwable instanceof ExtractionException ex
+                        && "GEMINI_EMPTY_RESPONSE".equals(ex.getErrorCode())
+                        && !ex.isRetryable())
+                .verify();
+    }
+
+    @Test
+    void generate_whenContentPartsAreMissing_shouldThrowExtractionException() {
+        GeminiLlmClient.Content content = new GeminiLlmClient.Content("model", List.of());
+        GeminiLlmClient.Candidate candidate = new GeminiLlmClient.Candidate(content, "STOP");
+        GeminiLlmClient.GeminiResponse responseObj = new GeminiLlmClient.GeminiResponse(List.of(candidate));
+
+        WebClient stubClient = WebClient.builder()
+                .baseUrl("http://localhost")
+                .exchangeFunction(request -> Mono.just(org.springframework.web.reactive.function.client.ClientResponse
+                        .create(org.springframework.http.HttpStatus.OK)
+                        .header(HttpHeaders.CONTENT_TYPE, org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+                        .body(new ObjectMapper().valueToTree(responseObj).toString())
+                        .build()))
+                .build();
+
+        GeminiLlmClient client = createClient(stubClient);
+
+        StepVerifier.create(client.generate(new CvExtractionPrompt("system", "cv text")))
+                .expectErrorMatches(throwable -> throwable instanceof ExtractionException ex
+                        && "GEMINI_NO_CONTENT".equals(ex.getErrorCode())
+                        && !ex.isRetryable())
+                .verify();
+    }
+
+    @Test
+    void generate_whenTextIsBlank_shouldThrowExtractionException() {
+        GeminiLlmClient.Part part = new GeminiLlmClient.Part("   ");
+        GeminiLlmClient.Content content = new GeminiLlmClient.Content("model", List.of(part));
+        GeminiLlmClient.Candidate candidate = new GeminiLlmClient.Candidate(content, "STOP");
+        GeminiLlmClient.GeminiResponse responseObj = new GeminiLlmClient.GeminiResponse(List.of(candidate));
+
+        WebClient stubClient = WebClient.builder()
+                .baseUrl("http://localhost")
+                .exchangeFunction(request -> Mono.just(org.springframework.web.reactive.function.client.ClientResponse
+                        .create(org.springframework.http.HttpStatus.OK)
+                        .header(HttpHeaders.CONTENT_TYPE, org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+                        .body(new ObjectMapper().valueToTree(responseObj).toString())
+                        .build()))
+                .build();
+
+        GeminiLlmClient client = createClient(stubClient);
+
+        StepVerifier.create(client.generate(new CvExtractionPrompt("system", "cv text")))
+                .expectErrorMatches(throwable -> throwable instanceof ExtractionException ex
+                        && "GEMINI_BLANK_RESPONSE".equals(ex.getErrorCode())
+                        && !ex.isRetryable())
+                .verify();
+    }
+
+    @Test
+    void generate_whenClient4xxError_shouldMapToNonRetryableException() {
+        WebClient stubClient = WebClient.builder()
+                .baseUrl("http://localhost")
+                .exchangeFunction(request -> Mono.error(WebClientResponseException.create(
+                        400, "Bad Request",
+                        HttpHeaders.EMPTY, "Invalid API Key".getBytes(), null)))
+                .build();
+
+        GeminiLlmClient client = createClient(stubClient);
+
+        StepVerifier.create(client.generate(new CvExtractionPrompt("system", "cv text")))
+                .expectErrorMatches(throwable -> throwable instanceof ExtractionException ex
+                        && "GEMINI_CLIENT_ERROR".equals(ex.getErrorCode())
+                        && !ex.isRetryable())
+                .verify();
+    }
+
+    @Test
+    void generate_whenServer5xxError_shouldMapToRetryableExceptionAndRetry() {
+        AtomicInteger callCount = new AtomicInteger(0);
+        GeminiLlmClient client = clientWithAlwaysFailingWebClient(callCount, 2);
+
+        StepVerifier.create(client.generate(new CvExtractionPrompt("system", "cv text")))
+                .expectErrorMatches(throwable -> throwable instanceof ExtractionException ex
+                        && "GEMINI_SERVER_ERROR".equals(ex.getErrorCode())
+                        && ex.isRetryable())
+                .verify();
+    }
+
+    @Test
+    void generate_whenIOException_shouldMapToRetryableNetworkException() {
+        WebClient stubClient = WebClient.builder()
+                .baseUrl("http://localhost")
+                .exchangeFunction(request -> Mono.error(new IOException("Connection refused")))
+                .build();
+
+        GeminiLlmClient client = createClient(stubClient);
+
+        StepVerifier.create(client.generate(new CvExtractionPrompt("system", "cv text")))
+                .expectErrorMatches(throwable -> throwable instanceof ExtractionException ex
+                        && "GEMINI_NETWORK_ERROR".equals(ex.getErrorCode())
+                        && ex.isRetryable()
+                        && ex.getCause() instanceof IOException)
+                .verify();
+    }
+
+    @Test
+    void generate_whenGeneralException_shouldMapToNonRetryableNetworkException() {
+        WebClient stubClient = WebClient.builder()
+                .baseUrl("http://localhost")
+                .exchangeFunction(request -> Mono.error(new RuntimeException("Something went wrong")))
+                .build();
+
+        GeminiLlmClient client = createClient(stubClient);
+
+        StepVerifier.create(client.generate(new CvExtractionPrompt("system", "cv text")))
+                .expectErrorMatches(throwable -> throwable instanceof ExtractionException ex
+                        && "GEMINI_NETWORK_ERROR".equals(ex.getErrorCode())
+                        && !ex.isRetryable())
+                .verify();
+    }
+
+    private GeminiLlmClient createClient(WebClient webClient) {
+        GeminiConfig geminiConfig = new GeminiConfig();
+        ReflectionTestUtils.setField(geminiConfig, "apiKey", "test-key");
+        ReflectionTestUtils.setField(geminiConfig, "baseUrl", "http://localhost");
+        ReflectionTestUtils.setField(geminiConfig, "timeoutSeconds", 10);
+
+        CircuitBreakerRegistry cbRegistry = CircuitBreakerRegistry.ofDefaults();
+        RateLimiterRegistry rlRegistry = RateLimiterRegistry.ofDefaults();
+        RetryRegistry retryRegistry = RetryRegistry.ofDefaults();
+
+        return new GeminiLlmClient(
+                webClient, geminiConfig, "gemini-test", 100,
+                cbRegistry, rlRegistry, retryRegistry);
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────
