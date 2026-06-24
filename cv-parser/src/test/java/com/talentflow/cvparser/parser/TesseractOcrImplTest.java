@@ -1,6 +1,8 @@
 package com.talentflow.cvparser.parser;
 
 import com.talentflow.cvparser.shared.exception.ParsingException;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import net.sourceforge.tess4j.ITesseract;
 import net.sourceforge.tess4j.Tesseract;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -9,6 +11,8 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import static org.mockito.Mockito.mock;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -26,7 +30,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class TesseractOcrImplTest {
@@ -109,7 +112,7 @@ class TesseractOcrImplTest {
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
         try {
-            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor) {
+            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor, new SimpleMeterRegistry()) {
                 @Override
                 protected ITesseract buildTesseract() {
                     buildCount.incrementAndGet();
@@ -139,7 +142,7 @@ class TesseractOcrImplTest {
         List<BufferedImage> capturedImages = new CopyOnWriteArrayList<>();
 
         try {
-            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor) {
+            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor, new SimpleMeterRegistry()) {
                 @Override
                 protected String runTesseract(BufferedImage image, Path filePath, int pageNumber) {
                     capturedImages.add(image);
@@ -214,7 +217,7 @@ class TesseractOcrImplTest {
         Path pdfPath = createPdf(2);
 
         try {
-            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor) {
+            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor, new SimpleMeterRegistry()) {
                 @Override
                 protected String runTesseract(BufferedImage image, Path filePath, int pageNumber) {
                     try {
@@ -256,7 +259,7 @@ class TesseractOcrImplTest {
         private final ITesseract mockTesseract;
 
         public MockTesseractOcrImpl(Executor ocrExecutor, Executor ocrPageExecutor, ITesseract mockTesseract) {
-            super(ocrExecutor, ocrPageExecutor);
+            super(ocrExecutor, ocrPageExecutor, new SimpleMeterRegistry());
             this.mockTesseract = mockTesseract;
         }
 
@@ -271,7 +274,7 @@ class TesseractOcrImplTest {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Path path = Files.createTempFile("test-unsupported-", ".txt");
         try {
-            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor);
+            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor, new SimpleMeterRegistry());
             String result = ocr.extractText(path, "text/plain").join();
             assertThat(result).isEmpty();
         } finally {
@@ -391,7 +394,7 @@ class TesseractOcrImplTest {
         Path nonExistentPath = Path.of("/non-existent-directory/non-existent.pdf");
 
         try {
-            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor);
+            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor, new SimpleMeterRegistry());
             ReflectionTestUtils.setField(ocr, "maxPages", 10);
             ReflectionTestUtils.setField(ocr, "maxParallelPages", 1);
             ocr.init();
@@ -416,7 +419,7 @@ class TesseractOcrImplTest {
         }
 
         try {
-            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor);
+            TesseractOcrImpl ocr = new TesseractOcrImpl(executor, executor, new SimpleMeterRegistry());
             ReflectionTestUtils.setField(ocr, "maxPages", 5);
             ReflectionTestUtils.setField(ocr, "maxParallelPages", 2);
             ReflectionTestUtils.setField(ocr, "maxRenderedPixelsPerPage", 2_000_000L);
@@ -488,7 +491,7 @@ class TesseractOcrImplTest {
         private final AtomicInteger invocationCounter = new AtomicInteger(0);
 
         private StubTesseractOcrImpl(Executor ocrExecutor, IntFunction<String> pageHandler) {
-            super(ocrExecutor, ocrExecutor);
+            super(ocrExecutor, ocrExecutor, new SimpleMeterRegistry());
             this.pageHandler = pageHandler;
         }
 

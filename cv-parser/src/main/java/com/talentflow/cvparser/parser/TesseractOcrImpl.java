@@ -1,6 +1,9 @@
 package com.talentflow.cvparser.parser;
 
 import com.talentflow.cvparser.shared.exception.ParsingException;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import net.sourceforge.tess4j.ITesseract;
 import net.sourceforge.tess4j.Tesseract;
@@ -15,7 +18,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -63,12 +65,27 @@ public class TesseractOcrImpl {
     @Value("${app.ocr.page-timeout-seconds:15}")
     private int ocrPageTimeoutSeconds;
 
+    private final Counter ocrPagesEngCounter;
+    private final Counter ocrPagesVieCounter;
+    private final Counter ocrPagesOtherCounter;
+
     public TesseractOcrImpl(
             @Qualifier("ocrExecutor") Executor ocrExecutor,
-            @Qualifier("ocrPageExecutor") Executor ocrPageExecutor
+            @Qualifier("ocrPageExecutor") Executor ocrPageExecutor,
+            MeterRegistry meterRegistry
     ) {
         this.ocrExecutor = ocrExecutor;
         this.ocrPageExecutor = ocrPageExecutor;
+
+        this.ocrPagesEngCounter = Counter.builder("cv_ocr_pages_total")
+                .tag("lang", "eng")
+                .register(meterRegistry);
+        this.ocrPagesVieCounter = Counter.builder("cv_ocr_pages_total")
+                .tag("lang", "vie")
+                .register(meterRegistry);
+        this.ocrPagesOtherCounter = Counter.builder("cv_ocr_pages_total")
+                .tag("lang", "other")
+                .register(meterRegistry);
     }
 
     @PostConstruct
@@ -239,7 +256,16 @@ public class TesseractOcrImpl {
     protected String runTesseract(BufferedImage image, Path filePath, int pageNumber) {
         ITesseract tesseract = borrowTesseract();
         try {
-            return tesseract.doOCR(image).trim();
+            String text = tesseract.doOCR(image).trim();
+            // Track OCR language distribution
+            if (language.contains("eng")) {
+                ocrPagesEngCounter.increment();
+            } else if (language.contains("vie")) {
+                ocrPagesVieCounter.increment();
+            } else {
+                ocrPagesOtherCounter.increment();
+            }
+            return text;
         } catch (TesseractException e) {
             log.warn("Tesseract failed on page {}. file=[{}], reason={}",
                     pageNumber, filePath.getFileName(), e.getMessage());
