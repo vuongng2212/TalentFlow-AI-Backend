@@ -37,7 +37,7 @@ public class DataExtractionUseCaseImpl implements DataExtractionUseCase {
     private final CvExtractorService cvExtractorService;
     private final RuleBasedExtractorService ruleBasedExtractorService;
 
-    @Value("${llm.timeout-seconds:30}")
+    @Value("${llm.extraction-timeout-seconds:20}")
     private long timeoutSeconds;
 
     @Value("${llm.min-text-length:50}")
