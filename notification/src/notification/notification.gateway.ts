@@ -21,7 +21,6 @@ import { extractSocketToken } from '../auth/ws-token.util';
 import { maskPii } from '../common/utils/pii-masker';
 import { MetricsService } from '../metrics/metrics.service';
 
-
 type SocketDataWithUser = {
   user?: AuthenticatedUser;
 };
