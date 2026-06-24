@@ -10,7 +10,6 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
-import org.apache.tika.Tika;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
@@ -23,8 +22,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.*;
 
 @Slf4j
 @Service
@@ -33,6 +31,7 @@ public class TesseractOcrImpl {
     private static final String MIME_PDF  = "application/pdf";
     private final Executor ocrExecutor;
     private final Executor ocrPageExecutor;
+    private BlockingQueue<ITesseract> tesseractPool;
     private static final String MIME_PNG  = "image/png";
     private static final String MIME_JPEG = "image/jpeg";
     private static final String MIME_TIFF = "image/tiff";
@@ -44,7 +43,7 @@ public class TesseractOcrImpl {
     @Value("${tesseract.language:eng+vie}")
     private String language;
 
-    @Value("${app.ocr.dpi:300}")
+    @Value("${app.ocr.dpi:150}")
     private int dpi;
 
     @Value("${app.ocr.max-pages:20}")
@@ -56,6 +55,14 @@ public class TesseractOcrImpl {
     @Value("${app.ocr.max-rendered-pixels-per-page:20000000}")
     private long maxRenderedPixelsPerPage;
 
+    @Value("${app.ocr.pool-borrow-timeout-seconds:30}")
+    private int poolBorrowTimeoutSeconds;
+
+    // Per-page OCR timeout. A hung Tesseract call (JNI stuck on corrupt image) would otherwise
+    // block an ocrPageExecutor thread indefinitely and stall the entire pipeline.
+    @Value("${app.ocr.page-timeout-seconds:15}")
+    private int ocrPageTimeoutSeconds;
+
     public TesseractOcrImpl(
             @Qualifier("ocrExecutor") Executor ocrExecutor,
             @Qualifier("ocrPageExecutor") Executor ocrPageExecutor
@@ -66,20 +73,45 @@ public class TesseractOcrImpl {
 
     @PostConstruct
     public void init() {
+        tesseractPool = new LinkedBlockingQueue<>(maxParallelPages);
+        for (int i = 0; i < maxParallelPages; i++) {
+            tesseractPool.offer(buildTesseract());
+        }
         log.info("Initialized TesseractOcrImpl. maxPages={}, maxParallelPages={}, maxRenderedPixelsPerPage={}, dpi={}, language={}, tessdataPath={}",
                 maxPages, maxParallelPages, maxRenderedPixelsPerPage, dpi, language, tessdataPath);
     }
 
-    @Async("ocrExecutor")
-    public CompletableFuture<String> extractText(Path filePath) {
-        log.info("OCR started. file=[{}], thread=[{}]",
-                filePath.getFileName(), Thread.currentThread().getName());
+    private ITesseract borrowTesseract() {
         try {
-            String mimeType = new Tika().detect(filePath.toFile());
+            ITesseract instance = tesseractPool.poll(poolBorrowTimeoutSeconds, TimeUnit.SECONDS);
+            if (instance == null) {
+                throw new ParsingException(
+                        "Tesseract pool exhausted: no instance available after "
+                        + poolBorrowTimeoutSeconds + " seconds. Possible pool exhaustion." ,
+                        "OCR_POOL_TIMEOUT"
+                );
+            }
+            return instance;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ParsingException("Interrupted while waiting for Tesseract instance", "OCR_INTERRUPTED");
+        }
+    }
+
+    private void returnTesseract(ITesseract instance) {
+        if (instance != null) {
+            tesseractPool.offer(instance);
+        }
+    }
+
+    @Async("ocrExecutor")
+    public CompletableFuture<String> extractText(Path filePath, String mimeType) {
+        log.info("OCR started. file=[{}], mimeType=[{}], thread=[{}]",
+                filePath.getFileName(), mimeType, Thread.currentThread().getName());
+        try {
             String result = switch (mimeType) {
-                case MIME_PDF                          -> ocrScannedPdf(filePath);
-                case MIME_PNG, MIME_JPEG, MIME_TIFF,
-                     MIME_BMP                          -> ocrImage(filePath);
+                case MIME_PDF                                    -> ocrScannedPdf(filePath);
+                case MIME_PNG, MIME_JPEG, MIME_TIFF, MIME_BMP   -> ocrImage(filePath);
                 default -> {
                     log.warn("OCR does not support MIME [{}]. file=[{}]",
                             mimeType, filePath.getFileName());
@@ -111,38 +143,79 @@ public class TesseractOcrImpl {
             }
 
             PDFRenderer renderer = new PDFRenderer(document);
-            int maxInFlight = Math.max(1, maxParallelPages);
-            List<String> pageTexts = new ArrayList<>(Collections.nCopies(pageCount, ""));
-            List<CompletableFuture<PageOcrResult>> pageTasks = new ArrayList<>(maxInFlight);
 
-            for (int i = 0; i < pageCount; i++) {
-                int pageIndex = i;
-                int pageNumber = i + 1;
-                validateRenderedPageSize(document.getPage(pageIndex), pageNumber, filePath);
-                BufferedImage image = renderer.renderImageWithDPI(pageIndex, dpi, ImageType.GRAY);
-                pageTasks.add(submitPageTask(image, filePath, pageNumber));
-
-                if (pageTasks.size() == maxInFlight) {
-                    collectBatchResults(pageTasks, pageTexts);
-                    pageTasks.clear();
+            // Phase A — render all pages serially on this thread.
+            // PDFRenderer is not thread-safe per PDDocument instance; owning the renderer
+            // on a single thread removes the need for any lock and eliminates the old
+            // per-batch blocking barrier that prevented cross-batch OCR concurrency.
+            List<BufferedImage> images = new ArrayList<>(pageCount);
+            try {
+                for (int i = 0; i < pageCount; i++) {
+                    validateRenderedPageSize(document.getPage(i), i + 1, filePath);
+                    images.add(renderPage(renderer, i));
                 }
+            } catch (Exception e) {
+                for (BufferedImage img : images) {
+                    if (img != null) {
+                        img.flush();
+                    }
+                }
+                throw e;
             }
 
-            if (!pageTasks.isEmpty()) {
-                collectBatchResults(pageTasks, pageTexts);
+            // Phase B — submit all OCR tasks concurrently now that images are ready.
+            List<CompletableFuture<PageOcrResult>> tasks = new ArrayList<>(pageCount);
+            for (int i = 0; i < pageCount; i++) {
+                final int pageIndex = i;
+                final BufferedImage image = images.get(i);
+                tasks.add(CompletableFuture.supplyAsync(
+                        () -> {
+                            try {
+                                return new PageOcrResult(pageIndex, runTesseract(image, filePath, pageIndex + 1));
+                            } finally {
+                                image.flush();
+                            }
+                        },
+                        ocrPageExecutor)
+                    .orTimeout(ocrPageTimeoutSeconds, TimeUnit.SECONDS)
+                    .exceptionally(ex -> {
+                        log.warn("OCR page {} exceeded {}s budget. file=[{}]",
+                                pageIndex + 1, ocrPageTimeoutSeconds, filePath.getFileName());
+                        // Replace the potentially hung Tesseract instance in the pool to prevent depletion
+                        if (tesseractPool != null) {
+                            tesseractPool.offer(buildTesseract());
+                        }
+                        image.flush();
+                        return new PageOcrResult(pageIndex, "");
+                    }));
+            }
+
+            CompletableFuture.allOf(tasks.toArray(new CompletableFuture[0])).join();
+
+            List<String> pageTexts = new ArrayList<>(Collections.nCopies(pageCount, ""));
+            for (CompletableFuture<PageOcrResult> task : tasks) {
+                PageOcrResult result = task.join();
+                pageTexts.set(result.pageIndex(), result.text());
             }
 
             return String.join("\n", pageTexts).trim();
         }
     }
 
+    protected BufferedImage renderPage(PDFRenderer renderer, int pageIndex) throws IOException {
+        return renderer.renderImageWithDPI(pageIndex, dpi, ImageType.GRAY);
+    }
+
     private String ocrImage(Path filePath) {
+        ITesseract tesseract = borrowTesseract();
         try {
-            return buildTesseract().doOCR(filePath.toFile()).trim();
+            return tesseract.doOCR(filePath.toFile()).trim();
         } catch (TesseractException e) {
             log.warn("Tesseract failed on image. file=[{}], reason={}",
                     filePath.getFileName(), e.getMessage());
             return "";
+        } finally {
+            returnTesseract(tesseract);
         }
     }
 
@@ -163,38 +236,23 @@ public class TesseractOcrImpl {
         }
     }
 
-    private CompletableFuture<PageOcrResult> submitPageTask(BufferedImage image, Path filePath, int pageNumber) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return new PageOcrResult(pageNumber - 1, runTesseract(image, filePath, pageNumber));
-            } finally {
-                image.flush();
-            }
-        }, ocrPageExecutor);
-    }
-
-    private void collectBatchResults(List<CompletableFuture<PageOcrResult>> pageTasks, List<String> pageTexts) {
-        CompletableFuture.allOf(pageTasks.toArray(new CompletableFuture[0])).join();
-        for (CompletableFuture<PageOcrResult> pageTask : pageTasks) {
-            PageOcrResult result = pageTask.join();
-            pageTexts.set(result.pageIndex(), result.text());
-        }
-    }
-
     protected String runTesseract(BufferedImage image, Path filePath, int pageNumber) {
+        ITesseract tesseract = borrowTesseract();
         try {
-            return buildTesseract().doOCR(image).trim();
+            return tesseract.doOCR(image).trim();
         } catch (TesseractException e) {
             log.warn("Tesseract failed on page {}. file=[{}], reason={}",
                     pageNumber, filePath.getFileName(), e.getMessage());
             return "";
+        } finally {
+            returnTesseract(tesseract);
         }
     }
 
     private record PageOcrResult(int pageIndex, String text) {
     }
 
-    private ITesseract buildTesseract() {
+    protected ITesseract buildTesseract() {
         ITesseract tesseract = new Tesseract();
         tesseract.setDatapath(tessdataPath);
         tesseract.setLanguage(language);
