@@ -9,7 +9,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { ConfigService } from '@nestjs/config';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger, Optional, UseGuards } from '@nestjs/common';
 import { Namespace, Server, Socket } from 'socket.io';
 import { AuthenticatedUser, JwtPayload } from '../auth/jwt.strategy';
 import { WsJwtGuard } from '../auth/ws-jwt.guard';
@@ -19,6 +19,8 @@ import {
 } from '../auth/jwt-user.util';
 import { extractSocketToken } from '../auth/ws-token.util';
 import { maskPii } from '../common/utils/pii-masker';
+import { MetricsService } from '../metrics/metrics.service';
+
 
 type SocketDataWithUser = {
   user?: AuthenticatedUser;
@@ -47,6 +49,7 @@ export class NotificationGateway
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    @Optional() private readonly metricsService?: MetricsService,
   ) {}
 
   afterInit(server: SocketIoServerOrNamespace): void {
@@ -91,6 +94,7 @@ export class NotificationGateway
     this.logger.log(
       `WebSocket connected for user=${maskPii(user.email)} socket=${client.id}`,
     );
+    this.metricsService?.wsClientConnected();
   }
 
   handleDisconnect(client: NotificationSocket): void {
@@ -98,6 +102,7 @@ export class NotificationGateway
     const userLabel = user ? maskPii(user.email) : 'unknown';
 
     this.logger.log(`WebSocket disconnected for user=${userLabel}`);
+    this.metricsService?.wsClientDisconnected();
   }
 
   @UseGuards(WsJwtGuard)
@@ -134,6 +139,7 @@ export class NotificationGateway
 
   sendToUser(userId: string, event: string, payload: unknown): void {
     this.server.to(this.getUserRoom(userId)).emit(event, payload);
+    this.metricsService?.recordNotificationSent('websocket', 'success');
   }
 
   private async authenticate(client: NotificationSocket): Promise<void> {

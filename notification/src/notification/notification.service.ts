@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 import { maskPii } from '../common/utils/pii-masker';
 import { EmailTemplateId } from '../email/email-template';
 import { EmailService } from '../email/email.service';
+import { MetricsService } from '../metrics/metrics.service';
 import {
   ApplicationCreatedEvent,
   CvFailedEvent,
@@ -20,39 +21,62 @@ import { NotificationEntity } from './entities/notification.entity';
 
 @Injectable()
 export class NotificationService {
-  constructor(private readonly emailService: EmailService) {}
+  constructor(
+    private readonly emailService: EmailService,
+    @Optional() private readonly metricsService?: MetricsService,
+  ) {}
+
+  private async executeWithMetrics<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const startMs = Date.now();
+    try {
+      const result = await operation();
+      const durationMs = Date.now() - startMs;
+      this.metricsService?.recordNotificationSent('email', 'success');
+      this.metricsService?.recordDeliveryDuration('email', durationMs);
+      return result;
+    } catch (error) {
+      const durationMs = Date.now() - startMs;
+      this.metricsService?.recordNotificationSent('email', 'failure');
+      this.metricsService?.recordDeliveryDuration('email', durationMs);
+      throw error;
+    }
+  }
 
   async send(
     dto: SendNotificationDto,
     user: AuthenticatedUser,
   ): Promise<NotificationResponseDto> {
-    const templateId = dto.templateId ?? this.resolveTemplateId(dto.type);
+    return this.executeWithMetrics(async () => {
+      const templateId = dto.templateId ?? this.resolveTemplateId(dto.type);
 
-    await this.emailService.sendEmail({
-      to: dto.to,
-      subject: dto.subject,
-      body: dto.body,
-      templateId: dto.body ? undefined : templateId,
-      templateData: dto.templateData,
+      await this.emailService.sendEmail({
+        to: dto.to,
+        subject: dto.subject,
+        body: dto.body,
+        templateId: dto.body ? undefined : templateId,
+        templateData: dto.templateData,
+      });
+
+      const now = new Date();
+      const notification: NotificationEntity = {
+        id: randomUUID(),
+        userId: user.userId,
+        type: dto.type,
+        channel: 'email',
+        title: dto.subject,
+        message: dto.body ?? `Email sent with template ${templateId}`,
+        recipient: dto.to,
+        subject: dto.subject,
+        status: 'sent',
+        read: false,
+        sentAt: now,
+        createdAt: now,
+      };
+
+      return this.toResponse(notification);
     });
-
-    const now = new Date();
-    const notification: NotificationEntity = {
-      id: randomUUID(),
-      userId: user.userId,
-      type: dto.type,
-      channel: 'email',
-      title: dto.subject,
-      message: dto.body ?? `Email sent with template ${templateId}`,
-      recipient: dto.to,
-      subject: dto.subject,
-      status: 'sent',
-      read: false,
-      sentAt: now,
-      createdAt: now,
-    };
-
-    return this.toResponse(notification);
   }
 
   getNotificationById(id: string, userId: string): NotificationResponseDto {
@@ -71,190 +95,200 @@ export class NotificationService {
   async sendFromEvent(
     event: NotificationSendEvent,
   ): Promise<{ success: boolean; messageId?: string }> {
-    const logger = new Logger(NotificationService.name);
-    logger.log(`Processing notification.send event for ${maskPii(event.to)}`);
+    return this.executeWithMetrics(async () => {
+      const logger = new Logger(NotificationService.name);
+      logger.log(`Processing notification.send event for ${maskPii(event.to)}`);
 
-    const templateId =
-      (event.templateId as EmailTemplateId | undefined) ??
-      (event.type !== 'email'
-        ? this.resolveTemplateId(event.type as SendNotificationType)
-        : undefined);
+      const templateId =
+        (event.templateId as EmailTemplateId | undefined) ??
+        (event.type !== 'email'
+          ? this.resolveTemplateId(event.type as SendNotificationType)
+          : undefined);
 
-    await this.emailService.sendEmail({
-      to: event.to,
-      subject: event.subject,
-      body: event.body,
-      templateId: event.body ? undefined : templateId,
-      templateData: event.templateData,
+      await this.emailService.sendEmail({
+        to: event.to,
+        subject: event.subject,
+        body: event.body,
+        templateId: event.body ? undefined : templateId,
+        templateData: event.templateData,
+      });
+
+      const now = new Date();
+      const notification: NotificationEntity = {
+        id: randomUUID(),
+        userId: event.userId,
+        type: event.type as SendNotificationType,
+        channel: 'email',
+        title: event.subject,
+        message: event.body ?? `Email sent with template ${templateId}`,
+        recipient: event.to,
+        subject: event.subject,
+        status: 'sent',
+        read: false,
+        sentAt: now,
+        createdAt: now,
+      };
+
+      logger.log(`sendFromEvent completed, notificationId=${notification.id}`);
+      return { success: true, messageId: notification.id };
     });
-
-    const now = new Date();
-    const notification: NotificationEntity = {
-      id: randomUUID(),
-      userId: event.userId,
-      type: event.type as SendNotificationType,
-      channel: 'email',
-      title: event.subject,
-      message: event.body ?? `Email sent with template ${templateId}`,
-      recipient: event.to,
-      subject: event.subject,
-      status: 'sent',
-      read: false,
-      sentAt: now,
-      createdAt: now,
-    };
-
-    logger.log(`sendFromEvent completed, notificationId=${notification.id}`);
-    return { success: true, messageId: notification.id };
   }
 
   async handleApplicationCreated(
     event: ApplicationCreatedEvent,
   ): Promise<{ success: boolean; messageId?: string }> {
-    const logger = new Logger(NotificationService.name);
-    logger.log(
-      `Processing application.created for applicant ${maskPii(event.applicantEmail)}`,
-    );
+    return this.executeWithMetrics(async () => {
+      const logger = new Logger(NotificationService.name);
+      logger.log(
+        `Processing application.created for applicant ${maskPii(event.applicantEmail)}`,
+      );
 
-    await this.emailService.sendEmail({
-      to: event.applicantEmail,
-      subject: `Application Received: ${event.jobTitle}`,
-      templateId: EmailTemplateId.APPLICATION_CONFIRMATION,
-      templateData: {
-        candidateName: event.applicantName,
-        jobTitle: event.jobTitle,
-      },
+      await this.emailService.sendEmail({
+        to: event.applicantEmail,
+        subject: `Application Received: ${event.jobTitle}`,
+        templateId: EmailTemplateId.APPLICATION_CONFIRMATION,
+        templateData: {
+          candidateName: event.applicantName,
+          jobTitle: event.jobTitle,
+        },
+      });
+
+      const notification: NotificationEntity = {
+        id: randomUUID(),
+        userId: event.applicantId,
+        type: 'application_confirmation',
+        channel: 'email',
+        title: `Application Received: ${event.jobTitle}`,
+        message: `Your application for ${event.jobTitle} has been received.`,
+        recipient: event.applicantEmail,
+        subject: `Application Received: ${event.jobTitle}`,
+        status: 'sent',
+        read: false,
+        sentAt: new Date(),
+        createdAt: new Date(),
+      };
+
+      logger.log(
+        `handleApplicationCreated completed, notificationId=${notification.id}`,
+      );
+      return { success: true, messageId: notification.id };
     });
-
-    const notification: NotificationEntity = {
-      id: randomUUID(),
-      userId: event.applicantId,
-      type: 'application_confirmation',
-      channel: 'email',
-      title: `Application Received: ${event.jobTitle}`,
-      message: `Your application for ${event.jobTitle} has been received.`,
-      recipient: event.applicantEmail,
-      subject: `Application Received: ${event.jobTitle}`,
-      status: 'sent',
-      read: false,
-      sentAt: new Date(),
-      createdAt: new Date(),
-    };
-
-    logger.log(
-      `handleApplicationCreated completed, notificationId=${notification.id}`,
-    );
-    return { success: true, messageId: notification.id };
   }
 
   async handleCvParsed(
     event: CvParsedEvent,
   ): Promise<{ success: boolean; messageId?: string }> {
-    const logger = new Logger(NotificationService.name);
-    logger.log(
-      `Processing cv.parsed for applicant ${maskPii(event.applicantEmail)}`,
-    );
+    return this.executeWithMetrics(async () => {
+      const logger = new Logger(NotificationService.name);
+      logger.log(
+        `Processing cv.parsed for applicant ${maskPii(event.applicantEmail)}`,
+      );
 
-    await this.emailService.sendEmail({
-      to: event.applicantEmail,
-      subject: `CV Processed: ${event.jobTitle}`,
-      templateId: EmailTemplateId.APPLICATION_RESULT,
-      templateData: {
-        candidateName: event.applicantName,
-        jobTitle: event.jobTitle,
-        result: `Score: ${event.score ?? 'N/A'}`,
-      },
+      await this.emailService.sendEmail({
+        to: event.applicantEmail,
+        subject: `CV Processed: ${event.jobTitle}`,
+        templateId: EmailTemplateId.APPLICATION_RESULT,
+        templateData: {
+          candidateName: event.applicantName,
+          jobTitle: event.jobTitle,
+          result: `Score: ${event.score ?? 'N/A'}`,
+        },
+      });
+
+      const notification: NotificationEntity = {
+        id: randomUUID(),
+        userId: event.applicationId,
+        type: 'application_result',
+        channel: 'email',
+        title: `CV Processed: ${event.jobTitle}`,
+        message: `Your CV for ${event.jobTitle} has been processed. Score: ${event.score ?? 'N/A'}`,
+        recipient: event.applicantEmail,
+        subject: `CV Processed: ${event.jobTitle}`,
+        status: 'sent',
+        read: false,
+        sentAt: new Date(),
+        createdAt: new Date(),
+      };
+
+      logger.log(`handleCvParsed completed, notificationId=${notification.id}`);
+      return { success: true, messageId: notification.id };
     });
-
-    const notification: NotificationEntity = {
-      id: randomUUID(),
-      userId: event.applicationId,
-      type: 'application_result',
-      channel: 'email',
-      title: `CV Processed: ${event.jobTitle}`,
-      message: `Your CV for ${event.jobTitle} has been processed. Score: ${event.score ?? 'N/A'}`,
-      recipient: event.applicantEmail,
-      subject: `CV Processed: ${event.jobTitle}`,
-      status: 'sent',
-      read: false,
-      sentAt: new Date(),
-      createdAt: new Date(),
-    };
-
-    logger.log(`handleCvParsed completed, notificationId=${notification.id}`);
-    return { success: true, messageId: notification.id };
   }
 
   async handleCvFailed(
     event: CvFailedEvent,
   ): Promise<{ success: boolean; messageId?: string }> {
-    const logger = new Logger(NotificationService.name);
-    logger.log(
-      `Processing cv.failed for applicant ${maskPii(event.applicantEmail)}`,
-    );
+    return this.executeWithMetrics(async () => {
+      const logger = new Logger(NotificationService.name);
+      logger.log(
+        `Processing cv.failed for applicant ${maskPii(event.applicantEmail)}`,
+      );
 
-    await this.emailService.sendEmail({
-      to: event.applicantEmail,
-      subject: `CV Processing Failed: ${event.jobTitle}`,
-      body: `Dear ${event.applicantName},\n\nWe were unable to process your CV for the ${event.jobTitle} position. Reason: ${event.reason}\n\nPlease try uploading again or contact support.`,
+      await this.emailService.sendEmail({
+        to: event.applicantEmail,
+        subject: `CV Processing Failed: ${event.jobTitle}`,
+        body: `Dear ${event.applicantName},\n\nWe were unable to process your CV for the ${event.jobTitle} position. Reason: ${event.reason}\n\nPlease try uploading again or contact support.`,
+      });
+
+      const notification: NotificationEntity = {
+        id: randomUUID(),
+        userId: event.applicationId,
+        type: 'application_result',
+        channel: 'email',
+        title: `CV Processing Failed: ${event.jobTitle}`,
+        message: `CV processing for ${event.jobTitle} failed: ${event.reason}`,
+        recipient: event.applicantEmail,
+        subject: `CV Processing Failed: ${event.jobTitle}`,
+        status: 'sent',
+        read: false,
+        sentAt: new Date(),
+        createdAt: new Date(),
+      };
+
+      logger.log(`handleCvFailed completed, notificationId=${notification.id}`);
+      return { success: true, messageId: notification.id };
     });
-
-    const notification: NotificationEntity = {
-      id: randomUUID(),
-      userId: event.applicationId,
-      type: 'application_result',
-      channel: 'email',
-      title: `CV Processing Failed: ${event.jobTitle}`,
-      message: `CV processing for ${event.jobTitle} failed: ${event.reason}`,
-      recipient: event.applicantEmail,
-      subject: `CV Processing Failed: ${event.jobTitle}`,
-      status: 'sent',
-      read: false,
-      sentAt: new Date(),
-      createdAt: new Date(),
-    };
-
-    logger.log(`handleCvFailed completed, notificationId=${notification.id}`);
-    return { success: true, messageId: notification.id };
   }
 
   async handleWorkspaceMemberInvited(
     event: WorkspaceMemberInvitedDto,
   ): Promise<{ success: boolean; messageId?: string }> {
-    const logger = new Logger(NotificationService.name);
-    logger.log(
-      `Processing workspace.member.invited for ${maskPii(event.email)} (workspace=${event.workspaceName})`,
-    );
+    return this.executeWithMetrics(async () => {
+      const logger = new Logger(NotificationService.name);
+      logger.log(
+        `Processing workspace.member.invited for ${maskPii(event.email)} (workspace=${event.workspaceName})`,
+      );
 
-    await this.emailService.sendEmail({
-      to: event.email,
-      subject: `You're invited to join ${event.workspaceName} on TalentFlow`,
-      templateId: EmailTemplateId.WORKSPACE_INVITATION,
-      templateData: {
-        workspaceName: event.workspaceName,
-        inviteUrl: event.inviteUrl,
-      },
+      await this.emailService.sendEmail({
+        to: event.email,
+        subject: `You're invited to join ${event.workspaceName} on TalentFlow`,
+        templateId: EmailTemplateId.WORKSPACE_INVITATION,
+        templateData: {
+          workspaceName: event.workspaceName,
+          inviteUrl: event.inviteUrl,
+        },
+      });
+
+      const notification: NotificationEntity = {
+        id: randomUUID(),
+        userId: event.email,
+        type: 'workspace_invitation',
+        channel: 'email',
+        title: `You're invited to join ${event.workspaceName}`,
+        message: `Accept the invitation to join ${event.workspaceName}.`,
+        recipient: event.email,
+        subject: `You're invited to join ${event.workspaceName} on TalentFlow`,
+        status: 'sent',
+        read: false,
+        sentAt: new Date(),
+        createdAt: new Date(),
+      };
+
+      logger.log(
+        `handleWorkspaceMemberInvited completed, notificationId=${notification.id}`,
+      );
+      return { success: true, messageId: notification.id };
     });
-
-    const notification: NotificationEntity = {
-      id: randomUUID(),
-      userId: event.email,
-      type: 'workspace_invitation',
-      channel: 'email',
-      title: `You're invited to join ${event.workspaceName}`,
-      message: `Accept the invitation to join ${event.workspaceName}.`,
-      recipient: event.email,
-      subject: `You're invited to join ${event.workspaceName} on TalentFlow`,
-      status: 'sent',
-      read: false,
-      sentAt: new Date(),
-      createdAt: new Date(),
-    };
-
-    logger.log(
-      `handleWorkspaceMemberInvited completed, notificationId=${notification.id}`,
-    );
-    return { success: true, messageId: notification.id };
   }
 
   private resolveTemplateId(
