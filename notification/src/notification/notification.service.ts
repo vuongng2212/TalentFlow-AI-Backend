@@ -26,9 +26,7 @@ export class NotificationService {
     @Optional() private readonly metricsService?: MetricsService,
   ) {}
 
-  private async executeWithMetrics<T>(
-    operation: () => Promise<T>,
-  ): Promise<T> {
+  private async executeWithMetrics<T>(operation: () => Promise<T>): Promise<T> {
     const startMs = Date.now();
     try {
       const result = await operation();

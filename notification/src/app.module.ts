@@ -7,7 +7,7 @@ import {
   WinstonModule,
 } from 'nest-winston';
 import * as winston from 'winston';
-import { ElasticsearchTransport } from 'winston-elasticsearch';
+import { ElasticsearchTransport, LogData } from 'winston-elasticsearch';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { appConfig } from './config/app.config';
@@ -72,9 +72,9 @@ import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
             buffering: true,
             bufferLimit: 100,
             flushInterval: 2000,
-            transformer: (logData) => ({
+            transformer: (logData: LogData) => ({
               '@timestamp': logData.timestamp || new Date().toISOString(),
-              message: logData.message,
+              message: String(logData.message),
               severity: logData.level,
               fields: {
                 service: appName,
@@ -88,7 +88,10 @@ import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
           });
 
           elkTransport.on('error', (error: Error) => {
-            console.error('[Notification] Elasticsearch transport error:', error);
+            console.error(
+              '[Notification] Elasticsearch transport error:',
+              error,
+            );
           });
 
           transports.push(elkTransport);
@@ -121,4 +124,3 @@ import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
   ],
 })
 export class AppModule {}
-
