@@ -13,8 +13,6 @@ import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 import java.io.ByteArrayInputStream;
@@ -29,7 +27,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,10 +51,10 @@ class S3StorageServiceTest {
 
     @Test
     void downloadSafelyCreatesTempFileInConfiguredDirectory() throws IOException {
-        when(s3Client.headObject(any(HeadObjectRequest.class)))
-                .thenReturn(HeadObjectResponse.builder().contentLength(3L).build());
         when(s3Client.getObject(any(GetObjectRequest.class)))
-                .thenReturn(responseStream(new ByteArrayInputStream("abc".getBytes(StandardCharsets.UTF_8))));
+                .thenReturn(responseStream(
+                        new ByteArrayInputStream("abc".getBytes(StandardCharsets.UTF_8)),
+                        3L));
 
         Path downloaded = service.downloadSafely("cvs/test.pdf");
 
@@ -69,20 +66,23 @@ class S3StorageServiceTest {
     }
 
     @Test
-    void downloadSafelyRejectsOversizeBeforeDownloading() {
+    void downloadSafelyRejectsOversizeBeforeDownloading() throws IOException {
         ReflectionTestUtils.setField(service, "maxSizeMb", 1);
-        when(s3Client.headObject(any(HeadObjectRequest.class)))
-                .thenReturn(HeadObjectResponse.builder().contentLength(2L * 1024 * 1024).build());
+        long oversizeBytes = 2L * 1024 * 1024;
+        when(s3Client.getObject(any(GetObjectRequest.class)))
+                .thenReturn(responseStream(InputStream.nullInputStream(), oversizeBytes));
 
         assertThatThrownBy(() -> service.downloadSafely("cvs/big.pdf"))
                 .isInstanceOf(PayloadTooLargeException.class);
 
-        verify(s3Client, never()).getObject(any(GetObjectRequest.class));
+        try (Stream<Path> files = Files.list(tempDir)) {
+            assertThat(files.toList()).isEmpty();
+        }
     }
 
     @Test
     void downloadSafelyThrowsNotFoundWhenObjectMissing() {
-        when(s3Client.headObject(any(HeadObjectRequest.class)))
+        when(s3Client.getObject(any(GetObjectRequest.class)))
                 .thenThrow(NoSuchKeyException.builder().message("missing").build());
 
         assertThatThrownBy(() -> service.downloadSafely("cvs/missing.pdf"))
@@ -92,8 +92,6 @@ class S3StorageServiceTest {
     @Test
     void downloadSafelyRejectsOversizeDuringStreamCopy() {
         ReflectionTestUtils.setField(service, "maxSizeMb", 1);
-        when(s3Client.headObject(any(HeadObjectRequest.class)))
-                .thenReturn(HeadObjectResponse.builder().contentLength(512L).build());
         when(s3Client.getObject(any(GetObjectRequest.class)))
                 .thenReturn(responseStream(new ByteArrayInputStream(new byte[1024 * 1024 + 1])));
 
@@ -109,15 +107,14 @@ class S3StorageServiceTest {
 
     @Test
     void downloadSafelyDeletesPartialFileWhenCopyFails() {
-        when(s3Client.headObject(any(HeadObjectRequest.class)))
-                .thenReturn(HeadObjectResponse.builder().contentLength(10L).build());
         InputStream brokenStream = new InputStream() {
             @Override
             public int read() throws IOException {
                 throw new IOException("boom");
             }
         };
-        when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(responseStream(brokenStream));
+        when(s3Client.getObject(any(GetObjectRequest.class)))
+                .thenReturn(responseStream(brokenStream));
 
         assertThatThrownBy(() -> service.downloadSafely("cvs/broken.pdf"))
                 .isInstanceOf(StorageReadException.class);
@@ -132,6 +129,13 @@ class S3StorageServiceTest {
     private ResponseInputStream<GetObjectResponse> responseStream(InputStream inputStream) {
         return new ResponseInputStream<>(
                 GetObjectResponse.builder().build(),
+                AbortableInputStream.create(inputStream)
+        );
+    }
+
+    private ResponseInputStream<GetObjectResponse> responseStream(InputStream inputStream, long contentLength) {
+        return new ResponseInputStream<>(
+                GetObjectResponse.builder().contentLength(contentLength).build(),
                 AbortableInputStream.create(inputStream)
         );
     }

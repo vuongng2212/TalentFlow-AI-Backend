@@ -11,8 +11,6 @@ import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 import java.io.IOException;
@@ -43,46 +41,49 @@ public class S3StorageService implements StorageService {
 
     @Override
     public Path downloadSafely(String fileKey) throws IOException {
-        // Validate key for path traversal and invalid characters
         fileValidator.validateFileKey(fileKey);
 
-        HeadObjectResponse head;
+        long maxSizeBytes = (long) maxSizeMb * 1024 * 1024;
+        Path tempFile = createTempFile();
+        boolean success = false;
+
         try {
-            head = s3Client.headObject(
-                    HeadObjectRequest.builder()
+            try (ResponseInputStream<GetObjectResponse> s3Stream = s3Client.getObject(
+                    GetObjectRequest.builder()
                             .bucket(bucket)
                             .key(fileKey)
-                            .build()
-            );
+                            .build())) {
+
+                Long contentLength = s3Stream.response().contentLength();
+                if (contentLength != null && contentLength > maxSizeBytes) {
+                    log.warn("File too large (pre-stream check). key={}, size={}, maxMb={}",
+                            fileKey, contentLength, maxSizeMb);
+                    throw new PayloadTooLargeException(
+                            "File size " + contentLength + " exceeds limit " + maxSizeBytes + " bytes");
+                }
+
+                copyWithLimit(s3Stream, tempFile, maxSizeBytes, fileKey);
+            }
+
+            success = true;
+            log.info("Downloaded s3://{}/{} → {}", bucket, fileKey, tempFile);
+            return tempFile;
+
         } catch (NoSuchKeyException e) {
             throw new StorageObjectNotFoundException("File not found: " + fileKey);
-        }
-
-        long maxSizeBytes = (long) maxSizeMb * 1024 * 1024;
-        if (head.contentLength() != null && head.contentLength() > maxSizeBytes) {
-            log.warn("File too large. key={}, size={}, maxMb={}",
-                    fileKey, head.contentLength(), maxSizeMb);
-            throw new PayloadTooLargeException(
-                    "File size " + head.contentLength() + " exceeds limit " + maxSizeBytes + " bytes");
-        }
-
-        Path tempFile = createTempFile();
-        try (ResponseInputStream<GetObjectResponse> s3Stream = s3Client.getObject(
-                GetObjectRequest.builder()
-                        .bucket(bucket)
-                        .key(fileKey)
-                        .build())) {
-            copyWithLimit(s3Stream, tempFile, maxSizeBytes, fileKey);
         } catch (PayloadTooLargeException e) {
-            Files.deleteIfExists(tempFile);
             throw e;
         } catch (IOException e) {
-            Files.deleteIfExists(tempFile);
             throw new StorageReadException("Failed to read file: " + fileKey, e);
+        } finally {
+            if (!success) {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException deleteEx) {
+                    log.warn("Failed to delete temp file after download failure: {}", tempFile, deleteEx);
+                }
+            }
         }
-
-        log.info("Downloaded s3://{}/{} → {}", bucket, fileKey, tempFile);
-        return tempFile;
     }
 
     private Path createTempFile() throws IOException {
@@ -102,7 +103,7 @@ public class S3StorageService implements StorageService {
                                long maxSizeBytes,
                                String fileKey) throws IOException {
         long totalBytes = 0;
-        byte[] buffer = new byte[8192];
+        byte[] buffer = new byte[65536];
 
         try (OutputStream outputStream = Files.newOutputStream(destination)) {
             int bytesRead;
