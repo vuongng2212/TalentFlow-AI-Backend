@@ -55,8 +55,7 @@ Pha 2 (Maintain & Scale):
      - Trích xuất email ứng viên từ trường `From` (Header email).
      - Trích xuất tên hiển thị của ứng viên từ trường `From`.
      - Lấy phần text thô của nội dung email (Body text) để gửi vào trường `coverLetter`.
-     - Phân tích tiêu đề (Subject) bằng Regex Node đơn giản để nhận diện từ khóa (ví dụ: `[NodeJS]`, `[React]`) và ánh xạ (map) sang `jobId` tương ứng.
-   - Gửi request `POST` dạng `multipart/form-data` sang endpoint `/applications/ingestion` của API Gateway kèm file CV gốc (binary) không thay đổi.
+   - Gửi request `POST` dạng `multipart/form-data` sang endpoint `/applications/ingestion` của API Gateway kèm file CV gốc (binary) không thay đổi. API Gateway / .NET Engine sẽ tự động thực hiện **Dynamic Job Mapping** (xem chi tiết tại Mục 3.7).
 
 **Đánh giá Pha 1**: Chạy thực tế được ngay. n8n đóng vai trò là "chất keo" kết dính tạm thời.
 
@@ -101,18 +100,53 @@ Pha 2 (Maintain & Scale):
 
 ---
 
+## 3.7. Cơ chế So khớp Job Động (Dynamic Job Mapping) & Email Forwarding
+
+Để hệ thống hoạt động linh hoạt và đảm bảo an toàn bảo mật dữ liệu khách hàng (B2B SaaS Multi-tenant), hệ thống áp dụng cơ chế **Email Forwarding** kết hợp với **Dynamic Job Mapping**:
+
+### A. Mô hình Email Forwarding (Kiến trúc phân phối hòm thư)
+* Thay vì yêu cầu HR phải cấp quyền OAuth đăng nhập Gmail/Outlook nội bộ (phức tạp, rủi ro bảo mật và đòi hỏi verify Google App rất lâu), chúng ta cung cấp cơ chế chuyển tiếp:
+  1. Mỗi Workspace (Khách hàng B2B) khi đăng ký hệ thống sẽ được sinh một email ảo (Alias email) duy nhất, định dạng: `<tenant-slug>@ingest.talentflow.ai` (ví dụ: `mindx@ingest.talentflow.ai`).
+  2. HR chỉ cần vào Gmail tuyển dụng của công ty (`jobs@mindx.edu.vn`) thiết lập một luật tự động chuyển tiếp (**Auto-Forwarding Rule**): *Mọi email gửi đến đây sẽ tự động chuyển tiếp sang `mindx@ingest.talentflow.ai`*.
+  3. **n8n Workflow** chỉ cần kết nối và lắng nghe duy nhất **một hòm thư tổng** (`@ingest.talentflow.ai`) của TalentFlow.
+
+### B. Nhận diện Workspace động
+* Khi có email được chuyển tiếp đến hòm thư tổng, n8n/Backend sẽ phân tích trường **`To` (Người nhận)** của Email:
+  * Trích xuất phần `<tenant-slug>` trước ký tự `@` (ví dụ: `mindx`).
+  * Thực hiện truy vấn cơ sở dữ liệu để ánh xạ (map) từ `<tenant-slug>` sang `Workspace ID` thực tế trong hệ thống.
+  * Đính kèm `Workspace ID` này vào header `x-workspace-id` khi gửi payload sang API Gateway.
+
+### C. Thuật toán so khớp Job động (Matching Algorithm)
+* Phía Backend lấy toàn bộ danh sách các Job đang hoạt động (`status = ACTIVE`) của Workspace đó kèm theo danh sách từ khóa được HR cấu hình sẵn: `subjectKeywords: string[]` (ví dụ: Job Java Backend lưu `["Java Backend", "Java Developer", "MindX - HCM - Java"]`).
+* So khớp chuỗi tiêu đề email nhận được với các keywords của từng Job.
+* **Độ ưu tiên (Specificity Priority):** Job nào có keyword khớp dài nhất (hoặc khớp chính xác nhất) sẽ được chọn.
+* *Trường hợp không khớp (Unassigned Route):* Nếu tiêu đề email không khớp với bất kỳ từ khóa nào, hệ thống tự động map vào **Job ảo mặc định (General Inbox)** của Workspace để HR tự phân loại bằng kéo-thả thủ công sau.
+
+---
+
+## 3.8. Xử lý các Tình huống Biên (Edge Cases & Solutions)
+
+| Phân loại | Tình huống biên (Edge Case) | Giải pháp xử lý |
+| :--- | :--- | :--- |
+| **Email Metadata** | **Email chuyển tiếp (Fwd Email)**<br>HR nhận CV ở mail cá nhân rồi forward sang mail tuyển dụng chung (Sender lúc này là HR). | Nếu tiêu đề email chứa tiền tố `Fwd:` hoặc `Forwarded:`, logic engine sẽ quét Email Body để trích xuất email của ứng viên gốc từ pattern `From: ... <email>`. |
+| **File Attachments** | **Nhiều file đính kèm trong 1 email**<br>Ứng viên gửi kèm CV, ảnh chân dung, Cover letter hoặc portfolio. | 1. Chỉ lọc và chấp nhận các định dạng `.pdf`, `.docx`, `.doc`. Bỏ qua ảnh, zip, xlsx.<br>2. Quét tên file để tìm các từ khóa chứa: `CV`, `Resume`, `Profile`, `Ung-tuyen`. Nếu vẫn không phân biệt được, đính kèm cả 2 file vào Application. |
+| **File Attachments** | **Ảnh chữ ký (Signature Logo) nhận nhầm là CV**<br>Các logo công ty, icon MXH đính kèm ở chân trang email. | Loại bỏ các file đính kèm có thuộc tính `Content-Disposition: inline` hoặc định dạng ảnh dưới kích thước nhất định (ví dụ < 100KB). |
+| **Cloud CV Link** | **Ứng viên không đính kèm file mà gửi link Cloud**<br>Gửi link Google Drive, OneDrive, Dropbox. | (Pha 3): Quét body email tìm link cloud và tải stream trực tiếp. Nếu link private, tạo Application ở trạng thái `Missing CV` và gửi mail thông báo yêu cầu ứng viên mở quyền truy cập. |
+
+---
+
 ### PHA 2: Chuyển đổi sang Maintain & Scale (Đưa .NET Engine vào)
 *Mục tiêu: Tối ưu kiến trúc, xử lý các logic nghiệp vụ phức tạp, giảm tải cho n8n, và tạo đất diễn cho dev .NET.*
 
 1. **C# Ingestion Engine (Dev .NET phát triển)**:
    - Phát triển một ứng dụng siêu nhẹ bằng **.NET 8 Minimal API** đóng gói trong Docker Container.
    - Nhận webhook thô từ n8n gồm email gửi, tiêu đề, nội dung email và file đính kèm.
-   - Triển khai **Rule Engine**:
-     - Đọc các rule cấu hình (từ Redis hoặc API Gateway) để map tiêu đề email tuyển dụng thành `jobId` tương ứng.
-     - Áp dụng thuật toán giải quyết conflict: ưu tiên độ ưu tiên (`priority`), nếu bằng nhau thì ưu tiên độ chi tiết của pattern (`specificity`).
+   - Triển khai **Rule Engine & Dynamic Job Mapping**:
+     - Lấy danh sách Job và `subjectKeywords` (qua cache Redis hoặc gọi API Gateway nội bộ).
+     - Thực hiện thuật toán so khớp tiêu đề email để map với `jobId` và xử lý các **Edge Cases** ở Mục 3.8.
    - Triển khai **Deduplication**:
      - Tính mã băm MD5/SHA256 của file CV.
-     - Kiểm tra trùng lặp trong cache Redis hoặc DB để loại bỏ ngay các CV nộp trùng lặp mà không cần gọi sang API Gateway.
+     - Lọc trùng theo cơ chế ở Mục 3.6 (System & Business Deduplication).
    - Sau khi xử lý sạch dữ liệu, gọi API `/applications/ingestion` của API Gateway để lưu trữ.
 
 2. **Cấu hình n8n (Dev .NET chuyển đổi)**:
