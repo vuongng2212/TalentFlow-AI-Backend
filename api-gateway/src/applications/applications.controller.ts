@@ -11,6 +11,9 @@ import {
   HttpStatus,
   UploadedFile,
   UseInterceptors,
+  UseGuards,
+  Headers,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -32,6 +35,11 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UploadCvDto } from './dto/upload-cv.dto';
 import { UploadCvResponseDto } from './dto/upload-cv-response.dto';
 import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
+import { IngestionDto } from './dto/ingestion.dto';
+import { IngestionResponseDto } from './dto/ingestion-response.dto';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
+import { Public } from '../auth/decorators/public.decorator';
+import { SkipWorkspaceContext } from '../auth/decorators/skip-workspace-context.decorator';
 
 interface UserPayload {
   id: string;
@@ -120,6 +128,67 @@ export class ApplicationsController {
     @Body() dto: UploadCvDto,
   ): Promise<UploadCvResponseDto> {
     return this.applicationsService.createWithCv(user.id, file, dto);
+  }
+
+  @Post('ingestion')
+  @Public()
+  @UseGuards(ApiKeyGuard)
+  @SkipWorkspaceContext()
+  @ApiOperation({
+    summary: 'Ingest an application from n8n email ingestion webhook',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file', 'jobId', 'candidateEmail', 'candidateName'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'CV file (PDF, DOCX up to 10MB)',
+        },
+        jobId: { type: 'string', format: 'uuid', description: 'Job ID' },
+        candidateEmail: {
+          type: 'string',
+          format: 'email',
+          description: "Candidate's email",
+        },
+        candidateName: { type: 'string', description: "Candidate's full name" },
+        coverLetter: {
+          type: 'string',
+          description: 'Optional cover letter text',
+        },
+        externalMessageId: {
+          type: 'string',
+          description: 'External email message ID',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Application ingested successfully',
+    type: IngestionResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Bad Request' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid API key' })
+  @ApiResponse({ status: 404, description: 'Job not found' })
+  @ApiResponse({ status: 409, description: 'Already applied to this job' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  async ingest(
+    @Headers('x-workspace-id') workspaceId: string,
+    @UploadedFile(FileValidationPipe) file: Express.Multer.File,
+    @Body() dto: IngestionDto,
+  ): Promise<IngestionResponseDto> {
+    if (!workspaceId) {
+      throw new BadRequestException('Missing x-workspace-id header');
+    }
+    return this.applicationsService.ingestApplication(workspaceId, file, dto);
   }
 
   @Get()

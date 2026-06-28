@@ -77,6 +77,9 @@ export const appConfigSchema = Joi.object({
     otherwise: Joi.boolean().default(true),
   }),
 
+  // n8n Email Ingestion
+  INGESTION_API_KEY: Joi.string().default('dev-ingestion-api-key-123'),
+
   // Workspace Multi-Tenancy
   WORKSPACE_INVITATION_EXPIRY_DAYS: Joi.number()
     .integer()

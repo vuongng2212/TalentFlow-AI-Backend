@@ -1037,4 +1037,223 @@ describe('ApplicationsService', () => {
       });
     });
   });
+
+  describe('ingestApplication', () => {
+    const mockIngestionDto = {
+      jobId: 'job-1',
+      candidateEmail: 'ingested@test.com',
+      candidateName: 'Ingested Candidate',
+      coverLetter: 'Interested',
+      externalMessageId: 'gmail-msg-123',
+    };
+
+    const mockFile = {
+      originalname: 'cv.pdf',
+      mimetype: 'application/pdf',
+      size: 2048,
+      buffer: Buffer.from('pdf-content'),
+    } as Express.Multer.File;
+
+    const mockIngestionCandidate = {
+      id: 'candidate-ingest-1',
+      email: 'ingested@test.com',
+      fullName: 'Ingested Candidate',
+      workspaceId: 'ws-test-1',
+    };
+
+    const mockCreatedIngestionApp = {
+      id: 'app-ingest-1',
+      jobId: 'job-1',
+      candidateId: 'candidate-ingest-1',
+      workspaceId: 'ws-test-1',
+      stage: ApplicationStage.APPLIED,
+      status: ApplicationStatus.SUBMITTED,
+      cvFileKey: 'cvs/file.pdf',
+      cvFileUrl: 'http://localhost/file.pdf',
+      coverLetter: 'Interested',
+      notes: null,
+      cvParsingStatus: CvParsingStatus.PENDING,
+      externalMessageId: 'gmail-msg-123',
+      aiScore: null,
+      scoringReasoning: null,
+      parsedData: null,
+      appliedAt: new Date(),
+      reviewedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+    };
+
+    it('should ingest an application successfully (happy path)', async () => {
+      prisma.application.findFirst.mockResolvedValue(null);
+      prisma.job.findFirst.mockResolvedValue(mockJob);
+      prisma.candidate.findUnique.mockResolvedValue(null);
+      prisma.candidate.create.mockResolvedValue(mockIngestionCandidate as any);
+      mockStorageService.upload.mockResolvedValue({
+        key: 'cvs/file.pdf',
+        url: 'http://localhost/file.pdf',
+      });
+      prisma.application.create.mockResolvedValue(mockCreatedIngestionApp);
+      mockQueueService.publishCvUploaded.mockResolvedValue(undefined);
+      mockQueueService.publishApplicationCreated.mockResolvedValue(undefined);
+
+      const result = await service.ingestApplication(
+        'ws-test-1',
+        mockFile,
+        mockIngestionDto,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.status).toBe('processing');
+      expect(result.data.applicationId).toBe('app-ingest-1');
+      expect(prisma.candidate.create).toHaveBeenCalledWith({
+        data: {
+          email: 'ingested@test.com',
+          fullName: 'Ingested Candidate',
+          workspaceId: 'ws-test-1',
+        },
+      });
+      expect(mockQueueService.publishCvUploaded).toHaveBeenCalledWith(
+        expect.objectContaining({
+          applicationId: 'app-ingest-1',
+          jobId: 'job-1',
+          bucket: 'talentflow-cvs',
+        }),
+      );
+    });
+
+    it('should block duplicate ingestion via externalMessageId (idempotency)', async () => {
+      prisma.application.findFirst.mockResolvedValue(mockCreatedIngestionApp);
+
+      await expect(
+        service.ingestApplication('ws-test-1', mockFile, mockIngestionDto),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw NotFoundException when job not found', async () => {
+      prisma.application.findFirst.mockResolvedValue(null);
+      prisma.job.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.ingestApplication('ws-test-1', mockFile, mockIngestionDto),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException when job is not OPEN', async () => {
+      prisma.application.findFirst.mockResolvedValue(null);
+      prisma.job.findFirst.mockResolvedValue({
+        ...mockJob,
+        status: JobStatus.CLOSED,
+      });
+
+      await expect(
+        service.ingestApplication('ws-test-1', mockFile, mockIngestionDto),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw ConflictException on business dedup (job + candidate)', async () => {
+      prisma.application.findFirst.mockResolvedValue(null);
+      prisma.job.findFirst.mockResolvedValue(mockJob);
+      prisma.candidate.findUnique.mockResolvedValue(
+        mockIngestionCandidate as any,
+      );
+      prisma.application.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(mockCreatedIngestionApp);
+
+      await expect(
+        service.ingestApplication('ws-test-1', mockFile, mockIngestionDto),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw InternalServerErrorException when storage upload fails', async () => {
+      prisma.application.findFirst.mockResolvedValue(null);
+      prisma.job.findFirst.mockResolvedValue(mockJob);
+      prisma.candidate.findUnique.mockResolvedValue(
+        mockIngestionCandidate as any,
+      );
+      mockStorageService.upload.mockRejectedValue(new Error('S3 error'));
+
+      const loggerSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation();
+
+      await expect(
+        service.ingestApplication('ws-test-1', mockFile, mockIngestionDto),
+      ).rejects.toThrow(InternalServerErrorException);
+
+      loggerSpy.mockRestore();
+    });
+
+    it('should rollback DB record and file when event publish fails', async () => {
+      prisma.application.findFirst.mockResolvedValue(null);
+      prisma.job.findFirst.mockResolvedValue(mockJob);
+      prisma.candidate.findUnique.mockResolvedValue(
+        mockIngestionCandidate as any,
+      );
+      mockStorageService.upload.mockResolvedValue({
+        key: 'cvs/file.pdf',
+        url: 'http://localhost/file.pdf',
+      });
+      prisma.application.create.mockResolvedValue(mockCreatedIngestionApp);
+      mockQueueService.publishCvUploaded.mockRejectedValue(
+        new Error('rabbitmq down'),
+      );
+      prisma.application.delete.mockResolvedValue({} as any);
+      mockStorageService.delete.mockResolvedValue(undefined);
+
+      const loggerSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation();
+
+      await expect(
+        service.ingestApplication('ws-test-1', mockFile, mockIngestionDto),
+      ).rejects.toThrow(InternalServerErrorException);
+
+      expect(prisma.application.delete).toHaveBeenCalledWith({
+        where: { id: 'app-ingest-1' },
+      });
+      expect(mockStorageService.delete).toHaveBeenCalledWith(
+        expect.stringContaining('cvs/'),
+      );
+
+      loggerSpy.mockRestore();
+    });
+
+    it('should skip idempotency check when externalMessageId is absent', async () => {
+      const dtoNoMsgId = {
+        ...mockIngestionDto,
+        externalMessageId: undefined,
+      };
+
+      prisma.application.findFirst.mockResolvedValue(null);
+      prisma.job.findFirst.mockResolvedValue(mockJob);
+      prisma.candidate.findUnique.mockResolvedValue(
+        mockIngestionCandidate as any,
+      );
+      prisma.application.findFirst.mockResolvedValue(null);
+      mockStorageService.upload.mockResolvedValue({
+        key: 'cvs/file.pdf',
+        url: 'http://localhost/file.pdf',
+      });
+      prisma.application.create.mockResolvedValue(mockCreatedIngestionApp);
+      mockQueueService.publishCvUploaded.mockResolvedValue(undefined);
+      mockQueueService.publishApplicationCreated.mockResolvedValue(undefined);
+
+      const result = await service.ingestApplication(
+        'ws-test-1',
+        mockFile,
+        dtoNoMsgId,
+      );
+
+      expect(result.success).toBe(true);
+      expect(prisma.application.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            externalMessageId: undefined,
+          }),
+        }),
+      );
+    });
+  });
 });

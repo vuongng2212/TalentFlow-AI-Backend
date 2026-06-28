@@ -28,9 +28,11 @@ import {
   EnrichedCvFailedEvent,
 } from '../queue/interfaces/cv-events.interface';
 import { UploadCvResponseDto } from './dto/upload-cv-response.dto';
+import { IngestionResponseDto } from './dto/ingestion-response.dto';
 import { generateCvFileKey } from '../common/utils/file-key.util';
 import { sanitizeError } from '../common/utils/sanitize.util';
 import { WorkspaceContextService } from '../common/services/workspace-context.service';
+import { IngestionDto } from './dto/ingestion.dto';
 
 interface ApplicationWithRelations {
   id: string;
@@ -90,7 +92,6 @@ export class ApplicationsService {
   ): Promise<ApplicationWithRelations> {
     const { jobId, ...data } = createApplicationDto;
 
-    // Check if job exists, is open, and belongs to the current workspace.
     const workspaceId = this.workspaceContext.getWorkspaceId();
     const job = await this.prisma.job.findFirst({
       where: { id: jobId, workspaceId },
@@ -104,7 +105,6 @@ export class ApplicationsService {
       throw new ForbiddenException('Cannot apply to a job that is not open');
     }
 
-    // Get user to find/create candidate
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -113,7 +113,6 @@ export class ApplicationsService {
       throw new NotFoundException('User not found');
     }
 
-    // Find or create candidate by email within the workspace.
     let candidate = await this.prisma.candidate.findUnique({
       where: {
         workspaceId_email: { workspaceId, email: user.email },
@@ -121,7 +120,6 @@ export class ApplicationsService {
     });
 
     if (!candidate) {
-      // Auto-create candidate from user data within the workspace.
       candidate = await this.prisma.candidate.create({
         data: {
           email: user.email,
@@ -131,7 +129,6 @@ export class ApplicationsService {
       });
     }
 
-    // Check if already applied
     const existingApplication = await this.prisma.application.findFirst({
       where: {
         jobId,
@@ -417,15 +414,12 @@ export class ApplicationsService {
       deletedAt: null,
     };
 
-    // Role-based filtering within the current workspace
     if (userRole === 'RECRUITER') {
-      // Recruiters see applications for their jobs within the workspace
       where.job = {
         workspaceId,
         createdById: userId,
       };
     } else if (userRole === 'INTERVIEWER') {
-      // Interviewers see applications they're assigned to
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (user) {
         const candidate = await this.prisma.candidate.findUnique({
@@ -438,7 +432,6 @@ export class ApplicationsService {
         }
       }
     } else if (userRole !== 'ADMIN') {
-      // Regular users see only their applications (via candidate lookup)
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (user) {
         const candidate = await this.prisma.candidate.findUnique({
@@ -451,8 +444,6 @@ export class ApplicationsService {
         }
       }
     }
-
-    // Admin can see all (still within the workspace)
 
     if (jobId) {
       where.jobId = jobId;
@@ -545,7 +536,6 @@ export class ApplicationsService {
       throw new NotFoundException(`Application with ID ${id} not found`);
     }
 
-    // Check access - need to find user's candidate to check if they're the applicant
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const candidate = user
       ? await this.prisma.candidate.findUnique({
@@ -577,7 +567,6 @@ export class ApplicationsService {
     const application = await this.findOne(id, userId, userRole);
     const workspaceId = this.workspaceContext.getWorkspaceId();
 
-    // Check user's candidate status
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const candidate = user
       ? await this.prisma.candidate.findUnique({
@@ -587,7 +576,6 @@ export class ApplicationsService {
         })
       : null;
 
-    // Only recruiter (job owner) or admin can update stage/status/notes
     const isRecruiter = application.job.createdById === userId;
     const isApplicant = candidate && application.candidateId === candidate.id;
     const isAdmin = userRole === 'ADMIN';
@@ -604,7 +592,6 @@ export class ApplicationsService {
       }
     }
 
-    // Applicants can only update cover letter
     if (!isRecruiter && !isAdmin && !isApplicant) {
       throw new ForbiddenException(
         'You do not have permission to update this application',
@@ -615,7 +602,6 @@ export class ApplicationsService {
       ...updateApplicationDto,
     };
 
-    // Set reviewedAt when status changes
     if (
       updateApplicationDto.status &&
       application.status !== updateApplicationDto.status
@@ -649,7 +635,6 @@ export class ApplicationsService {
   async remove(id: string, userId: string, userRole: string): Promise<void> {
     const application = await this.findOne(id, userId, userRole);
 
-    // Check user's candidate status
     const workspaceId = this.workspaceContext.getWorkspaceId();
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const candidate = user
@@ -660,7 +645,6 @@ export class ApplicationsService {
         })
       : null;
 
-    // Only applicant or admin can delete
     const isApplicant = candidate && application.candidateId === candidate.id;
     const isAdmin = userRole === 'ADMIN';
 
@@ -831,6 +815,178 @@ export class ApplicationsService {
         `Failed to publish enriched cv.failed event for application ${applicationId}`,
         sanitizeError(error),
       );
+    }
+  }
+
+  /**
+   * Ingest an application from n8n email ingestion webhook (Phase 1).
+   * Protected by ApiKeyGuard, receives workspaceId from x-workspace-id header.
+   */
+  async ingestApplication(
+    workspaceId: string,
+    file: Express.Multer.File,
+    dto: IngestionDto,
+  ): Promise<IngestionResponseDto> {
+    const {
+      jobId,
+      candidateEmail,
+      candidateName,
+      coverLetter,
+      externalMessageId,
+    } = dto;
+
+    // 1. Technical idempotency: block duplicate webhook retries
+    if (externalMessageId) {
+      const existingByMessageId = await this.prisma.application.findFirst({
+        where: { externalMessageId, deletedAt: null },
+      });
+
+      if (existingByMessageId) {
+        this.logger.warn(
+          `Duplicate ingestion blocked: externalMessageId=${externalMessageId} already processed`,
+        );
+        throw new ConflictException('This email has already been processed');
+      }
+    }
+
+    // 2. Verify the job exists and is open in the specified workspace
+    const job = await this.prisma.job.findFirst({
+      where: { id: jobId, workspaceId },
+    });
+
+    if (!job || job.deletedAt) {
+      throw new NotFoundException(`Job with ID ${jobId} not found`);
+    }
+
+    if (job.status !== 'OPEN') {
+      throw new ForbiddenException('Cannot apply to a job that is not open');
+    }
+
+    // 3. Find or create candidate in that workspace
+    let candidate = await this.prisma.candidate.findUnique({
+      where: {
+        workspaceId_email: { workspaceId, email: candidateEmail },
+      },
+    });
+
+    if (!candidate) {
+      candidate = await this.prisma.candidate.create({
+        data: {
+          email: candidateEmail,
+          fullName: candidateName,
+          workspaceId,
+        },
+      });
+    }
+
+    // 4. Business deduplication: prevent duplicate applications per job+candidate
+    const existingApplication = await this.prisma.application.findFirst({
+      where: {
+        jobId,
+        candidateId: candidate.id,
+        deletedAt: null,
+      },
+    });
+
+    if (existingApplication) {
+      throw new ConflictException('You have already applied to this job');
+    }
+
+    // 5. Upload CV to storage
+    const fileKey = generateCvFileKey(file.originalname);
+
+    let uploadUrl: string;
+    try {
+      const uploadResult = await this.storageService.upload(
+        file.buffer,
+        fileKey,
+        file.mimetype,
+      );
+      uploadUrl = uploadResult.url;
+    } catch (error) {
+      this.logger.error(
+        `Failed to upload CV file ${fileKey}`,
+        sanitizeError(error),
+      );
+      throw new InternalServerErrorException('Failed to upload CV file');
+    }
+
+    // 6. Create application in DB
+    let applicationId: string | null = null;
+
+    try {
+      const application = await this.prisma.application.create({
+        data: {
+          jobId,
+          candidateId: candidate.id,
+          workspaceId,
+          coverLetter,
+          cvFileKey: fileKey,
+          cvFileUrl: uploadUrl,
+          cvParsingStatus: 'PENDING',
+          externalMessageId,
+        },
+      });
+
+      applicationId = application.id;
+
+      // 7. Publish events to trigger CV parsing pipeline
+      await this.queueService.publishCvUploaded({
+        candidateId: candidate.id,
+        applicationId: application.id,
+        jobId,
+        bucket: this.storageService.getBucketName(),
+        fileKey,
+        mimeType: file.mimetype,
+        uploadedAt: new Date().toISOString(),
+      });
+
+      await this.queueService.publishApplicationCreated({
+        applicationId: application.id,
+        jobId,
+        jobTitle: job.title,
+        applicantId: candidate.id,
+        applicantEmail: candidate.email,
+        applicantName: candidate.fullName,
+        appliedAt: application.appliedAt.toISOString(),
+      });
+
+      return {
+        success: true,
+        data: {
+          applicationId: application.id,
+          candidateId: candidate.id,
+          status: 'processing',
+          message: 'CV ingestion initiated successfully.',
+        },
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to process ingestion for job ${jobId}, candidate ${candidate.id}, file ${fileKey}`,
+        sanitizeError(error),
+      );
+      // Rollback: delete the DB record then the uploaded file
+      if (applicationId) {
+        try {
+          await this.prisma.application.delete({
+            where: { id: applicationId },
+          });
+        } catch (rollbackError) {
+          this.logger.error(
+            `Failed to rollback application ${applicationId}`,
+            sanitizeError(rollbackError),
+          );
+        }
+      }
+      try {
+        await this.storageService.delete(fileKey);
+      } catch (rollbackError) {
+        this.logger.error(
+          `Failed to rollback uploaded file ${fileKey}`,
+          sanitizeError(rollbackError),
+        );
+      }
+      throw new InternalServerErrorException('Failed to process CV ingestion');
     }
   }
 }
