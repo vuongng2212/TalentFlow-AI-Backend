@@ -16,9 +16,16 @@ export const ROUTING_KEY_CV_FAILED = 'cv.failed';
 
 // Routing keys - Application events
 export const ROUTING_KEY_APPLICATION_CREATED = 'application.created';
+export const ROUTING_KEY_APPLICATION_CV_PROCESSED_SUCCESSFULLY =
+  'application.cv_processed_successfully';
+export const ROUTING_KEY_APPLICATION_CV_PROCESSED_FAILED =
+  'application.cv_processed_failed';
 
 // Routing keys - Notification events
 export const ROUTING_KEY_NOTIFICATION_SEND = 'notification.send';
+
+// Routing keys - Workspace events
+export const ROUTING_KEY_WORKSPACE_MEMBER_INVITED = 'workspace.member.invited';
 
 /** @deprecated Use TALENTFLOW_EVENTS_EXCHANGE instead */
 export const CV_EVENTS_EXCHANGE = TALENTFLOW_EVENTS_EXCHANGE;

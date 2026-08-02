@@ -1,14 +1,26 @@
+import {
+  ROUTING_KEY_APPLICATION_CV_PROCESSED_SUCCESSFULLY,
+  ROUTING_KEY_APPLICATION_CV_PROCESSED_FAILED,
+} from './constants/queue.constants';
+/* eslint-disable @typescript-eslint/unbound-method */
+
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { connect } from 'amqplib';
+import { ApplicationsService } from '../applications/applications.service';
 import { QueueService } from './queue.service';
 import {
   TALENTFLOW_EVENTS_EXCHANGE,
   CV_PARSING_DLQ,
   CV_PROCESSING_QUEUE,
   ROUTING_KEY_CV_UPLOADED,
+  ROUTING_KEY_APPLICATION_CREATED,
+  ROUTING_KEY_NOTIFICATION_SEND,
+  ROUTING_KEY_CV_PARSED,
+  ROUTING_KEY_CV_FAILED,
 } from './constants/queue.constants';
+import { NotificationType } from './interfaces/notification-send-event.interface';
 
 const mockChannel = {
   assertExchange: jest.fn(),
@@ -17,6 +29,9 @@ const mockChannel = {
   publish: jest.fn(),
   checkQueue: jest.fn(),
   close: jest.fn(),
+  consume: jest.fn(),
+  ack: jest.fn(),
+  nack: jest.fn(),
 };
 
 const mockConnection = {
@@ -35,6 +50,25 @@ const mockEvent = {
   fileKey: 'cvs/key.pdf',
   mimeType: 'application/pdf',
   uploadedAt: new Date().toISOString(),
+};
+
+const mockAppCreatedEvent = {
+  applicationId: 'application-1',
+  jobId: 'job-1',
+  jobTitle: 'Software Engineer',
+  applicantId: 'candidate-1',
+  applicantEmail: 'test@example.com',
+  applicantName: 'John Doe',
+  appliedAt: new Date().toISOString(),
+};
+
+const mockNotificationSendEvent = {
+  userId: 'user-1',
+  to: 'test@example.com',
+  subject: 'Test Notification',
+  type: NotificationType.APPLICATION_CONFIRMATION,
+  templateId: 'application-confirmation',
+  templateData: { applicantName: 'John Doe' },
 };
 
 jest.mock('amqplib', () => ({
@@ -56,6 +90,7 @@ function getPrivateAsyncMethod<TResult>(
 
 describe('QueueService', () => {
   let service: QueueService;
+  let applicationsService: ApplicationsService;
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -81,6 +116,13 @@ describe('QueueService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        {
+          provide: ApplicationsService,
+          useValue: {
+            handleCvParsedEvent: jest.fn(),
+            handleCvFailedEvent: jest.fn(),
+          },
+        },
         QueueService,
         {
           provide: ConfigService,
@@ -92,6 +134,7 @@ describe('QueueService', () => {
     }).compile();
 
     service = module.get<QueueService>(QueueService);
+    applicationsService = module.get<ApplicationsService>(ApplicationsService);
   });
 
   afterEach(() => {
@@ -109,23 +152,39 @@ describe('QueueService', () => {
       }),
     );
 
-    expect(mockChannel.assertExchange).toHaveBeenCalledWith(
+    expect(jest.mocked(mockChannel.assertExchange)).toHaveBeenCalledWith(
       TALENTFLOW_EVENTS_EXCHANGE,
       'topic',
       { durable: true },
     );
-    expect(mockChannel.assertQueue).toHaveBeenCalledWith(CV_PARSING_DLQ, {
-      durable: true,
-    });
-    expect(mockChannel.assertQueue).toHaveBeenCalledWith(CV_PROCESSING_QUEUE, {
-      durable: true,
-      deadLetterExchange: '',
-      deadLetterRoutingKey: CV_PARSING_DLQ,
-    });
-    expect(mockChannel.bindQueue).toHaveBeenCalledWith(
+    expect(jest.mocked(mockChannel.assertQueue)).toHaveBeenCalledWith(
+      CV_PARSING_DLQ,
+      {
+        durable: true,
+      },
+    );
+    expect(jest.mocked(mockChannel.assertQueue)).toHaveBeenCalledWith(
+      CV_PROCESSING_QUEUE,
+      {
+        durable: true,
+        deadLetterExchange: '',
+        deadLetterRoutingKey: CV_PARSING_DLQ,
+      },
+    );
+    expect(jest.mocked(mockChannel.bindQueue)).toHaveBeenCalledWith(
       CV_PROCESSING_QUEUE,
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_UPLOADED,
+    );
+    expect(jest.mocked(mockChannel.bindQueue)).toHaveBeenCalledWith(
+      CV_PROCESSING_QUEUE,
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_CV_PARSED,
+    );
+    expect(jest.mocked(mockChannel.bindQueue)).toHaveBeenCalledWith(
+      CV_PROCESSING_QUEUE,
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_CV_FAILED,
     );
   });
 
@@ -134,7 +193,7 @@ describe('QueueService', () => {
 
     await service.publishCvUploaded(mockEvent);
 
-    expect(mockChannel.publish).toHaveBeenCalledWith(
+    expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_UPLOADED,
       expect.any(Buffer),
@@ -145,18 +204,94 @@ describe('QueueService', () => {
     );
   });
 
+  it('should publish application.created event', async () => {
+    await service.onModuleInit();
+
+    await service.publishApplicationCreated(mockAppCreatedEvent);
+
+    expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_APPLICATION_CREATED,
+      expect.any(Buffer),
+      expect.objectContaining({
+        persistent: true,
+        contentType: 'application/json',
+      }),
+    );
+  });
+
+  it('should publish notification.send event', async () => {
+    await service.onModuleInit();
+
+    await service.publishNotificationSend(mockNotificationSendEvent);
+
+    expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_NOTIFICATION_SEND,
+      expect.any(Buffer),
+      expect.objectContaining({
+        persistent: true,
+        contentType: 'application/json',
+      }),
+    );
+  });
+
+  it('should publish enriched cv.parsed event', async () => {
+    await service.onModuleInit();
+
+    const event = {
+      applicationId: 'app-1',
+      recruiterId: 'rec-1',
+      jobTitle: 'Title',
+      applicantEmail: 'a@a.com',
+      applicantName: 'A Name',
+      aiScore: 90,
+      timestamp: new Date().toISOString(),
+    };
+    await service.publishEnrichedCvParsed(event);
+
+    expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_APPLICATION_CV_PROCESSED_SUCCESSFULLY,
+      expect.any(Buffer),
+      expect.any(Object),
+    );
+  });
+
+  it('should publish enriched cv.failed event', async () => {
+    await service.onModuleInit();
+
+    const event = {
+      applicationId: 'app-1',
+      recruiterId: 'rec-1',
+      jobTitle: 'Title',
+      applicantEmail: 'a@a.com',
+      applicantName: 'A Name',
+      errorMessage: 'failed',
+      timestamp: new Date().toISOString(),
+    };
+    await service.publishEnrichedCvFailed(event);
+
+    expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_APPLICATION_CV_PROCESSED_FAILED,
+      expect.any(Buffer),
+      expect.any(Object),
+    );
+  });
+
   it('should report healthy after init', async () => {
     await service.onModuleInit();
 
-    await expect(service.isHealthy()).resolves.toBe(true);
+    await expect(jest.mocked(service.isHealthy())).resolves.toBe(true);
   });
 
   it('should close channel and connection on destroy', async () => {
     await service.onModuleInit();
     await service.onModuleDestroy();
 
-    expect(mockChannel.close).toHaveBeenCalled();
-    expect(mockConnection.close).toHaveBeenCalled();
+    expect(jest.mocked(mockChannel.close)).toHaveBeenCalled();
+    expect(jest.mocked(mockConnection.close)).toHaveBeenCalled();
   });
 
   it('should log and continue when module init fails', async () => {
@@ -166,7 +301,7 @@ describe('QueueService', () => {
       .mockImplementation(() => undefined);
     (connect as jest.Mock).mockRejectedValueOnce(new Error('connect failed'));
 
-    await expect(service.onModuleInit()).resolves.toBeUndefined();
+    await expect(jest.mocked(service.onModuleInit())).resolves.toBeUndefined();
 
     expect(logErrorSpy).toHaveBeenCalledWith(
       'Failed to connect to RabbitMQ',
@@ -179,9 +314,9 @@ describe('QueueService', () => {
       .spyOn(Logger.prototype, 'error')
       .mockImplementation(() => undefined);
 
-    await expect(service.publishCvUploaded(mockEvent)).rejects.toThrow(
-      'RabbitMQ channel not initialized',
-    );
+    await expect(
+      jest.mocked(service.publishCvUploaded(mockEvent)),
+    ).rejects.toThrow('RabbitMQ channel not initialized');
 
     expect(logErrorSpy).toHaveBeenCalledWith(
       'Cannot publish: channel not initialized',
@@ -196,9 +331,9 @@ describe('QueueService', () => {
     await service.onModuleInit();
     mockChannel.publish.mockReturnValueOnce(false);
 
-    await expect(service.publishCvUploaded(mockEvent)).rejects.toThrow(
-      'RabbitMQ outbound buffer full',
-    );
+    await expect(
+      jest.mocked(service.publishCvUploaded(mockEvent)),
+    ).rejects.toThrow('RabbitMQ outbound buffer full');
 
     expect(logErrorSpy).toHaveBeenCalledWith(
       'Message was not published - channel buffer full',
@@ -242,13 +377,12 @@ describe('QueueService', () => {
 
     const errorListener = mockConnection.on.mock.calls.find(
       ([event]: [string]) => event === 'error',
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     )?.[1] as ((err: Error) => void) | undefined;
 
     expect(errorListener).toBeDefined();
     errorListener?.(new Error('socket closed'));
 
-    await expect(service.isHealthy()).resolves.toBe(false);
+    await expect(jest.mocked(service.isHealthy())).resolves.toBe(false);
     expect(logErrorSpy).toHaveBeenCalledWith(
       'RabbitMQ connection error',
       expect.any(Object),
@@ -260,13 +394,12 @@ describe('QueueService', () => {
 
     const closeListener = mockConnection.on.mock.calls.find(
       ([event]: [string]) => event === 'close',
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     )?.[1] as (() => void) | undefined;
 
     expect(closeListener).toBeDefined();
     closeListener?.();
 
-    await expect(service.isHealthy()).resolves.toBe(false);
+    await expect(jest.mocked(service.isHealthy())).resolves.toBe(false);
   });
 
   it('should log error when destroy fails', async () => {
@@ -276,7 +409,9 @@ describe('QueueService', () => {
       .mockImplementation(() => undefined);
     mockChannel.close.mockRejectedValueOnce(new Error('close failed'));
 
-    await expect(service.onModuleDestroy()).resolves.toBeUndefined();
+    await expect(
+      jest.mocked(service.onModuleDestroy()),
+    ).resolves.toBeUndefined();
 
     expect(logErrorSpy).toHaveBeenCalledWith(
       'Error closing RabbitMQ connection',
@@ -331,6 +466,42 @@ describe('QueueService', () => {
         'Failed to get queue stats',
         expect.any(Object),
       );
+    });
+  });
+
+  describe('setupConsumers', () => {
+    it('should route cv.parsed message to handleCvParsedEvent', async () => {
+      await service.onModuleInit();
+
+      const consumeCallback = mockChannel.consume.mock.calls[0][1];
+      const mockMsg = {
+        fields: { routingKey: ROUTING_KEY_CV_PARSED },
+        content: Buffer.from(JSON.stringify({ applicationId: 'app-1' })),
+      };
+
+      await consumeCallback(mockMsg);
+
+      expect(applicationsService.handleCvParsedEvent).toHaveBeenCalledWith({
+        applicationId: 'app-1',
+      });
+      expect(mockChannel.ack).toHaveBeenCalledWith(mockMsg);
+    });
+
+    it('should route cv.failed message to handleCvFailedEvent', async () => {
+      await service.onModuleInit();
+
+      const consumeCallback = mockChannel.consume.mock.calls[0][1];
+      const mockMsg = {
+        fields: { routingKey: ROUTING_KEY_CV_FAILED },
+        content: Buffer.from(JSON.stringify({ applicationId: 'app-1' })),
+      };
+
+      await consumeCallback(mockMsg);
+
+      expect(applicationsService.handleCvFailedEvent).toHaveBeenCalledWith({
+        applicationId: 'app-1',
+      });
+      expect(mockChannel.ack).toHaveBeenCalledWith(mockMsg);
     });
   });
 });

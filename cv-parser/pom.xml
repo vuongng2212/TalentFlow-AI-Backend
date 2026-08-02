@@ -172,6 +172,34 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <configuration>
+                    <excludes>
+                        <exclude>com/talentflow/cvparser/CvParserApplication.class</exclude>
+                        <exclude>com/talentflow/cvparser/shared/config/**</exclude>
+                        <exclude>com/talentflow/cvparser/shared/exception/**</exclude>
+                        <exclude>com/talentflow/cvparser/shared/dto/**</exclude>
+                        <exclude>com/talentflow/cvparser/repository/**</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 

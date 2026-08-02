@@ -32,11 +32,11 @@ describe('sanitize', () => {
 
     const output = sanitize(input);
 
-    expect(output.password).toBe('[REDACTED]');
-    expect(output.token).toBe('[REDACTED]');
-    expect(output.apiKey).toBe('[REDACTED]');
-    expect(output.secret).toBe('[REDACTED]');
-    expect(output.username).toBe('admin');
+    expect(jest.mocked(output.password)).toBe('[REDACTED]');
+    expect(jest.mocked(output.token)).toBe('[REDACTED]');
+    expect(jest.mocked(output.apiKey)).toBe('[REDACTED]');
+    expect(jest.mocked(output.secret)).toBe('[REDACTED]');
+    expect(jest.mocked(output.username)).toBe('admin');
   });
 
   it('should handle nested objects', () => {
@@ -52,8 +52,8 @@ describe('sanitize', () => {
 
     const output = sanitize(input);
 
-    expect(output.user.name).toBe('John');
-    expect(output.user.credentials).toBe('[REDACTED]'); // Whole object redacted
+    expect(jest.mocked(output.user.name)).toBe('John');
+    expect(jest.mocked(output.user.credentials)).toBe('[REDACTED]'); // Whole object redacted
   });
 
   it('should handle arrays', () => {
@@ -65,10 +65,10 @@ describe('sanitize', () => {
     const output = sanitize(input);
 
     expect(output).toHaveLength(2);
-    expect(output[0].id).toBe(1);
-    expect(output[0].secret).toBe('[REDACTED]');
-    expect(output[1].id).toBe(2);
-    expect(output[1].secret).toBe('[REDACTED]');
+    expect(jest.mocked(output[0].id)).toBe(1);
+    expect(jest.mocked(output[0].secret)).toBe('[REDACTED]');
+    expect(jest.mocked(output[1].id)).toBe(2);
+    expect(jest.mocked(output[1].secret)).toBe('[REDACTED]');
   });
 
   it('should handle arrays of primitives', () => {
@@ -100,10 +100,10 @@ describe('sanitize', () => {
 
     const output = sanitize(input);
 
-    expect(output.PASSWORD).toBe('[REDACTED]');
-    expect(output.Token).toBe('[REDACTED]');
-    expect(output.apiKey).toBe('[REDACTED]');
-    expect(output.API_KEY).toBe('[REDACTED]');
+    expect(jest.mocked(output.PASSWORD)).toBe('[REDACTED]');
+    expect(jest.mocked(output.Token)).toBe('[REDACTED]');
+    expect(jest.mocked(output.apiKey)).toBe('[REDACTED]');
+    expect(jest.mocked(output.API_KEY)).toBe('[REDACTED]');
   });
 
   it('should prevent infinite recursion with max depth', () => {
@@ -121,7 +121,7 @@ describe('sanitize', () => {
 
     // Should stop at max depth
     expect(output).toBeDefined();
-    expect(output.level).toBe(1);
+    expect(jest.mocked(output.level)).toBe(1);
   });
 
   it('should redact partial matches in keys', () => {
@@ -133,9 +133,9 @@ describe('sanitize', () => {
 
     const output = sanitize(input);
 
-    expect(output.userPassword).toBe('[REDACTED]');
-    expect(output.access_token).toBe('[REDACTED]');
-    expect(output.myApiKey).toBe('[REDACTED]');
+    expect(jest.mocked(output.userPassword)).toBe('[REDACTED]');
+    expect(jest.mocked(output.access_token)).toBe('[REDACTED]');
+    expect(jest.mocked(output.myApiKey)).toBe('[REDACTED]');
   });
 });
 
@@ -195,17 +195,19 @@ describe('sanitizeError', () => {
     );
     const output = sanitizeError(error);
 
-    expect(output.name).toBe('Error');
-    expect(output.message).toContain('postgres://user:[REDACTED]@localhost');
-    expect(output.stack).toBeDefined();
+    expect(jest.mocked(output.name)).toBe('Error');
+    expect(jest.mocked(output.message)).toContain(
+      'postgres://user:[REDACTED]@localhost',
+    );
+    expect(jest.mocked(output.stack)).toBeDefined();
   });
 
   it('should sanitize string errors', () => {
     const error = 'Auth failed: token abc123';
     const output = sanitizeError(error);
 
-    expect(output.message).toBeDefined();
-    expect(typeof output.message).toBe('string');
+    expect(jest.mocked(output.message)).toBeDefined();
+    expect(jest.mocked(typeof output.message)).toBe('string');
   });
 
   it('should sanitize object errors', () => {
@@ -217,9 +219,9 @@ describe('sanitizeError', () => {
 
     const output = sanitizeError(error);
 
-    expect(output.code).toBe('AUTH_ERROR');
-    expect(output.password).toBe('[REDACTED]');
-    expect(output.token).toBe('[REDACTED]');
+    expect(jest.mocked(output.code)).toBe('AUTH_ERROR');
+    expect(jest.mocked(output.password)).toBe('[REDACTED]');
+    expect(jest.mocked(output.token)).toBe('[REDACTED]');
   });
 
   it('should handle null/undefined errors', () => {
@@ -231,8 +233,8 @@ describe('sanitizeError', () => {
     const error = new Error('Invalid token: Bearer abc123xyz789');
     const output = sanitizeError(error);
 
-    expect(output.message).toContain('Bearer [REDACTED]');
-    expect(output.message).not.toContain('abc123xyz789');
+    expect(jest.mocked(output.message)).toContain('Bearer [REDACTED]');
+    expect(jest.mocked(output.message)).not.toContain('abc123xyz789');
   });
 
   it('should redact database credentials in stack traces', () => {
@@ -243,9 +245,9 @@ describe('sanitizeError', () => {
 
     const output = sanitizeError(error);
 
-    expect(output.stack).toContain(
+    expect(jest.mocked(output.stack)).toContain(
       'postgresql://admin:[REDACTED]@db.example.com',
     );
-    expect(output.stack).not.toContain('secretpass');
+    expect(jest.mocked(output.stack)).not.toContain('secretpass');
   });
 });

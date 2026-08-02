@@ -1,0 +1,108 @@
+groups:
+  - name: talentflow.api-gateway
+    interval: 30s
+    rules:
+      # ── High error rate ─────────────────────────────────────────────
+      - alert: ApiGatewayHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="api-gateway", status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{job="api-gateway"}[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: api-gateway
+        annotations:
+          summary: "API Gateway error rate > 5%"
+          description: "Error rate is {{ printf \"%.1f\" (mul $value 100) }}% over the last 5 minutes."
+
+      # ── High P99 latency ────────────────────────────────────────────
+      - alert: ApiGatewayHighP99Latency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="api-gateway"}[5m])) by (le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: api-gateway
+        annotations:
+          summary: "API Gateway P99 latency > 2s"
+          description: "P99 latency is {{ printf \"%.2f\" $value }}s."
+
+      # ── Service down ────────────────────────────────────────────────
+      - alert: ApiGatewayDown
+        expr: up{job="api-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: api-gateway
+        annotations:
+          summary: "API Gateway is unreachable"
+          description: "Prometheus cannot scrape the API Gateway metrics endpoint."
+
+  - name: talentflow.notification
+    interval: 30s
+    rules:
+      # ── Notification failure rate ────────────────────────────────────
+      - alert: NotificationHighFailureRate
+        expr: |
+          sum(rate(notification_sent_total{status="failure"}[5m]))
+          /
+          (sum(rate(notification_sent_total[5m])) + 0.001) > 0.10
+        for: 3m
+        labels:
+          severity: warning
+          service: notification
+        annotations:
+          summary: "Notification failure rate > 10%"
+          description: "{{ printf \"%.1f\" (mul $value 100) }}% of notifications are failing."
+
+      # ── Service down ────────────────────────────────────────────────
+      - alert: NotificationDown
+        expr: up{job="notification"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: notification
+        annotations:
+          summary: "Notification service is unreachable"
+          description: "Prometheus cannot scrape the Notification metrics endpoint."
+
+  - name: talentflow.queue
+    interval: 60s
+    rules:
+      # ── RabbitMQ queue depth ─────────────────────────────────────────
+      - alert: RabbitMQQueueDepthHigh
+        expr: sum(rabbitmq_queue_messages) > 200
+        for: 5m
+        labels:
+          severity: warning
+          service: rabbitmq
+        annotations:
+          summary: "RabbitMQ queue depth > 200 messages"
+          description: "Queue currently has {{ $value }} unprocessed messages — CV Parser may be lagging."
+
+      - alert: RabbitMQQueueDepthCritical
+        expr: sum(rabbitmq_queue_messages) > 500
+        for: 2m
+        labels:
+          severity: critical
+          service: rabbitmq
+        annotations:
+          summary: "RabbitMQ queue depth > 500 messages"
+          description: "Queue has {{ $value }} messages. Immediate attention required."
+
+  - name: talentflow.system
+    interval: 60s
+    rules:
+      # ── Node.js heap too high ────────────────────────────────────────
+      - alert: NodeJsHeapMemoryHigh
+        expr: |
+          nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node.js heap usage > 85% on {{ $labels.job }}"
+          description: "Heap used: {{ printf \"%.0f\" (div $value 1048576) }}MB."

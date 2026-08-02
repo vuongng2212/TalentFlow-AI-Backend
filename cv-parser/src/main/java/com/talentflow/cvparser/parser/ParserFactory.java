@@ -23,7 +23,7 @@ public class ParserFactory {
     @Value("${app.ocr.min-text-length-threshold:100}")
     private int minTextLengthThreshold;
 
-    @Value("${app.parser.ocr-timeout-seconds:120}")
+    @Value("${app.parser.ocr-timeout-seconds:30}")
     private long ocrTimeoutSeconds;
 
     private final List<DocumentParser> parsers;
@@ -74,14 +74,14 @@ public class ParserFactory {
         if (text.length() < minTextLengthThreshold) {
             log.info("Text too short ({} chars < {}), triggering OCR fallback. file=[{}]",
                     text.length(), minTextLengthThreshold, filePath.getFileName());
-            text = runOcrWithTimeout(filePath);
+            text = runOcrWithTimeout(filePath, mimeType);
         }
 
         return text;
     }
 
-    private String runOcrWithTimeout(Path filePath) {
-        CompletableFuture<String> future = ocrImageParser.extractText(filePath);
+    private String runOcrWithTimeout(Path filePath, String mimeType) {
+        CompletableFuture<String> future = ocrImageParser.extractText(filePath, mimeType);
         try {
             String ocrText = future.get(ocrTimeoutSeconds, TimeUnit.SECONDS);
             log.info("OCR fallback extracted {} chars. file=[{}]", ocrText.length(), filePath.getFileName());

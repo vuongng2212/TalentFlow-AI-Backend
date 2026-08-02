@@ -2,6 +2,7 @@ import { MailerService } from '@nestjs-modules/mailer';
 import {
   Injectable,
   Logger,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { readFileSync } from 'fs';
@@ -9,6 +10,7 @@ import * as Handlebars from 'handlebars';
 import { join } from 'path';
 import { maskPii } from '../common/utils/pii-masker';
 import { EmailTemplateId } from './email-template';
+import { MetricsService } from '../metrics/metrics.service';
 
 export type SendEmailInput = {
   to: string;
@@ -26,13 +28,18 @@ export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly templateDir = join(__dirname, 'templates');
 
-  constructor(private readonly mailerService: MailerService) {}
+  constructor(
+    private readonly mailerService: MailerService,
+    @Optional() private readonly metricsService?: MetricsService,
+  ) {}
 
   async sendEmail(input: SendEmailInput): Promise<void> {
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
+        this.metricsService?.recordEmailAttempt();
+
         const renderedTemplate = input.templateId
           ? this.renderTextTemplate(input.templateId, input.templateData ?? {})
           : undefined;

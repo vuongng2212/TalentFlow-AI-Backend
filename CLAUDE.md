@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 TalentFlow AI is a backend system for an Applicant Tracking System (ATS) using a polyglot 3-service architecture:
 1.  **API Gateway (NestJS)**: Main entry point, Auth, Jobs, Applications.
 2.  **CV Parser (Java/Spring Boot)**: Handles file parsing and AI scoring (currently in `cv-parser/`).
-3.  **Notification Service (C#/.NET)**: Handles emails and WebSockets (currently in `notification/`).
+3.  **Notification Service (NestJS)**: Handles emails and WebSockets (currently in `notification/`).
 
 Infrastructure includes PostgreSQL, Redis, and MinIO (local S3) managed via Docker Compose.
 
@@ -67,7 +67,11 @@ Primary development happens here.
 8.  **Static Config Values**: Any static property value must be moved to `.env`, validated in `src/common/config/config.schema.ts`, and consumed via `ConfigService`.
 9.  **Swagger Enum Documentation**: When documenting enum fields with `@ApiProperty`/`@ApiPropertyOptional`, always provide `enumName` and a clear `description` to make API docs explicit and reusable.
 
+## Testing Guidelines
+-   **Test-Driven Development (TDD)**: We follow strict TDD practices. Write tests before implementing features or fixing bugs to ensure high coverage and correctness.
+-   **Prisma Mocking**: DO NOT use `any` to mock Prisma clients or results. ALWAYS use `jest-mock-extended` (e.g., `DeepMockProxy<PrismaClient>`, `mockDeep<PrismaClient>()`) to ensure strict typing and IDE compatibility when testing services and guards.
+-   **Strict Linting in Tests**: ESLint rules apply strictly to test files as well. Fix type issues instead of using `// eslint-disable` or `@ts-ignore`.
+
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+See active plan at: /home/vuongnguyen/Projects/TalentFlow/TalentFlow-AI-Backend/specs/017-api-gateway-cv-event-orchestration/plan.md
 <!-- SPECKIT END -->

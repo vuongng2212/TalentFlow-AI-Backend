@@ -21,8 +21,10 @@ import { QueryUsersDto } from './dto/query-users.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UserResponseDto } from './dto/user-response.dto';
+import { SwitchActiveWorkspaceDto } from './dto/switch-workspace.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { SkipWorkspaceContext } from '../auth/decorators/skip-workspace-context.decorator';
 import { Role } from '@prisma/client';
 
 interface UserPayload {
@@ -35,6 +37,7 @@ interface UserPayload {
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
 @Controller('users')
+@SkipWorkspaceContext()
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
@@ -50,6 +53,30 @@ export class UsersController {
   @ApiResponse({ status: 403, description: 'Forbidden - requires ADMIN role' })
   async findAll(@Query() query: QueryUsersDto) {
     return this.usersService.findAll(query);
+  }
+
+  // Static sub-paths must be declared before parameterized routes to avoid
+  // Express shadowing them with the `:id` parameter segment.
+  @Patch('active-workspace')
+  @ApiOperation({
+    summary: 'Switch the active workspace for the current user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Active workspace updated successfully',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Bad Request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - not an active member of the target workspace',
+  })
+  async switchActiveWorkspace(
+    @CurrentUser() user: UserPayload,
+    @Body() dto: SwitchActiveWorkspaceDto,
+  ) {
+    return this.usersService.switchActiveWorkspace(user.id, dto.workspaceId);
   }
 
   @Get(':id')

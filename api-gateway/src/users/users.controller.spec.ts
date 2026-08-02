@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
@@ -7,7 +6,6 @@ import { Role } from '@prisma/client';
 import { QueryUsersDto } from './dto/query-users.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { UserResponseDto } from './dto/user-response.dto';
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -74,7 +72,7 @@ describe('UsersController', () => {
       const result = await controller.findAll(queryDto);
 
       expect(result).toEqual(expectedResult);
-      expect(service.findAll).toHaveBeenCalledWith(queryDto);
+      expect(jest.mocked(service.findAll)).toHaveBeenCalledWith(queryDto);
     });
   });
 
@@ -85,7 +83,7 @@ describe('UsersController', () => {
       const result = await controller.findOne('1');
 
       expect(result).toEqual(mockUser);
-      expect(service.findOneProfile).toHaveBeenCalledWith('1');
+      expect(jest.mocked(service.findOneProfile)).toHaveBeenCalledWith('1');
     });
   });
 
@@ -94,9 +92,7 @@ describe('UsersController', () => {
       const updateUserDto: UpdateUserDto = { fullName: 'Updated Name' };
       const expectedResult = { ...mockUser, fullName: 'Updated Name' };
 
-      mockUsersService.updateProfile.mockResolvedValue(
-        expectedResult as UserResponseDto,
-      );
+      mockUsersService.updateProfile.mockResolvedValue(expectedResult);
 
       const result = await controller.update(
         '1',
@@ -105,7 +101,7 @@ describe('UsersController', () => {
       );
 
       expect(result).toEqual(expectedResult);
-      expect(service.updateProfile).toHaveBeenCalledWith(
+      expect(jest.mocked(service.updateProfile)).toHaveBeenCalledWith(
         '1',
         mockUserPayload.id,
         mockUserPayload.role,
@@ -119,14 +115,15 @@ describe('UsersController', () => {
       const updateRoleDto: UpdateRoleDto = { role: Role.RECRUITER };
       const expectedResult = { ...mockUser, role: Role.RECRUITER };
 
-      mockUsersService.updateRole.mockResolvedValue(
-        expectedResult as UserResponseDto,
-      );
+      mockUsersService.updateRole.mockResolvedValue(expectedResult);
 
       const result = await controller.updateRole('1', updateRoleDto);
 
       expect(result).toEqual(expectedResult);
-      expect(service.updateRole).toHaveBeenCalledWith('1', Role.RECRUITER);
+      expect(jest.mocked(service.updateRole)).toHaveBeenCalledWith(
+        '1',
+        Role.RECRUITER,
+      );
     });
   });
 
@@ -136,7 +133,7 @@ describe('UsersController', () => {
 
       await controller.remove('1');
 
-      expect(service.softDeleteUser).toHaveBeenCalledWith('1');
+      expect(jest.mocked(service.softDeleteUser)).toHaveBeenCalledWith('1');
     });
   });
 });

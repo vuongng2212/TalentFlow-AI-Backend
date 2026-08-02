@@ -16,6 +16,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { JobsService } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
@@ -25,7 +26,6 @@ import { JobResponseDto } from './dto/job-response.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
-import { Public } from '../auth/decorators/public.decorator';
 
 interface UserPayload {
   id: string;
@@ -35,6 +35,11 @@ interface UserPayload {
 }
 
 @ApiTags('Jobs')
+@ApiHeader({
+  name: 'x-workspace-id',
+  required: false,
+  description: 'Active workspace ID for resource isolation',
+})
 @Controller('jobs')
 export class JobsController {
   constructor(private readonly jobsService: JobsService) {}
@@ -62,7 +67,8 @@ export class JobsController {
   }
 
   @Get()
-  @Public()
+  @ApiBearerAuth('access-token')
+  @Roles(Role.RECRUITER, Role.ADMIN)
   @ApiOperation({ summary: 'Get all jobs with pagination and filters' })
   @ApiResponse({ status: 200, description: 'Return paginated jobs list' })
   async findAll(@Query() query: QueryJobsDto) {
@@ -70,7 +76,8 @@ export class JobsController {
   }
 
   @Get(':id')
-  @Public()
+  @ApiBearerAuth('access-token')
+  @Roles(Role.RECRUITER, Role.ADMIN)
   @ApiOperation({ summary: 'Get a job by ID' })
   @ApiParam({
     name: 'id',

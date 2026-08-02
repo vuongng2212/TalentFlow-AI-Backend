@@ -76,4 +76,14 @@ export const appConfigSchema = Joi.object({
     then: Joi.boolean().valid(false).default(false),
     otherwise: Joi.boolean().default(true),
   }),
+
+  // Workspace Multi-Tenancy
+  WORKSPACE_INVITATION_EXPIRY_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .max(90)
+    .default(7),
+  WORKSPACE_INVITE_BASE_URL: Joi.string()
+    .uri()
+    .default('http://localhost:3001/invite/accept'),
 });

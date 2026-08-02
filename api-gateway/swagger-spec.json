@@ -620,6 +620,52 @@
         ]
       }
     },
+    "/api/v1/users/active-workspace": {
+      "patch": {
+        "operationId": "UsersController_switchActiveWorkspace",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchActiveWorkspaceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Active workspace updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - not an active member of the target workspace"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Switch the active workspace for the current user",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
     "/api/v1/users/{id}": {
       "get": {
         "operationId": "UsersController_findOne",
@@ -823,7 +869,17 @@
     "/api/v1/jobs": {
       "post": {
         "operationId": "JobsController_create",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -868,6 +924,15 @@
       "get": {
         "operationId": "JobsController_findAll",
         "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "page",
             "required": false,
@@ -998,6 +1063,11 @@
             "description": "Return paginated jobs list"
           }
         },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
         "summary": "Get all jobs with pagination and filters",
         "tags": [
           "Jobs"
@@ -1008,6 +1078,15 @@
       "get": {
         "operationId": "JobsController_findOne",
         "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -1034,6 +1113,11 @@
             "description": "Job not found"
           }
         },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
         "summary": "Get a job by ID",
         "tags": [
           "Jobs"
@@ -1042,6 +1126,15 @@
       "put": {
         "operationId": "JobsController_update",
         "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -1101,6 +1194,15 @@
         "operationId": "JobsController_remove",
         "parameters": [
           {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "id",
             "required": true,
             "in": "path",
@@ -1139,7 +1241,17 @@
     "/api/v1/applications": {
       "post": {
         "operationId": "ApplicationsController_create",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1187,6 +1299,15 @@
       "get": {
         "operationId": "ApplicationsController_findAll",
         "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "page",
             "required": false,
@@ -1320,7 +1441,17 @@
     "/api/v1/applications/upload": {
       "post": {
         "operationId": "ApplicationsController_uploadCv",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1392,6 +1523,15 @@
         "operationId": "ApplicationsController_findOne",
         "parameters": [
           {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "id",
             "required": true,
             "in": "path",
@@ -1436,6 +1576,15 @@
       "put": {
         "operationId": "ApplicationsController_update",
         "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -1495,6 +1644,15 @@
         "operationId": "ApplicationsController_remove",
         "parameters": [
           {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "id",
             "required": true,
             "in": "path",
@@ -1534,6 +1692,15 @@
       "get": {
         "operationId": "CandidatesController_findAll",
         "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "page",
             "required": false,
@@ -1613,6 +1780,15 @@
         "operationId": "CandidatesController_findOne",
         "parameters": [
           {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "id",
             "required": true,
             "in": "path",
@@ -1650,6 +1826,15 @@
       "patch": {
         "operationId": "CandidatesController_update",
         "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -1698,6 +1883,15 @@
       "delete": {
         "operationId": "CandidatesController_remove",
         "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -1873,7 +2067,17 @@
     "/api/v1/interviews": {
       "post": {
         "operationId": "InterviewsController_create",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1915,6 +2119,15 @@
       "get": {
         "operationId": "InterviewsController_findAll",
         "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "page",
             "required": false,
@@ -2033,6 +2246,15 @@
         "operationId": "InterviewsController_findOne",
         "parameters": [
           {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "id",
             "required": true,
             "in": "path",
@@ -2070,6 +2292,15 @@
       "patch": {
         "operationId": "InterviewsController_update",
         "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -2119,6 +2350,15 @@
         "operationId": "InterviewsController_remove",
         "parameters": [
           {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "id",
             "required": true,
             "in": "path",
@@ -2144,6 +2384,497 @@
         "summary": "Cancel an interview",
         "tags": [
           "interviews"
+        ]
+      }
+    },
+    "/api/v1/workspaces": {
+      "post": {
+        "operationId": "WorkspacesController_create",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkspaceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Workspace created successfully"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a workspace",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{id}/members": {
+      "post": {
+        "operationId": "WorkspacesController_addMember",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddWorkspaceMemberDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Member added successfully"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Add a member to workspace",
+        "tags": [
+          "Workspaces"
+        ]
+      },
+      "get": {
+        "operationId": "WorkspacesController_listMembers",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace members returned"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List active workspace members",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{id}/invitations": {
+      "post": {
+        "operationId": "WorkspacesController_createInvitation",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvitationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Invitation created"
+          },
+          "403": {
+            "description": "Forbidden - not on a Business Workspace or not Owner/Admin"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Invite a new member by email (Business Workspace only)",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/invitations/accept": {
+      "post": {
+        "operationId": "WorkspacesController_acceptInvitation",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Invitation accepted"
+          },
+          "400": {
+            "description": "Invalid or expired token"
+          },
+          "403": {
+            "description": "Token issued to a different user"
+          },
+          "404": {
+            "description": "Invitation not found"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Accept a workspace invitation via token",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{id}/members/{userId}": {
+      "delete": {
+        "operationId": "WorkspacesController_removeMember",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Member removed successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - not owner/admin or trying to remove owner"
+          },
+          "404": {
+            "description": "Member not found"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove a member from the workspace",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    },
+    "/api/v1/email-templates": {
+      "post": {
+        "operationId": "EmailTemplatesController_create",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEmailTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "email-templates"
+        ]
+      },
+      "get": {
+        "operationId": "EmailTemplatesController_findAll",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (1-based).",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size.",
+            "schema": {
+              "default": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Filter by name fragment.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "email-templates"
+        ]
+      }
+    },
+    "/api/v1/email-templates/{id}": {
+      "get": {
+        "operationId": "EmailTemplatesController_findOne",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "email-templates"
+        ]
+      },
+      "patch": {
+        "operationId": "EmailTemplatesController_update",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEmailTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "email-templates"
+        ]
+      },
+      "delete": {
+        "operationId": "EmailTemplatesController_remove",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "email-templates"
         ]
       }
     }
@@ -2332,6 +3063,20 @@
           "updatedAt"
         ]
       },
+      "SwitchActiveWorkspaceDto": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "description": "The workspace ID to set as the user active workspace.",
+            "example": "123e4567-e89b-12d3-a456-426614174000",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ]
+      },
       "UpdateUserDto": {
         "type": "object",
         "properties": {
@@ -2358,6 +3103,27 @@
         "required": [
           "role"
         ]
+      },
+      "JobRequirementsDto": {
+        "type": "object",
+        "properties": {
+          "skills": {
+            "example": [
+              "React",
+              "Node.js"
+            ],
+            "description": "Required skills for the job",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "experience": {
+            "type": "string",
+            "example": "3+ years",
+            "description": "Minimum experience expectation"
+          }
+        }
       },
       "CreateJobDto": {
         "type": "object",
@@ -2412,7 +3178,6 @@
             "example": "DRAFT"
           },
           "requirements": {
-            "type": "object",
             "example": {
               "skills": [
                 "React",
@@ -2420,7 +3185,12 @@
               ],
               "experience": "3+ years"
             },
-            "description": "Additional job requirements as JSON"
+            "description": "Structured job requirements",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/JobRequirementsDto"
+              }
+            ]
           }
         },
         "required": [
@@ -2561,7 +3331,6 @@
             "example": "DRAFT"
           },
           "requirements": {
-            "type": "object",
             "example": {
               "skills": [
                 "React",
@@ -2569,7 +3338,12 @@
               ],
               "experience": "3+ years"
             },
-            "description": "Additional job requirements as JSON"
+            "description": "Structured job requirements",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/JobRequirementsDto"
+              }
+            ]
           }
         }
       },
@@ -3088,6 +3862,132 @@
           "interviewerId": {
             "type": "string",
             "description": "Interviewer user ID"
+          }
+        }
+      },
+      "CreateWorkspaceDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "TalentFlow Hiring Team",
+            "maxLength": 150
+          },
+          "isBusiness": {
+            "type": "boolean",
+            "example": true,
+            "description": "Enable Business capabilities for workspace",
+            "default": false
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "WorkspaceMemberRole": {
+        "type": "string",
+        "enum": [
+          "OWNER",
+          "ADMIN",
+          "RECRUITER",
+          "VIEWER"
+        ],
+        "description": "Role assigned to the invited member. Defaults to RECRUITER when omitted."
+      },
+      "AddWorkspaceMemberDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "recruiter@company.com",
+            "description": "Email of an existing user in system"
+          },
+          "role": {
+            "description": "Role assigned to the invited member. Defaults to RECRUITER when omitted.",
+            "default": "RECRUITER",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WorkspaceMemberRole"
+              }
+            ]
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "CreateInvitationDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "The email address of the invited user.",
+            "example": "invitee@example.com"
+          },
+          "role": {
+            "type": "string",
+            "description": "The role to assign when the invitation is accepted.",
+            "enum": [
+              "OWNER",
+              "ADMIN",
+              "RECRUITER",
+              "VIEWER"
+            ],
+            "default": "RECRUITER"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "AcceptInvitationDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The token from the invitation email.",
+            "example": "d748f3b1-21ac-46bd-991c-2ee9a184f42f"
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
+      "CreateEmailTemplateDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The template name (unique within the workspace).",
+            "example": "Interview Invitation"
+          },
+          "subject": {
+            "type": "string",
+            "description": "The subject line of the email template.",
+            "example": "You are invited to interview"
+          },
+          "body": {
+            "type": "string",
+            "description": "The body of the email template (plain text or Handlebars).",
+            "example": "Hello {{candidateName}}, ..."
+          }
+        },
+        "required": [
+          "name",
+          "subject",
+          "body"
+        ]
+      },
+      "UpdateEmailTemplateDto": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "description": "Updated subject line."
+          },
+          "body": {
+            "type": "string",
+            "description": "Updated body."
           }
         }
       }

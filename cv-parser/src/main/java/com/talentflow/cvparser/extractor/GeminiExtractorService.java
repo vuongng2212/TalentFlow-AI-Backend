@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -35,24 +36,22 @@ public class GeminiExtractorService implements CvExtractorService {
     @Async("llmExecutor")
     public CompletableFuture<CandidateProfile> extract(String rawText) {
         log.info("[GEMINI-EXTRACTOR] Starting extraction. textLength={}", rawText.length());
-        try {
-            CandidateProfile profile = extractWithGemini(rawText);
-            log.info("[GEMINI-EXTRACTOR] Gemini extraction succeeded. status={}", profile.getExtractionStatus());
-            return CompletableFuture.completedFuture(profile);
-        } catch (Exception e) {
-            return CompletableFuture.completedFuture(fallback(rawText, e));
-        }
+        return extractWithGemini(rawText)
+                .doOnNext(profile -> log.info(
+                        "[GEMINI-EXTRACTOR] Gemini extraction succeeded. status={}", profile.getExtractionStatus()))
+                .onErrorResume(e -> Mono.just(fallback(rawText, e)))
+                .toFuture();
     }
 
 
-    private CandidateProfile extractWithGemini(String rawText) {
+    private Mono<CandidateProfile> extractWithGemini(String rawText) {
         CvExtractionPrompt prompt = promptBuilder.build(rawText);
-        String rawJson = geminiLlmClient.generate(prompt);
-        return responseValidator.validateAndParse(rawJson);
+        return geminiLlmClient.generate(prompt)
+                .map(responseValidator::validateAndParse);
     }
 
 
-    private CandidateProfile fallback(String rawText, Exception cause) {
+    private CandidateProfile fallback(String rawText, Throwable cause) {
         String reason = cause instanceof ExtractionException ex
                 ? ex.getErrorCode() + " — " + ex.getMessage()
                 : cause.getClass().getSimpleName() + " — " + cause.getMessage();

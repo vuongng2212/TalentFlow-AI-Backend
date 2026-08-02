@@ -1,5 +1,7 @@
 import {
   Injectable,
+  Inject,
+  forwardRef,
   Logger,
   NotFoundException,
   ForbiddenException,
@@ -10,24 +12,41 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { QueryApplicationsDto } from './dto/query-applications.dto';
-import { Prisma, ApplicationStatus, ApplicationStage } from '@prisma/client';
+import {
+  Prisma,
+  ApplicationStatus,
+  ApplicationStage,
+  CvParsingStatus,
+} from '@prisma/client';
 import { StorageService } from '../storage/storage.service';
 import { QueueService } from '../queue/queue.service';
 import { UploadCvDto } from './dto/upload-cv.dto';
+import {
+  RawCvParsedEvent,
+  EnrichedCvParsedEvent,
+  RawCvFailedEvent,
+  EnrichedCvFailedEvent,
+} from '../queue/interfaces/cv-events.interface';
 import { UploadCvResponseDto } from './dto/upload-cv-response.dto';
 import { generateCvFileKey } from '../common/utils/file-key.util';
 import { sanitizeError } from '../common/utils/sanitize.util';
+import { WorkspaceContextService } from '../common/services/workspace-context.service';
 
 interface ApplicationWithRelations {
   id: string;
   jobId: string;
   candidateId: string;
+  workspaceId: string;
   stage: ApplicationStage;
   status: ApplicationStatus;
   cvFileKey: string | null;
   cvFileUrl: string | null;
   coverLetter: string | null;
   notes: string | null;
+  cvParsingStatus: CvParsingStatus;
+  aiScore: number | null;
+  scoringReasoning: string | null;
+  parsedData: Prisma.JsonValue | null;
   appliedAt: Date;
   reviewedAt: Date | null;
   createdAt: Date;
@@ -60,7 +79,9 @@ export class ApplicationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
+    @Inject(forwardRef(() => QueueService))
     private readonly queueService: QueueService,
+    private readonly workspaceContext: WorkspaceContextService,
   ) {}
 
   async create(
@@ -69,9 +90,10 @@ export class ApplicationsService {
   ): Promise<ApplicationWithRelations> {
     const { jobId, ...data } = createApplicationDto;
 
-    // Check if job exists and is open
-    const job = await this.prisma.job.findUnique({
-      where: { id: jobId },
+    // Check if job exists, is open, and belongs to the current workspace.
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const job = await this.prisma.job.findFirst({
+      where: { id: jobId, workspaceId },
     });
 
     if (!job || job.deletedAt) {
@@ -91,17 +113,20 @@ export class ApplicationsService {
       throw new NotFoundException('User not found');
     }
 
-    // Find or create candidate by email
+    // Find or create candidate by email within the workspace.
     let candidate = await this.prisma.candidate.findUnique({
-      where: { email: user.email },
+      where: {
+        workspaceId_email: { workspaceId, email: user.email },
+      },
     });
 
     if (!candidate) {
-      // Auto-create candidate from user data
+      // Auto-create candidate from user data within the workspace.
       candidate = await this.prisma.candidate.create({
         data: {
           email: user.email,
           fullName: user.fullName,
+          workspaceId,
         },
       });
     }
@@ -119,11 +144,12 @@ export class ApplicationsService {
       throw new ConflictException('You have already applied to this job');
     }
 
-    return this.prisma.application.create({
+    const application = await this.prisma.application.create({
       data: {
         ...data,
         jobId,
         candidateId: candidate.id,
+        workspaceId,
       },
       include: {
         job: {
@@ -143,6 +169,25 @@ export class ApplicationsService {
         },
       },
     });
+
+    try {
+      await this.queueService.publishApplicationCreated({
+        applicationId: application.id,
+        jobId: application.jobId,
+        jobTitle: application.job.title,
+        applicantId: application.candidateId,
+        applicantEmail: application.candidate.email,
+        applicantName: application.candidate.fullName,
+        appliedAt: application.appliedAt.toISOString(),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to publish application.created event for application ${application.id}`,
+        sanitizeError(error),
+      );
+    }
+
+    return application;
   }
 
   async createWithCv(
@@ -151,9 +196,13 @@ export class ApplicationsService {
     dto: UploadCvDto,
   ): Promise<UploadCvResponseDto> {
     const { jobId, coverLetter } = dto;
+    const workspaceId = this.workspaceContext.getWorkspaceId();
 
-    await this.findOpenJobOrThrow(jobId);
-    const candidate = await this.findOrCreateCandidateOrThrow(userId);
+    const job = await this.findOpenJobOrThrow(jobId, workspaceId);
+    const candidate = await this.findOrCreateCandidateOrThrow(
+      userId,
+      workspaceId,
+    );
     await this.ensureNoDuplicateApplication(jobId, candidate.id);
 
     const { fileKey, uploadUrl } = await this.uploadCvOrThrow(file);
@@ -165,6 +214,7 @@ export class ApplicationsService {
         data: {
           jobId,
           candidateId: candidate.id,
+          workspaceId,
           coverLetter,
           cvFileKey: fileKey,
           cvFileUrl: uploadUrl,
@@ -183,6 +233,16 @@ export class ApplicationsService {
         uploadedAt: new Date().toISOString(),
       });
 
+      await this.queueService.publishApplicationCreated({
+        applicationId: application.id,
+        jobId,
+        jobTitle: job.title,
+        applicantId: candidate.id,
+        applicantEmail: candidate.email,
+        applicantName: candidate.fullName,
+        appliedAt: application.appliedAt.toISOString(),
+      });
+
       return this.buildUploadResponse(application.id, fileKey, uploadUrl);
     } catch (error) {
       this.logger.error(
@@ -194,9 +254,9 @@ export class ApplicationsService {
     }
   }
 
-  private async findOpenJobOrThrow(jobId: string) {
-    const job = await this.prisma.job.findUnique({
-      where: { id: jobId },
+  private async findOpenJobOrThrow(jobId: string, workspaceId: string) {
+    const job = await this.prisma.job.findFirst({
+      where: { id: jobId, workspaceId },
     });
 
     if (!job || job.deletedAt) {
@@ -210,7 +270,10 @@ export class ApplicationsService {
     return job;
   }
 
-  private async findOrCreateCandidateOrThrow(userId: string) {
+  private async findOrCreateCandidateOrThrow(
+    userId: string,
+    workspaceId: string,
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -220,7 +283,9 @@ export class ApplicationsService {
     }
 
     const candidate = await this.prisma.candidate.findUnique({
-      where: { email: user.email },
+      where: {
+        workspaceId_email: { workspaceId, email: user.email },
+      },
     });
 
     if (candidate) {
@@ -231,6 +296,7 @@ export class ApplicationsService {
       data: {
         email: user.email,
         fullName: user.fullName,
+        workspaceId,
       },
     });
   }
@@ -333,6 +399,7 @@ export class ApplicationsService {
   }
 
   async findAll(userId: string, userRole: string, query: QueryApplicationsDto) {
+    const workspaceId = this.workspaceContext.getWorkspaceId();
     const {
       page = 1,
       limit = 10,
@@ -346,22 +413,25 @@ export class ApplicationsService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.ApplicationWhereInput = {
+      workspaceId,
       deletedAt: null,
     };
 
-    // Role-based filtering
+    // Role-based filtering within the current workspace
     if (userRole === 'RECRUITER') {
-      // Recruiters see applications for their jobs
+      // Recruiters see applications for their jobs within the workspace
       where.job = {
+        workspaceId,
         createdById: userId,
       };
     } else if (userRole === 'INTERVIEWER') {
-      // Interviewers see applications they're assigned to (future feature)
-      // For now, find candidate by user email and show their applications
+      // Interviewers see applications they're assigned to
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (user) {
         const candidate = await this.prisma.candidate.findUnique({
-          where: { email: user.email },
+          where: {
+            workspaceId_email: { workspaceId, email: user.email },
+          },
         });
         if (candidate) {
           where.candidateId = candidate.id;
@@ -372,7 +442,9 @@ export class ApplicationsService {
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (user) {
         const candidate = await this.prisma.candidate.findUnique({
-          where: { email: user.email },
+          where: {
+            workspaceId_email: { workspaceId, email: user.email },
+          },
         });
         if (candidate) {
           where.candidateId = candidate.id;
@@ -380,7 +452,7 @@ export class ApplicationsService {
       }
     }
 
-    // Admin can see all, so no filter for ADMIN role
+    // Admin can see all (still within the workspace)
 
     if (jobId) {
       where.jobId = jobId;
@@ -444,8 +516,9 @@ export class ApplicationsService {
     userId: string,
     userRole: string,
   ): Promise<ApplicationWithRelations> {
-    const application = await this.prisma.application.findUnique({
-      where: { id },
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const application = await this.prisma.application.findFirst({
+      where: { id, workspaceId },
       include: {
         job: {
           include: {
@@ -475,7 +548,11 @@ export class ApplicationsService {
     // Check access - need to find user's candidate to check if they're the applicant
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const candidate = user
-      ? await this.prisma.candidate.findUnique({ where: { email: user.email } })
+      ? await this.prisma.candidate.findUnique({
+          where: {
+            workspaceId_email: { workspaceId, email: user.email },
+          },
+        })
       : null;
 
     const isApplicant = candidate && application.candidateId === candidate.id;
@@ -498,11 +575,16 @@ export class ApplicationsService {
     updateApplicationDto: UpdateApplicationDto,
   ): Promise<ApplicationWithRelations> {
     const application = await this.findOne(id, userId, userRole);
+    const workspaceId = this.workspaceContext.getWorkspaceId();
 
     // Check user's candidate status
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const candidate = user
-      ? await this.prisma.candidate.findUnique({ where: { email: user.email } })
+      ? await this.prisma.candidate.findUnique({
+          where: {
+            workspaceId_email: { workspaceId, email: user.email },
+          },
+        })
       : null;
 
     // Only recruiter (job owner) or admin can update stage/status/notes
@@ -568,9 +650,14 @@ export class ApplicationsService {
     const application = await this.findOne(id, userId, userRole);
 
     // Check user's candidate status
+    const workspaceId = this.workspaceContext.getWorkspaceId();
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const candidate = user
-      ? await this.prisma.candidate.findUnique({ where: { email: user.email } })
+      ? await this.prisma.candidate.findUnique({
+          where: {
+            workspaceId_email: { workspaceId, email: user.email },
+          },
+        })
       : null;
 
     // Only applicant or admin can delete
@@ -590,5 +677,160 @@ export class ApplicationsService {
         status: 'WITHDRAWN',
       },
     });
+  }
+
+  async handleCvParsedEvent(event: RawCvParsedEvent): Promise<void> {
+    const { applicationId, aiScore, parsedData, scoringReasoning } = event;
+
+    this.logger.log(
+      `Handling cv.parsed event for application ${applicationId}`,
+    );
+
+    const application = await this.prisma.application.findFirst({
+      where: { id: applicationId, deletedAt: null },
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            createdById: true,
+            createdBy: {
+              select: { email: true },
+            },
+          },
+        },
+        candidate: {
+          select: { id: true, email: true, fullName: true },
+        },
+      },
+    });
+
+    if (!application) {
+      this.logger.warn(
+        `Application ${applicationId} not found for cv.parsed event`,
+      );
+      return;
+    }
+
+    await this.prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        cvParsingStatus: CvParsingStatus.COMPLETED,
+        aiScore,
+        scoringReasoning,
+        parsedData: parsedData as Prisma.InputJsonValue,
+      },
+    });
+
+    if (!(application.job.createdBy as { email?: string } | undefined)?.email) {
+      const recruiterUser = await this.prisma.user.findUnique({
+        where: { id: application.job.createdById },
+      });
+      if (recruiterUser && application.job.createdBy) {
+        application.job.createdBy.email = recruiterUser.email;
+      }
+    }
+
+    if (!(application.job.createdBy as { email?: string } | undefined)?.email) {
+      this.logger.warn(
+        `Could not find recruiter email for job ${application.job.id}, skipping success notification.`,
+      );
+      return;
+    }
+
+    const enrichedEvent: EnrichedCvParsedEvent = {
+      applicationId,
+      recruiterId: application.job.createdById,
+      jobTitle: application.job.title,
+      applicantEmail: application.candidate.email,
+      applicantName: application.candidate.fullName,
+      aiScore: aiScore || 0,
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      await this.queueService.publishEnrichedCvParsed(enrichedEvent);
+    } catch (error) {
+      this.logger.error(
+        `Failed to publish enriched cv.parsed event for application ${applicationId}`,
+        sanitizeError(error),
+      );
+    }
+  }
+
+  async handleCvFailedEvent(event: RawCvFailedEvent): Promise<void> {
+    const { applicationId, errorMessage } = event;
+
+    this.logger.log(
+      `Handling cv.failed event for application ${applicationId}`,
+    );
+
+    const application = await this.prisma.application.findFirst({
+      where: { id: applicationId, deletedAt: null },
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            createdById: true,
+            createdBy: {
+              select: { email: true },
+            },
+          },
+        },
+        candidate: {
+          select: { id: true, email: true, fullName: true },
+        },
+      },
+    });
+
+    if (!application) {
+      this.logger.warn(
+        `Application ${applicationId} not found for cv.failed event`,
+      );
+      return;
+    }
+
+    await this.prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        cvParsingStatus: CvParsingStatus.FAILED,
+      },
+    });
+
+    if (!(application.job.createdBy as { email?: string } | undefined)?.email) {
+      const recruiterUser = await this.prisma.user.findUnique({
+        where: { id: application.job.createdById },
+      });
+      if (recruiterUser && application.job.createdBy) {
+        application.job.createdBy.email = recruiterUser.email;
+      }
+    }
+
+    if (!(application.job.createdBy as { email?: string } | undefined)?.email) {
+      this.logger.warn(
+        `Could not find recruiter email for job ${application.job.id}, skipping failure notification.`,
+      );
+      return;
+    }
+
+    const enrichedEvent: EnrichedCvFailedEvent = {
+      applicationId,
+      recruiterId: application.job.createdById,
+      jobTitle: application.job.title,
+      applicantEmail: application.candidate.email,
+      applicantName: application.candidate.fullName,
+      errorMessage: errorMessage,
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      await this.queueService.publishEnrichedCvFailed(enrichedEvent);
+    } catch (error) {
+      this.logger.error(
+        `Failed to publish enriched cv.failed event for application ${applicationId}`,
+        sanitizeError(error),
+      );
+    }
   }
 }
