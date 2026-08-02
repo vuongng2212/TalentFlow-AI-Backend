@@ -16,10 +16,18 @@ import {
   SendNotificationType,
 } from './dto/send-notification.dto';
 import { NotificationEntity } from './entities/notification.entity';
+import { NotificationGateway } from './notification.gateway';
+
+const RECEIVE_NOTIFICATION_EVENT = 'receiveNotification';
 
 @Injectable()
 export class NotificationService {
-  constructor(private readonly emailService: EmailService) {}
+  private readonly logger = new Logger(NotificationService.name);
+
+  constructor(
+    private readonly emailService: EmailService,
+    private readonly notificationGateway: NotificationGateway,
+  ) {}
 
   async send(
     dto: SendNotificationDto,
@@ -51,7 +59,7 @@ export class NotificationService {
       createdAt: now,
     };
 
-    return this.toResponse(notification);
+    return this.publishRealtime(notification);
   }
 
   getNotificationById(id: string, userId: string): NotificationResponseDto {
@@ -70,8 +78,9 @@ export class NotificationService {
   async sendFromEvent(
     event: NotificationSendEvent,
   ): Promise<{ success: boolean; messageId?: string }> {
-    const logger = new Logger(NotificationService.name);
-    logger.log(`Processing notification.send event for ${maskPii(event.to)}`);
+    this.logger.log(
+      `Processing notification.send event for ${maskPii(event.to)}`,
+    );
 
     const templateId =
       (event.templateId as EmailTemplateId | undefined) ??
@@ -103,15 +112,18 @@ export class NotificationService {
       createdAt: now,
     };
 
-    logger.log(`sendFromEvent completed, notificationId=${notification.id}`);
+    this.publishRealtime(notification);
+
+    this.logger.log(
+      `sendFromEvent completed, notificationId=${notification.id}`,
+    );
     return { success: true, messageId: notification.id };
   }
 
   async handleApplicationCreated(
     event: ApplicationCreatedEvent,
   ): Promise<{ success: boolean; messageId?: string }> {
-    const logger = new Logger(NotificationService.name);
-    logger.log(
+    this.logger.log(
       `Processing application.created for applicant ${maskPii(event.applicantEmail)}`,
     );
 
@@ -140,7 +152,9 @@ export class NotificationService {
       createdAt: new Date(),
     };
 
-    logger.log(
+    this.publishRealtime(notification);
+
+    this.logger.log(
       `handleApplicationCreated completed, notificationId=${notification.id}`,
     );
     return { success: true, messageId: notification.id };
@@ -149,8 +163,7 @@ export class NotificationService {
   async handleCvParsed(
     event: CvParsedEvent,
   ): Promise<{ success: boolean; messageId?: string }> {
-    const logger = new Logger(NotificationService.name);
-    logger.log(
+    this.logger.log(
       `Processing cv.parsed for applicant ${maskPii(event.applicantEmail)}`,
     );
 
@@ -180,15 +193,18 @@ export class NotificationService {
       createdAt: new Date(),
     };
 
-    logger.log(`handleCvParsed completed, notificationId=${notification.id}`);
+    this.publishRealtime(notification);
+
+    this.logger.log(
+      `handleCvParsed completed, notificationId=${notification.id}`,
+    );
     return { success: true, messageId: notification.id };
   }
 
   async handleCvFailed(
     event: CvFailedEvent,
   ): Promise<{ success: boolean; messageId?: string }> {
-    const logger = new Logger(NotificationService.name);
-    logger.log(
+    this.logger.log(
       `Processing cv.failed for applicant ${maskPii(event.applicantEmail)}`,
     );
 
@@ -213,7 +229,11 @@ export class NotificationService {
       createdAt: new Date(),
     };
 
-    logger.log(`handleCvFailed completed, notificationId=${notification.id}`);
+    this.publishRealtime(notification);
+
+    this.logger.log(
+      `handleCvFailed completed, notificationId=${notification.id}`,
+    );
     return { success: true, messageId: notification.id };
   }
 
@@ -242,5 +262,27 @@ export class NotificationService {
       createdAt: notification.createdAt.toISOString(),
       sentAt: notification.sentAt?.toISOString(),
     };
+  }
+
+  private publishRealtime(
+    notification: NotificationEntity,
+  ): NotificationResponseDto {
+    const response = this.toResponse(notification);
+
+    try {
+      this.notificationGateway.sendToUser(
+        notification.userId,
+        RECEIVE_NOTIFICATION_EVENT,
+        response,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Realtime notification push failed for userId=${notification.userId}: ${maskPii(
+          error instanceof Error ? error.message : String(error),
+        )}`,
+      );
+    }
+
+    return response;
   }
 }

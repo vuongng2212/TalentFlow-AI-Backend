@@ -1,9 +1,11 @@
 import { EmailTemplateId } from '../../src/email/email-template';
 import { EmailService } from '../../src/email/email.service';
+import { NotificationGateway } from '../../src/notification/notification.gateway';
 import { NotificationService } from '../../src/notification/notification.service';
 
 describe('NotificationService', () => {
   let emailService: jest.Mocked<Pick<EmailService, 'sendEmail'>>;
+  let notificationGateway: jest.Mocked<Pick<NotificationGateway, 'sendToUser'>>;
   let service: NotificationService;
 
   function expectSuccessfulResult(
@@ -17,7 +19,13 @@ describe('NotificationService', () => {
     emailService = {
       sendEmail: jest.fn(),
     };
-    service = new NotificationService(emailService as unknown as EmailService);
+    notificationGateway = {
+      sendToUser: jest.fn(),
+    };
+    service = new NotificationService(
+      emailService as unknown as EmailService,
+      notificationGateway as unknown as NotificationGateway,
+    );
   });
 
   describe('sendFromEvent', () => {
@@ -40,6 +48,19 @@ describe('NotificationService', () => {
           body: 'Your application has been reviewed.',
         }),
       );
+      expect(notificationGateway.sendToUser).toHaveBeenCalledWith(
+        'user-1',
+        'receiveNotification',
+        expect.objectContaining({
+          id: result.messageId,
+          userId: 'user-1',
+          channel: 'email',
+          title: 'Test Notification',
+          message: 'Your application has been reviewed.',
+          status: 'sent',
+          read: false,
+        }),
+      );
     });
 
     it('resolves template from type when no body provided', async () => {
@@ -60,6 +81,34 @@ describe('NotificationService', () => {
           body: undefined,
         }),
       );
+      expect(notificationGateway.sendToUser).toHaveBeenCalledWith(
+        'user-2',
+        'receiveNotification',
+        expect.objectContaining({
+          userId: 'user-2',
+          title: 'Interview',
+          message: `Email sent with template ${EmailTemplateId.INTERVIEW_INVITATION}`,
+        }),
+      );
+    });
+
+    it('keeps email delivery successful when realtime push fails', async () => {
+      emailService.sendEmail.mockResolvedValue(undefined);
+      notificationGateway.sendToUser.mockImplementationOnce(() => {
+        throw new Error('socket adapter unavailable');
+      });
+
+      const result = await service.sendFromEvent({
+        userId: 'user-2',
+        to: 'candidate@example.com',
+        subject: 'Email still succeeds',
+        body: 'Realtime is best effort.',
+        type: 'email',
+      });
+
+      expectSuccessfulResult(result);
+      expect(emailService.sendEmail).toHaveBeenCalledTimes(1);
+      expect(notificationGateway.sendToUser).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -85,6 +134,15 @@ describe('NotificationService', () => {
         applicantName: 'Jane Doe',
         jobTitle: 'Senior Developer',
       });
+      expect(notificationGateway.sendToUser).toHaveBeenCalledWith(
+        'user-3',
+        'receiveNotification',
+        expect.objectContaining({
+          id: result.messageId,
+          userId: 'user-3',
+          title: 'Application Received: Senior Developer',
+        }),
+      );
     });
   });
 
@@ -109,6 +167,15 @@ describe('NotificationService', () => {
         applicantName: 'Bob Smith',
         score: 92,
       });
+      expect(notificationGateway.sendToUser).toHaveBeenCalledWith(
+        'app-2',
+        'receiveNotification',
+        expect.objectContaining({
+          id: result.messageId,
+          userId: 'app-2',
+          title: 'CV Processed: Backend Engineer',
+        }),
+      );
     });
 
     it('handles missing score', async () => {
@@ -145,6 +212,15 @@ describe('NotificationService', () => {
       expect(input.to).toBe('fail@example.com');
       expect(input.subject).toBe('CV Processing Failed: Data Scientist');
       expect(input.body).toContain('Unsupported file format');
+      expect(notificationGateway.sendToUser).toHaveBeenCalledWith(
+        'app-4',
+        'receiveNotification',
+        expect.objectContaining({
+          id: result.messageId,
+          userId: 'app-4',
+          title: 'CV Processing Failed: Data Scientist',
+        }),
+      );
     });
   });
 });
