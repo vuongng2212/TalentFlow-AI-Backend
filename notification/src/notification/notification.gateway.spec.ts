@@ -57,6 +57,7 @@ describe('NotificationGateway', () => {
       }),
       getOrThrow: jest.fn((key: string) => {
         const values: Record<string, string> = {
+          'app.wsCorsOrigin': 'http://localhost:3000',
           'jwt.accessSecret': jwtAccessSecret,
         };
 
