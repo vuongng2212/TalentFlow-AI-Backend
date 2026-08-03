@@ -119,7 +119,9 @@ describe('NotificationGateway client/server connection (e2e)', () => {
       },
     );
 
-    await expect(receivedNotification).resolves.toMatchObject({
+    const payload = (await receivedNotification) as Record<string, unknown>;
+
+    expect(payload).toMatchObject({
       userId: 'user-123',
       channel: 'email',
       title: 'Realtime notification',
@@ -127,6 +129,8 @@ describe('NotificationGateway client/server connection (e2e)', () => {
       status: 'sent',
       read: false,
     });
+    expect(payload).not.toHaveProperty('recipient');
+    expect(payload).not.toHaveProperty('subject');
   });
 
   it('rejects a client connection without a WebSocket auth token', async () => {

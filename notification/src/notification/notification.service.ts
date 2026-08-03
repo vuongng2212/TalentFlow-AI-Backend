@@ -27,6 +27,11 @@ type NotificationResult = {
   messageId?: string;
 };
 
+type RealtimeNotificationPayload = Omit<
+  NotificationResponseDto,
+  'recipient' | 'subject'
+>;
+
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
@@ -166,7 +171,7 @@ export class NotificationService {
         createdAt: new Date(),
       };
 
-      this.publishRealtime(notification);
+      this.publishRealtime(notification, event.applicantId ?? null);
 
       this.logger.log(
         `handleApplicationCreated completed, notificationId=${notification.id}`,
@@ -198,7 +203,7 @@ export class NotificationService {
 
       const notification: NotificationEntity = {
         id: randomUUID(),
-        userId: event.applicationId,
+        userId: event.applicantId ?? event.applicationId,
         type: 'application_result',
         channel: 'email',
         title: `CV Processed: ${event.jobTitle}`,
@@ -211,7 +216,7 @@ export class NotificationService {
         createdAt: new Date(),
       };
 
-      this.publishRealtime(notification);
+      this.publishRealtime(notification, event.applicantId ?? null);
 
       this.logger.log(
         `handleCvParsed completed, notificationId=${notification.id}`,
@@ -234,7 +239,7 @@ export class NotificationService {
 
       const notification: NotificationEntity = {
         id: randomUUID(),
-        userId: event.applicationId,
+        userId: event.applicantId ?? event.applicationId,
         type: 'application_result',
         channel: 'email',
         title: `CV Processing Failed: ${event.jobTitle}`,
@@ -247,7 +252,7 @@ export class NotificationService {
         createdAt: new Date(),
       };
 
-      this.publishRealtime(notification);
+      this.publishRealtime(notification, event.applicantId ?? null);
 
       this.logger.log(
         `handleCvFailed completed, notificationId=${notification.id}`,
@@ -346,21 +351,47 @@ export class NotificationService {
     };
   }
 
+  private toRealtimePayload(
+    response: NotificationResponseDto,
+  ): RealtimeNotificationPayload {
+    return {
+      id: response.id,
+      userId: response.userId,
+      type: response.type,
+      channel: response.channel,
+      title: response.title,
+      message: response.message,
+      status: response.status,
+      read: response.read,
+      sentAt: response.sentAt,
+      createdAt: response.createdAt,
+    };
+  }
+
   private publishRealtime(
     notification: NotificationEntity,
+    recipientUserId: string | null = notification.userId,
   ): NotificationResponseDto {
     const response = this.toResponse(notification);
+    const realtimePayload = this.toRealtimePayload(response);
+
+    if (!recipientUserId) {
+      this.logger.warn(
+        `Realtime notification skipped for notificationId=${notification.id}: missing recipient user id`,
+      );
+      return response;
+    }
 
     try {
       this.notificationGateway.sendToUser(
-        notification.userId,
+        recipientUserId,
         RECEIVE_NOTIFICATION_EVENT,
-        response,
+        realtimePayload,
       );
     } catch (error) {
       this.metricsService?.recordNotificationSent('websocket', 'failure');
       this.logger.warn(
-        `Realtime notification push failed for userId=${notification.userId}: ${maskPii(
+        `Realtime notification push failed for userId=${maskPii(recipientUserId)}: ${maskPii(
           error instanceof Error ? error.message : String(error),
         )}`,
       );
