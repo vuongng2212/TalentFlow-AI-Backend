@@ -12,6 +12,11 @@ export class CvParsedDto {
   @IsNotEmpty()
   applicationId!: string;
 
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  applicantId?: string;
+
   @IsEmail()
   @IsNotEmpty()
   applicantEmail!: string;

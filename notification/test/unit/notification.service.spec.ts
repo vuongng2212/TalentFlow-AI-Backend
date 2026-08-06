@@ -1,9 +1,12 @@
+import { Logger } from '@nestjs/common';
 import { EmailTemplateId } from '../../src/email/email-template';
 import { EmailService } from '../../src/email/email.service';
+import { NotificationGateway } from '../../src/notification/notification.gateway';
 import { NotificationService } from '../../src/notification/notification.service';
 
 describe('NotificationService', () => {
   let emailService: jest.Mocked<Pick<EmailService, 'sendEmail'>>;
+  let notificationGateway: jest.Mocked<Pick<NotificationGateway, 'sendToUser'>>;
   let service: NotificationService;
 
   function expectSuccessfulResult(
@@ -13,11 +16,33 @@ describe('NotificationService', () => {
     expect(result.messageId).toBeDefined();
   }
 
+  function getRealtimePayload(callIndex = 0): Record<string, unknown> {
+    return notificationGateway.sendToUser.mock.calls[callIndex][2] as Record<
+      string,
+      unknown
+    >;
+  }
+
+  function expectNoEmailMetadata(payload: Record<string, unknown>): void {
+    expect(payload).not.toHaveProperty('recipient');
+    expect(payload).not.toHaveProperty('subject');
+  }
+
   beforeEach(() => {
     emailService = {
       sendEmail: jest.fn(),
     };
-    service = new NotificationService(emailService as unknown as EmailService);
+    notificationGateway = {
+      sendToUser: jest.fn(),
+    };
+    service = new NotificationService(
+      emailService as unknown as EmailService,
+      notificationGateway as unknown as NotificationGateway,
+    );
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   describe('sendFromEvent', () => {
@@ -40,6 +65,20 @@ describe('NotificationService', () => {
           body: 'Your application has been reviewed.',
         }),
       );
+      expect(notificationGateway.sendToUser).toHaveBeenCalledWith(
+        'user-1',
+        'receiveNotification',
+        expect.objectContaining({
+          id: result.messageId,
+          userId: 'user-1',
+          channel: 'email',
+          title: 'Test Notification',
+          message: 'Your application has been reviewed.',
+          status: 'sent',
+          read: false,
+        }),
+      );
+      expectNoEmailMetadata(getRealtimePayload());
     });
 
     it('resolves template from type when no body provided', async () => {
@@ -60,6 +99,56 @@ describe('NotificationService', () => {
           body: undefined,
         }),
       );
+      expect(notificationGateway.sendToUser).toHaveBeenCalledWith(
+        'user-2',
+        'receiveNotification',
+        expect.objectContaining({
+          userId: 'user-2',
+          title: 'Interview',
+          message: `Email sent with template ${EmailTemplateId.INTERVIEW_INVITATION}`,
+        }),
+      );
+    });
+
+    it('keeps email delivery successful when realtime push fails', async () => {
+      emailService.sendEmail.mockResolvedValue(undefined);
+      notificationGateway.sendToUser.mockImplementationOnce(() => {
+        throw new Error('socket adapter unavailable');
+      });
+
+      const result = await service.sendFromEvent({
+        userId: 'user-2',
+        to: 'candidate@example.com',
+        subject: 'Email still succeeds',
+        body: 'Realtime is best effort.',
+        type: 'email',
+      });
+
+      expectSuccessfulResult(result);
+      expect(emailService.sendEmail).toHaveBeenCalledTimes(1);
+      expect(notificationGateway.sendToUser).toHaveBeenCalledTimes(1);
+    });
+
+    it('masks recipient user id when realtime push fails', async () => {
+      emailService.sendEmail.mockResolvedValue(undefined);
+      notificationGateway.sendToUser.mockImplementationOnce(() => {
+        throw new Error('socket adapter unavailable');
+      });
+      const loggerWarnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      await service.sendFromEvent({
+        userId: 'candidate@example.com',
+        to: 'candidate@example.com',
+        subject: 'Masked log',
+        body: 'Realtime is best effort.',
+        type: 'email',
+      });
+
+      const warningText = loggerWarnSpy.mock.calls.flat().join(' ');
+      expect(warningText).not.toContain('candidate@example.com');
+      expect(warningText).toContain('ca*******@example.com');
     });
   });
 
@@ -85,6 +174,15 @@ describe('NotificationService', () => {
         applicantName: 'Jane Doe',
         jobTitle: 'Senior Developer',
       });
+      expect(notificationGateway.sendToUser).toHaveBeenCalledWith(
+        'user-3',
+        'receiveNotification',
+        expect.objectContaining({
+          id: result.messageId,
+          userId: 'user-3',
+          title: 'Application Received: Senior Developer',
+        }),
+      );
     });
   });
 
@@ -94,6 +192,7 @@ describe('NotificationService', () => {
 
       const result = await service.handleCvParsed({
         applicationId: 'app-2',
+        applicantId: 'user-4',
         applicantEmail: 'bob@example.com',
         applicantName: 'Bob Smith',
         jobTitle: 'Backend Engineer',
@@ -109,6 +208,15 @@ describe('NotificationService', () => {
         applicantName: 'Bob Smith',
         score: 92,
       });
+      expect(notificationGateway.sendToUser).toHaveBeenCalledWith(
+        'user-4',
+        'receiveNotification',
+        expect.objectContaining({
+          id: result.messageId,
+          userId: 'user-4',
+          title: 'CV Processed: Backend Engineer',
+        }),
+      );
     });
 
     it('handles missing score', async () => {
@@ -125,6 +233,20 @@ describe('NotificationService', () => {
       const [input] = emailService.sendEmail.mock.calls[0];
       expect(input.templateData).toMatchObject({ score: 'N/A' });
     });
+
+    it('does not push CV parsed realtime without applicantId', async () => {
+      emailService.sendEmail.mockResolvedValue(undefined);
+
+      await service.handleCvParsed({
+        applicationId: 'app-no-recipient',
+        applicantEmail: 'no-recipient@example.com',
+        applicantName: 'No Recipient',
+        jobTitle: 'Designer',
+        parsedAt: '2026-05-07T10:00:00Z',
+      });
+
+      expect(notificationGateway.sendToUser).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleCvFailed', () => {
@@ -133,6 +255,7 @@ describe('NotificationService', () => {
 
       const result = await service.handleCvFailed({
         applicationId: 'app-4',
+        applicantId: 'user-5',
         applicantEmail: 'fail@example.com',
         applicantName: 'Tom Error',
         jobTitle: 'Data Scientist',
@@ -145,6 +268,30 @@ describe('NotificationService', () => {
       expect(input.to).toBe('fail@example.com');
       expect(input.subject).toBe('CV Processing Failed: Data Scientist');
       expect(input.body).toContain('Unsupported file format');
+      expect(notificationGateway.sendToUser).toHaveBeenCalledWith(
+        'user-5',
+        'receiveNotification',
+        expect.objectContaining({
+          id: result.messageId,
+          userId: 'user-5',
+          title: 'CV Processing Failed: Data Scientist',
+        }),
+      );
+    });
+
+    it('does not push CV failure realtime without applicantId', async () => {
+      emailService.sendEmail.mockResolvedValue(undefined);
+
+      await service.handleCvFailed({
+        applicationId: 'app-failed-no-recipient',
+        applicantEmail: 'failed-no-recipient@example.com',
+        applicantName: 'Failed Recipient',
+        jobTitle: 'Data Scientist',
+        reason: 'Unsupported file format',
+        failedAt: '2026-05-07T10:00:00Z',
+      });
+
+      expect(notificationGateway.sendToUser).not.toHaveBeenCalled();
     });
   });
 });

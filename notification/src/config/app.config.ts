@@ -5,8 +5,8 @@ export const appConfig = registerAs('app', () => ({
   port: Number(process.env.PORT ?? 3001),
   name: process.env.APP_NAME ?? 'notification-service',
   url: process.env.APP_URL ?? 'http://localhost:3001',
-  corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
-  wsCorsOrigin: process.env.WS_CORS_ORIGIN ?? 'http://localhost:3000',
+  corsOrigin: process.env.CORS_ORIGIN,
+  wsCorsOrigin: process.env.WS_CORS_ORIGIN,
 }));
 
 export type AppConfig = ReturnType<typeof appConfig>;

@@ -249,33 +249,33 @@ curl -X POST http://localhost:5000/api/notifications/send \
 **Tasks:**
 
 ```
-[ ] 4.1 Socket.IO Setup
-    [ ] Install: @nestjs/websockets @nestjs/platform-socket.io
-    [ ] Configure Socket.IO trong app.module.ts
-    [ ] Setup CORS cho frontend
-    [ ] (Optional) Setup Redis adapter for horizontal scaling
+[x] 4.1 Socket.IO Setup
+    [x] Install: @nestjs/websockets @nestjs/platform-socket.io
+    [x] Configure Socket.IO via NotificationGateway trong NotificationModule
+    [x] Setup CORS cho frontend
+    [x] (Optional) Redis adapter not required for current single-instance deployment
 
-[ ] 4.2 Gateway Implementation
-    [ ] Create notification/notification.gateway.ts
-    [ ] Implement OnGatewayConnection → verify JWT + join room
-    [ ] Implement OnGatewayDisconnect → cleanup
-    [ ] Implement @SubscribeMessage('joinUserRoom')
-    [ ] Implement @SubscribeMessage('leaveUserRoom')
-    [ ] Implement sendToUser() → push to specific user room
-    [ ] Add PII masking trong logs
+[x] 4.2 Gateway Implementation
+    [x] Create notification/notification.gateway.ts
+    [x] Implement OnGatewayConnection → verify JWT + join room
+    [x] Implement OnGatewayDisconnect → cleanup
+    [x] Implement @SubscribeMessage('joinUserRoom')
+    [x] Implement @SubscribeMessage('leaveUserRoom')
+    [x] Implement sendToUser() → push to specific user room
+    [x] Add PII masking trong logs
 
-[ ] 4.3 WebSocket Auth Guard
-    [ ] Create auth/ws-jwt.guard.ts
-    [ ] Extract token từ handshake.auth.token hoặc headers
-    [ ] Verify JWT and attach user to socket.data
+[x] 4.3 WebSocket Auth Guard
+    [x] Create auth/ws-jwt.guard.ts
+    [x] Extract token từ handshake.auth.token hoặc headers
+    [x] Verify JWT and attach user to socket.data
 
-[ ] 4.4 Integration
-    [ ] Update NotificationService to call NotificationGateway
-    [ ] Send push notification khi có event từ RabbitMQ
-    [ ] Test với browser client
+[x] 4.4 Integration
+    [x] Update NotificationService to call NotificationGateway
+    [x] Send push notification khi có event từ RabbitMQ
+    [x] Test với Socket.IO client e2e
 
-[ ] 4.5 DI Registration
-    [ ] Register NotificationGateway trong NotificationModule
+[x] 4.5 DI Registration
+    [x] Register NotificationGateway trong NotificationModule
 ```
 
 **Client Connection (Next.js):**

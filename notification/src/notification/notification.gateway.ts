@@ -178,9 +178,8 @@ export class NotificationGateway
 
     socketServer.engine.opts.cors = {
       ...existingCorsOptions,
-      origin:
-        this.configService.get<string>('app.wsCorsOrigin') ??
-        'http://localhost:3000',
+      origin: this.configService.getOrThrow<string>('app.wsCorsOrigin'),
+
       credentials: true,
     };
   }
