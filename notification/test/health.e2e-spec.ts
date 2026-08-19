@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { Server } from 'http';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
+import { appConfig } from '../src/config/app.config';
 import { jwtConfig } from '../src/config/jwt.config';
 import { rabbitmqConfig } from '../src/config/rabbitmq.config';
 import { smtpConfig } from '../src/config/smtp.config';
@@ -32,6 +33,7 @@ describe('HealthController (e2e)', () => {
     previousEnv = { ...process.env };
     process.env.JWT_ACCESS_SECRET = 'test-access-secret-change-me';
     process.env.JWT_EXPIRES_IN = '1d';
+    process.env.WS_CORS_ORIGIN = 'http://localhost:3000';
 
     loggerErrorSpy = jest
       .spyOn(Logger.prototype, 'error')
@@ -41,7 +43,7 @@ describe('HealthController (e2e)', () => {
       imports: [
         ConfigModule.forRoot({
           isGlobal: true,
-          load: [jwtConfig, rabbitmqConfig, smtpConfig],
+          load: [appConfig, jwtConfig, rabbitmqConfig, smtpConfig],
         }),
         HealthModule,
       ],

@@ -1,9 +1,20 @@
-import { IsEmail, IsNotEmpty, IsString, IsISO8601 } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsISO8601,
+} from 'class-validator';
 
 export class CvFailedDto {
   @IsString()
   @IsNotEmpty()
   applicationId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  applicantId?: string;
 
   @IsEmail()
   @IsNotEmpty()

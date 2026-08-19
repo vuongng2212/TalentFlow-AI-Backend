@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Server } from 'http';
 import * as request from 'supertest';
+import { appConfig } from '../src/config/app.config';
 import { jwtConfig } from '../src/config/jwt.config';
 import { EmailService } from '../src/email/email.service';
 import { NotificationModule } from '../src/notification/notification.module';
@@ -25,12 +26,13 @@ describe('NotificationController (e2e)', () => {
     previousEnv = { ...process.env };
     process.env.JWT_ACCESS_SECRET = jwtAccessSecret;
     process.env.JWT_EXPIRES_IN = '1d';
+    process.env.WS_CORS_ORIGIN = 'http://localhost:3000';
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({
           isGlobal: true,
-          load: [jwtConfig],
+          load: [appConfig, jwtConfig],
         }),
         NotificationModule,
       ],
@@ -61,7 +63,11 @@ describe('NotificationController (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
-    for (const key of ['JWT_ACCESS_SECRET', 'JWT_EXPIRES_IN']) {
+    for (const key of [
+      'JWT_ACCESS_SECRET',
+      'JWT_EXPIRES_IN',
+      'WS_CORS_ORIGIN',
+    ]) {
       const previousValue = previousEnv[key];
 
       if (typeof previousValue === 'undefined') {
