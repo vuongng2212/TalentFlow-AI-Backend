@@ -1,6 +1,7 @@
 package com.talentflow.cvparser.usecase;
 
 import com.talentflow.cvparser.extractor.CandidateProfile;
+import com.talentflow.cvparser.extractor.ExtractionStatus;
 import com.talentflow.cvparser.parser.ParserFactory;
 import com.talentflow.cvparser.repository.CvParseResultRepository;
 import com.talentflow.cvparser.scoring.CandidateScoringUseCase;
@@ -112,12 +113,16 @@ public class CvParsingUseCaseImpl implements CvParsingUseCase {
             log.info("[CVP-USECASE] Scoring complete. candidateId={}, score={}, status={}",
                     event.getCandidateId(), scoringResult.getAiScore(), scoringResult.getScoringStatus());
 
-            // Persist within the current transaction
-            cvParseResultRepository.save(event, profile, scoringResult);
-            log.debug("[CVP-USECASE] Persisted. candidateId={}", event.getCandidateId());
+            // Map the real extraction outcome to the persisted parse status so metrics,
+            // idempotency and auditing reflect PARTIAL / FAILED, not just SUCCESS.
+            ParseStatus parseStatus = toParseStatus(profile.getExtractionStatus());
 
-            // Record success metrics
-            recordPipelineMetrics(start, ParseStatus.SUCCESS);
+            // Persist within the current transaction
+            cvParseResultRepository.save(event, profile, scoringResult, parseStatus);
+            log.debug("[CVP-USECASE] Persisted. candidateId={}, status={}", event.getCandidateId(), parseStatus);
+
+            // Record metrics with the real status
+            recordPipelineMetrics(start, parseStatus);
 
             // Post-commit publish: event is sent only after DB transaction commits
             TransactionSynchronizationManager.registerSynchronization(
@@ -129,11 +134,31 @@ public class CvParsingUseCaseImpl implements CvParsingUseCase {
                     }
             );
         } catch (Exception e) {
+            // Redact before logging — upstream exceptions (Gemini/WebClient) can embed PII.
             log.error("[CVP-USECASE] Pipeline failed. candidateId={}, error={}",
-                    event.getCandidateId(), e.getMessage());
+                    event.getCandidateId(), piiRedactor.redact(e.getMessage()));
             recordPipelineMetrics(start, ParseStatus.FAILED);
+            // Persist a durable failure/partial audit row so the outcome is recoverable
+            // from DB state and is not lost on retry.
+            cvParseResultRepository.saveFailure(event, ParseStatus.FAILED, piiRedactor.redact(e.getMessage()));
             throw e;
         }
+    }
+
+    /**
+     * Maps the extraction mechanism/completeness status to the persisted parse status.
+     * REGEX_FALLBACK still yields usable (partial) data, so it is recorded as PARTIAL;
+     * a hard extraction failure is recorded as FAILED.
+     */
+    private ParseStatus toParseStatus(ExtractionStatus extractionStatus) {
+        if (extractionStatus == null) {
+            return ParseStatus.FAILED;
+        }
+        return switch (extractionStatus) {
+            case SUCCESS -> ParseStatus.SUCCESS;
+            case PARTIAL, REGEX_FALLBACK -> ParseStatus.PARTIAL;
+            case FAILED -> ParseStatus.FAILED;
+        };
     }
 
     private void recordPipelineMetrics(Instant start, ParseStatus status) {

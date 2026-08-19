@@ -4,6 +4,7 @@ import com.rabbitmq.client.Channel;
 import com.talentflow.cvparser.shared.config.RabbitMqConfig;
 import com.talentflow.cvparser.shared.dto.CvFailedEvent;
 import com.talentflow.cvparser.shared.dto.CvUploadedEvent;
+import com.talentflow.cvparser.shared.util.PiiRedactor;
 import com.talentflow.cvparser.usecase.CvParsingUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -74,7 +75,7 @@ class CvParserListenerTest {
         ExecutorService testRunner     = Executors.newSingleThreadExecutor();
 
         try {
-            CvParserListener listener = new CvParserListener(slowUseCase, rabbitTemplate, executor, 3);
+            CvParserListener listener = new CvParserListener(slowUseCase, rabbitTemplate, executor, 3, new PiiRedactor());
             CvUploadedEvent event     = buildEvent();
 
             Future<?> listenerFuture = testRunner.submit(
@@ -109,7 +110,7 @@ class CvParserListenerTest {
         RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
         Channel channel = mock(Channel.class);
 
-        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3);
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3, new PiiRedactor());
         CvUploadedEvent event = buildEvent();
         long deliveryTag = 123L;
 
@@ -129,7 +130,7 @@ class CvParserListenerTest {
         RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
         Channel channel = mock(Channel.class);
 
-        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3);
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3, new PiiRedactor());
         CvUploadedEvent event = buildEvent();
         long deliveryTag = 123L;
 
@@ -165,7 +166,7 @@ class CvParserListenerTest {
         RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
         Channel channel = mock(Channel.class);
 
-        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3);
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3, new PiiRedactor());
         CvUploadedEvent event = buildEvent();
         long deliveryTag = 123L;
 
@@ -189,7 +190,7 @@ class CvParserListenerTest {
         Channel channel = mock(Channel.class);
         doThrow(new java.io.IOException("Ack connection closed")).when(channel).basicAck(anyLong(), anyBoolean());
 
-        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3);
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3, new PiiRedactor());
         CvUploadedEvent event = buildEvent();
 
         // Should not throw exception
@@ -209,7 +210,7 @@ class CvParserListenerTest {
         Channel channel = mock(Channel.class);
         doThrow(new java.io.IOException("Nack connection closed")).when(channel).basicNack(anyLong(), anyBoolean(), anyBoolean());
 
-        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3);
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3, new PiiRedactor());
         CvUploadedEvent event = buildEvent();
 
         // Should not throw exception

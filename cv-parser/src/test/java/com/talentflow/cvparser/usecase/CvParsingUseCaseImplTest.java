@@ -9,6 +9,7 @@ import com.talentflow.cvparser.scoring.ScoringResult;
 import com.talentflow.cvparser.shared.config.RabbitMqConfig;
 import com.talentflow.cvparser.shared.dto.CvParsedEvent;
 import com.talentflow.cvparser.shared.dto.CvUploadedEvent;
+import com.talentflow.cvparser.shared.dto.ParseStatus;
 import com.talentflow.cvparser.storage.StorageService;
 import com.talentflow.cvparser.shared.util.PiiRedactor;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -92,7 +93,7 @@ class CvParsingUseCaseImplTest {
         triggerAfterCommit();
 
         assertThat(Files.exists(tempFile)).isFalse();
-        verify(cvParseResultRepository).save(eq(event), any(CandidateProfile.class), any(ScoringResult.class));
+        verify(cvParseResultRepository).save(eq(event), any(CandidateProfile.class), any(ScoringResult.class), any(ParseStatus.class));
         verify(rabbitTemplate).convertAndSend(eq(RabbitMqConfig.ROUTING_KEY_CV_PARSED), any(CvParsedEvent.class));
     }
 
@@ -110,7 +111,7 @@ class CvParsingUseCaseImplTest {
 
         assertThat(Files.exists(tempFile)).isFalse();
         verify(dataExtractionUseCase, never()).extract(any());
-        verify(cvParseResultRepository, never()).save(any(), any(), any());
+        verify(cvParseResultRepository, never()).save(any(), any(), any(), any());
     }
 
     @Test
@@ -130,7 +131,7 @@ class CvParsingUseCaseImplTest {
         triggerAfterCommit();
 
         assertThat(Files.exists(tempFile)).isFalse();
-        verify(cvParseResultRepository).save(eq(event), any(CandidateProfile.class), any(ScoringResult.class));
+        verify(cvParseResultRepository).save(eq(event), any(CandidateProfile.class), any(ScoringResult.class), any(ParseStatus.class));
         verify(rabbitTemplate).convertAndSend(eq(RabbitMqConfig.ROUTING_KEY_CV_PARSED), any(CvParsedEvent.class));
     }
 
@@ -145,7 +146,7 @@ class CvParsingUseCaseImplTest {
         when(candidateScoringUseCase.score(any(), any()))
                 .thenReturn(new ScoringResult(85, "Good match", com.talentflow.cvparser.shared.dto.ScoringStatus.SUCCESS));
         doThrow(new RuntimeException("db failed"))
-                .when(cvParseResultRepository).save(eq(event), any(CandidateProfile.class), any(ScoringResult.class));
+                .when(cvParseResultRepository).save(eq(event), any(CandidateProfile.class), any(ScoringResult.class), any(ParseStatus.class));
 
         assertThatThrownBy(() -> useCase.execute(event))
                 .isInstanceOf(RuntimeException.class)

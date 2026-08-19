@@ -4,6 +4,7 @@ import com.talentflow.cvparser.shared.config.RabbitMqConfig;
 import com.talentflow.cvparser.shared.dto.CvFailedEvent;
 import com.talentflow.cvparser.shared.dto.CvUploadedEvent;
 import com.talentflow.cvparser.shared.exception.*;
+import com.talentflow.cvparser.shared.util.PiiRedactor;
 import com.talentflow.cvparser.usecase.CvParsingUseCase;
 import com.rabbitmq.client.Channel;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,7 +45,7 @@ class CvParserListenerExceptionTest {
 
     @BeforeEach
     void setUp() {
-        listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3);
+        listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3, new PiiRedactor());
         event = CvUploadedEvent.builder()
                 .candidateId("3fa85f64-5717-4562-b3fc-2c963f66afa6")
                 .applicationId("3fa85f64-5717-4562-b3fc-2c963f66afa7")

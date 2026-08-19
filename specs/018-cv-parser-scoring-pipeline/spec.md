@@ -13,13 +13,13 @@ The `cv-parser` microservice completes document parsing and profile extraction (
 
 Phase 4 completes the scoring loop and fixes event contracts. Phase 5 hardens the integration: transactional safety, structured exception routing, Prometheus observability, and correlation-aware JSON logging.
 
-This work is entirely within the `cv-parser/` service boundary. No API Gateway or Notification service code changes are required.
+This work is primarily within the `cv-parser/` service boundary. Additionally, this PR introduces an **n8n email ingestion** feature in `api-gateway/` (Phase 1 of a separate email-ingestion automation effort) that feeds applications into the same pipeline: a public ingestion endpoint protected by an API key, an `ApiKeyGuard`, ingestion DTOs, idempotency handling, and a Prisma `externalMessageId` column. Those api-gateway changes are documented here for traceability but belong to the email-ingestion automation scope (see `docs/expansion/email-ingestion-automation.md`).
 
 ---
 
 ## Scope And Ownership
 
-- **Primary service(s)**: CV Parser only
+- **Primary service(s)**: CV Parser (core scoring pipeline); API Gateway (email ingestion endpoint consumed by the pipeline)
 - **Runtime boundary**: RabbitMQ consumer (background worker, async)
 - **Data boundary**: New Flyway-managed `cv_parse_results` table in cv-parser's own Postgres schema; RabbitMQ message contracts (`cv.parsed`, `cv.failed` on `talentflow.events`)
 - **Active docs**: Use `.specify/` and `specs/` as the current planning surface; frozen sources are reference only.
@@ -171,8 +171,8 @@ When a recruiter reports that a specific CV was mishandled, ops can search Kiban
 
 ### Service Boundary Notes
 
-- **CV Parser**: All changes are within `cv-parser/src/main/java/com/talentflow/cvparser/` and `cv-parser/src/test/`. No changes to `api-gateway/` or `notification/`.
-- **API Gateway**: No code changes. Existing `cv.parsed`/`cv.failed` consumer in `api-gateway` already handles the corrected contract fields — they were simply never populated before.
+- **CV Parser**: Core changes are within `cv-parser/src/main/java/com/talentflow/cvparser/` and `cv-parser/src/test/`.
+- **API Gateway**: This PR also adds the n8n email ingestion entry point (endpoint + `ApiKeyGuard` + DTOs + Prisma `externalMessageId`), which submits applications that later flow into the cv-parser pipeline. This is part of the email-ingestion automation scope and is intentionally included here for end-to-end traceability. No changes to the existing `cv.parsed`/`cv.failed` consumer logic.
 - **Notification**: No changes.
 
 ### Data / Schema Changes

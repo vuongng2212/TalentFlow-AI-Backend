@@ -6,7 +6,6 @@ import com.talentflow.cvparser.extractor.CandidateProfile;
 import com.talentflow.cvparser.scoring.ScoringResult;
 import com.talentflow.cvparser.shared.dto.CvUploadedEvent;
 import com.talentflow.cvparser.shared.dto.ParseStatus;
-import com.talentflow.cvparser.shared.dto.ScoringStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 
@@ -30,7 +29,7 @@ public class CvParseResultRepositoryImpl implements CvParseResultRepository {
     }
 
     @Override
-    public void save(CvUploadedEvent event, CandidateProfile profile, ScoringResult scoring) {
+    public void save(CvUploadedEvent event, CandidateProfile profile, ScoringResult scoring, ParseStatus status) {
         String parsedDataJson = serializeParsedData(profile);
         Optional<CvParseResultEntity> existing = jpaRepository.findByApplicationId(
                 UUID.fromString(event.getApplicationId()));
@@ -38,17 +37,21 @@ public class CvParseResultRepositoryImpl implements CvParseResultRepository {
         CvParseResultEntity entity;
         if (existing.isPresent()) {
             entity = existing.get();
-            entity.setStatus(ParseStatus.SUCCESS);
+            // Persist the real status instead of always SUCCESS, so idempotency,
+            // metrics and auditing reflect PARTIAL / FAILED outcomes too.
+            entity.setStatus(status);
             entity.setAiScore(scoring != null ? scoring.getAiScore() : null);
             entity.setScoringReasoning(scoring != null ? scoring.getScoringReasoning() : null);
             entity.setScoringStatus(scoring != null ? scoring.getScoringStatus() : null);
             entity.setParsedData(parsedDataJson);
+            entity.setErrorMessage(null);
+            entity.setErrorCode(null);
         } else {
             entity = CvParseResultEntity.builder()
                     .applicationId(UUID.fromString(event.getApplicationId()))
                     .candidateId(UUID.fromString(event.getCandidateId()))
                     .jobId(UUID.fromString(event.getJobId()))
-                    .status(ParseStatus.SUCCESS)
+                    .status(status)
                     .aiScore(scoring != null ? scoring.getAiScore() : null)
                     .scoringReasoning(scoring != null ? scoring.getScoringReasoning() : null)
                     .scoringStatus(scoring != null ? scoring.getScoringStatus() : null)
@@ -59,6 +62,39 @@ public class CvParseResultRepositoryImpl implements CvParseResultRepository {
         jpaRepository.save(entity);
         log.debug("[REPO] Saved CvParseResult. applicationId={}, status={}, score={}",
                 event.getApplicationId(), entity.getStatus(), entity.getAiScore());
+    }
+
+    @Override
+    public void saveFailure(CvUploadedEvent event, ParseStatus status, String errorMessage) {
+        // Don't overwrite a prior SUCCESS — a later transient failure on retry must not
+        // downgrade an already-completed record.
+        if (jpaRepository.existsByApplicationIdAndStatus(
+                UUID.fromString(event.getApplicationId()), ParseStatus.SUCCESS)) {
+            log.debug("[REPO] Skipping failure save; SUCCESS row already present. applicationId={}",
+                    event.getApplicationId());
+            return;
+        }
+
+        Optional<CvParseResultEntity> existing = jpaRepository.findByApplicationId(
+                UUID.fromString(event.getApplicationId()));
+        CvParseResultEntity entity;
+        if (existing.isPresent()) {
+            entity = existing.get();
+            entity.setStatus(status);
+            entity.setErrorMessage(errorMessage);
+        } else {
+            entity = CvParseResultEntity.builder()
+                    .applicationId(UUID.fromString(event.getApplicationId()))
+                    .candidateId(UUID.fromString(event.getCandidateId()))
+                    .jobId(UUID.fromString(event.getJobId()))
+                    .status(status)
+                    .errorMessage(errorMessage)
+                    .build();
+        }
+
+        jpaRepository.save(entity);
+        log.debug("[REPO] Saved FAILED/PARTIAL CvParseResult. applicationId={}, status={}",
+                event.getApplicationId(), status);
     }
 
     @Override

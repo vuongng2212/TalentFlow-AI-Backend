@@ -160,6 +160,14 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
+# CV Parser worker configuration (decoupled from scoring-client retry settings)
+cv:
+  parser:
+    # Max redelivery attempts for transient pipeline failures before routing to DLQ.
+    # Kept separate from llm.scoring.max-retries so tuning scoring retries does not
+    # unexpectedly change DLQ behavior.
+    max-retries: ${CV_PARSER_MAX_RETRIES:3}
+
 app:
   storage:
     endpoint: ${R2_ENDPOINT:http://localhost:9000}

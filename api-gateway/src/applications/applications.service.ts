@@ -835,10 +835,12 @@ export class ApplicationsService {
       externalMessageId,
     } = dto;
 
-    // 1. Technical idempotency: block duplicate webhook retries
+    // 1. Technical idempotency: block duplicate webhook retries.
+    // Scoped to the workspace to avoid cross-tenant message-ID collisions
+    // blocking legitimate ingestions (cross-tenant denial of service).
     if (externalMessageId) {
       const existingByMessageId = await this.prisma.application.findFirst({
-        where: { externalMessageId, deletedAt: null },
+        where: { externalMessageId, workspaceId, deletedAt: null },
       });
 
       if (existingByMessageId) {

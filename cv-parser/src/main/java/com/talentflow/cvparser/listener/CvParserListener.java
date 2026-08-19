@@ -5,6 +5,7 @@ import com.talentflow.cvparser.shared.dto.CvFailedEvent;
 import com.talentflow.cvparser.shared.dto.CvUploadedEvent;
 import com.talentflow.cvparser.shared.exception.*;
 import com.talentflow.cvparser.usecase.CvParsingUseCase;
+import com.talentflow.cvparser.shared.util.PiiRedactor;
 import com.rabbitmq.client.Channel;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -33,16 +34,19 @@ public class CvParserListener {
     // message immediately, decoupling listener concurrency from pipeline throughput.
     private final Executor parsingExecutor;
     private final int maxRetries;
+    private final PiiRedactor piiRedactor;
 
     public CvParserListener(
             CvParsingUseCase cvParsingUseCase,
             RabbitTemplate rabbitTemplate,
             @Qualifier("parsingExecutor") Executor parsingExecutor,
-            @Value("${llm.scoring.max-retries:3}") int maxRetries) {
+            @Value("${cv.parser.max-retries:3}") int maxRetries,
+            PiiRedactor piiRedactor) {
         this.cvParsingUseCase = cvParsingUseCase;
         this.rabbitTemplate   = rabbitTemplate;
         this.parsingExecutor  = parsingExecutor;
         this.maxRetries       = maxRetries;
+        this.piiRedactor      = piiRedactor;
     }
 
     @RabbitListener(
@@ -104,8 +108,17 @@ public class CvParserListener {
                     int nextRetry = currentRetry + 1;
                     log.warn("[CVP-LISTENER] Transient error, re-publishing for retry {}/{}. candidateId={}",
                             nextRetry, maxRetries, event.getCandidateId());
-                    republishForRetry(event, nextRetry);
-                    ackMessage(channel, deliveryTag, event.getCandidateId());
+                    try {
+                        republishForRetry(event, nextRetry);
+                        // Only ACK the original after the retry copy is safely on the queue.
+                        ackMessage(channel, deliveryTag, event.getCandidateId());
+                    } catch (Exception republishEx) {
+                        // Republish failed (e.g. transient RabbitMQ outage). Do NOT ack the
+                        // original — NACK → requeue/DLQ so the message is not silently dropped.
+                        log.error("[CVP-LISTENER] Republish for retry failed; NACKing original. candidateId={}",
+                                event.getCandidateId(), republishEx);
+                        nackMessage(channel, deliveryTag, event.getCandidateId(), false);
+                    }
                 } else {
                     log.error("[CVP-LISTENER] Max retries ({}) exhausted for transient error. Routing to DLQ. candidateId={}",
                             maxRetries, event.getCandidateId());
@@ -131,8 +144,9 @@ public class CvParserListener {
                     }
             );
         } catch (Exception e) {
-            log.error("[CVP-LISTENER] Failed to republish message for retry. candidateId={}",
-                    event.getCandidateId(), e);
+            // Do NOT swallow — let the caller NACK the original instead of ACKing a
+            // message we failed to re-queue (which would silently drop it).
+            throw new RuntimeException("Failed to republish message for retry", e);
         }
     }
 
@@ -160,12 +174,16 @@ public class CvParserListener {
     private void publishFailedEvent(CvUploadedEvent event, Exception ex, boolean retryable) {
         try {
             String errorCode = extractErrorCode(ex);
+            // Redact PII/verbose upstream bodies (e.g., Gemini 4xx/5xx) before publishing
+            // to the shared event bus.
+            String safeErrorMessage = piiRedactor.redact(
+                    ex.getMessage() != null ? ex.getMessage() : "Unknown error");
             CvFailedEvent failedEvent = CvFailedEvent.builder()
                     .candidateId(event.getCandidateId())
                     .applicationId(event.getApplicationId())
                     .jobId(event.getJobId())
                     .errorCode(errorCode)
-                    .errorMessage(ex.getMessage() != null ? ex.getMessage() : "Unknown error")
+                    .errorMessage(safeErrorMessage)
                     .retryable(retryable)
                     .failedAt(Instant.now())
                     .build();
