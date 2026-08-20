@@ -8,7 +8,9 @@ import { io, Socket } from 'socket.io-client';
 import { appConfig } from '../src/config/app.config';
 import { jwtConfig } from '../src/config/jwt.config';
 import { EmailService } from '../src/email/email.service';
+import { SendNotificationType } from '../src/notification/dto/send-notification.dto';
 import { NotificationModule } from '../src/notification/notification.module';
+import { NotificationService } from '../src/notification/notification.service';
 
 type JoinUserRoomAck = {
   event: string;
@@ -21,6 +23,7 @@ describe('NotificationGateway client/server connection (e2e)', () => {
   let app: INestApplication;
   let baseUrl: string;
   let jwtService: JwtService;
+  let notificationService: NotificationService;
   let previousEnv: NodeJS.ProcessEnv;
   const clients: Socket[] = [];
 
@@ -53,6 +56,7 @@ describe('NotificationGateway client/server connection (e2e)', () => {
     const server = app.getHttpServer() as Server;
     const address = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${address.port}`;
+    notificationService = moduleFixture.get(NotificationService);
     jwtService = new JwtService({
       secret: jwtAccessSecret,
       signOptions: {
@@ -87,6 +91,46 @@ describe('NotificationGateway client/server connection (e2e)', () => {
     await expect(joinedUserRoom).resolves.toEqual({
       room: 'user:user-123',
     });
+  });
+
+  it('pushes receiveNotification to the authenticated user room', async () => {
+    const client = await connectClient(createValidToken());
+    const joinedUserRoom = waitForEvent<JoinUserRoomAck['data']>(
+      client,
+      'joinedUserRoom',
+    );
+
+    client.emit('joinUserRoom');
+    await joinedUserRoom;
+
+    const receivedNotification = waitForEvent(client, 'receiveNotification');
+
+    await notificationService.send(
+      {
+        to: 'candidate@example.com',
+        subject: 'Realtime notification',
+        body: 'This should reach the connected client.',
+        type: SendNotificationType.EMAIL,
+      },
+      {
+        userId: 'user-123',
+        email: 'user@example.com',
+        role: 'RECRUITER',
+      },
+    );
+
+    const payload = (await receivedNotification) as Record<string, unknown>;
+
+    expect(payload).toMatchObject({
+      userId: 'user-123',
+      channel: 'email',
+      title: 'Realtime notification',
+      message: 'This should reach the connected client.',
+      status: 'sent',
+      read: false,
+    });
+    expect(payload).not.toHaveProperty('recipient');
+    expect(payload).not.toHaveProperty('subject');
   });
 
   it('rejects a client connection without a WebSocket auth token', async () => {

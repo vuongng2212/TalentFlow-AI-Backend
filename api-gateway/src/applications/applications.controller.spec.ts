@@ -6,6 +6,7 @@ import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { QueryApplicationsDto } from './dto/query-applications.dto';
 import { ApplicationStatus, ApplicationStage, Role } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 
 describe('ApplicationsController', () => {
   let controller: ApplicationsController;
@@ -52,6 +53,7 @@ describe('ApplicationsController', () => {
   const mockApplicationsService = {
     create: jest.fn(),
     createWithCv: jest.fn(),
+    ingestApplication: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
     update: jest.fn(),
@@ -65,6 +67,12 @@ describe('ApplicationsController', () => {
         {
           provide: ApplicationsService,
           useValue: mockApplicationsService,
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue('dev-ingestion-api-key-123'),
+          },
         },
       ],
     }).compile();
@@ -129,6 +137,63 @@ describe('ApplicationsController', () => {
         file,
         dto,
       );
+    });
+  });
+
+  describe('ingest', () => {
+    it('should ingest an application via webhook', async () => {
+      const file = {
+        originalname: 'resume.pdf',
+        mimetype: 'application/pdf',
+        buffer: Buffer.from('pdf-content'),
+      } as Express.Multer.File;
+
+      const dto = {
+        jobId: 'job-1',
+        candidateEmail: 'candidate@test.com',
+        candidateName: 'Test Candidate',
+        coverLetter: 'Interested',
+        externalMessageId: 'gmail-123',
+      };
+
+      const expected = {
+        success: true,
+        data: {
+          applicationId: 'app-1',
+          candidateId: 'candidate-1',
+          status: 'processing',
+          message: 'CV ingestion initiated successfully.',
+        },
+      };
+
+      mockApplicationsService.ingestApplication.mockResolvedValue(expected);
+
+      const result = await controller.ingest('ws-1', file, dto);
+
+      expect(result).toEqual(expected);
+      expect(jest.mocked(service.ingestApplication)).toHaveBeenCalledWith(
+        'ws-1',
+        file,
+        dto,
+      );
+    });
+
+    it('should throw BadRequestException when x-workspace-id is missing', async () => {
+      const file = {
+        originalname: 'resume.pdf',
+        mimetype: 'application/pdf',
+        buffer: Buffer.from('pdf-content'),
+      } as Express.Multer.File;
+
+      const dto = {
+        jobId: 'job-1',
+        candidateEmail: 'candidate@test.com',
+        candidateName: 'Test Candidate',
+      };
+
+      await expect(
+        controller.ingest(undefined as unknown as string, file, dto),
+      ).rejects.toThrow('Missing x-workspace-id header');
     });
   });
 

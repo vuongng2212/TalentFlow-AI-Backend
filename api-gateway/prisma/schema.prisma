@@ -149,6 +149,7 @@ model Application {
   cvFileKey   String?           @map("cv_file_key")
   cvFileUrl   String?           @map("cv_file_url")
   coverLetter String?           @map("cover_letter")
+  externalMessageId String?     @map("external_message_id")
   notes       String?
   cvParsingStatus CvParsingStatus @default(PENDING) @map("cv_parsing_status")
   aiScore     Int?              @map("ai_score")

@@ -124,4 +124,3 @@ import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
   ],
 })
 export class AppModule {}
-

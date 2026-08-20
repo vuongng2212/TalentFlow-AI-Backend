@@ -29,9 +29,7 @@ type RequestWithId = Request & { id?: string; [REQUEST_ID_HEADER]?: string };
 export class RequestLoggerInterceptor implements NestInterceptor {
   private readonly fallbackLogger = new Logger('HTTP');
 
-  constructor(
-    @Optional() private readonly elkLogger?: ElkLoggerService,
-  ) {
+  constructor(@Optional() private readonly elkLogger?: ElkLoggerService) {
     if (elkLogger) {
       elkLogger.setContext('HTTP');
     }
@@ -83,7 +81,15 @@ export class RequestLoggerInterceptor implements NestInterceptor {
     const method = request.method ?? 'UNKNOWN';
     const url = sanitizeUrl(request.url ?? '');
     const status = response.statusCode ?? 0;
-    const meta = { msg: 'HTTP Request', method, url, status, duration, requestId, timestamp: new Date().toISOString() };
+    const meta = {
+      msg: 'HTTP Request',
+      method,
+      url,
+      status,
+      duration,
+      requestId,
+      timestamp: new Date().toISOString(),
+    };
 
     if (this.elkLogger) {
       this.elkLogger.log(JSON.stringify(meta), 'HTTP');

@@ -7,7 +7,7 @@ export const validationSchema = Joi.object({
   PORT: Joi.number().port().default(3001),
   APP_NAME: Joi.string().default('notification-service'),
   APP_URL: Joi.string().uri().default('http://localhost:3001'),
-  CORS_ORIGIN: Joi.string().allow('', null).default('http://localhost:3000'),
+  CORS_ORIGIN: Joi.string().min(1).required(),
 
   JWT_ACCESS_SECRET: Joi.when('NODE_ENV', {
     is: 'test',
@@ -49,5 +49,5 @@ export const validationSchema = Joi.object({
   SMTP_PASS: Joi.string().min(1).default('your-email-password'),
   SMTP_FROM: Joi.string().default('TalentFlow <noreply@talentflow.local>'),
 
-  WS_CORS_ORIGIN: Joi.string().allow('', null).default('http://localhost:3000'),
+  WS_CORS_ORIGIN: Joi.string().min(1).required(),
 });

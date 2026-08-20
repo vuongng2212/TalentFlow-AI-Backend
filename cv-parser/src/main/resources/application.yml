@@ -35,6 +35,15 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+        default_schema: cv_parser
+    open-in-view: false
+
+  # Flyway Migration
+  flyway:
+    enabled: true
+    schemas: cv_parser
+    create-schemas: true
+    locations: classpath:db/migration
 
   # Jackson Configuration
   jackson:
@@ -67,6 +76,11 @@ llm:
     max-connections: ${LLM_HTTP_MAX_CONNECTIONS:10}
   max-tokens: ${LLM_MAX_TOKENS:8192}
   min-text-length: ${LLM_MIN_TEXT_LENGTH:50}
+  scoring:
+    timeout-seconds: ${LLM_SCORING_TIMEOUT_SECONDS:10}
+    fallback-score: ${LLM_SCORING_FALLBACK_SCORE:50}
+    fallback-reason: "Scoring unavailable"
+    max-retries: ${LLM_SCORING_MAX_RETRIES:2}
 
 # OCR Configuration (Tesseract)
 tesseract:
@@ -146,14 +160,13 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
-  rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASS:guest}
-    listener:
-      simple:
-        acknowledge-mode: manual
+# CV Parser worker configuration (decoupled from scoring-client retry settings)
+cv:
+  parser:
+    # Max redelivery attempts for transient pipeline failures before routing to DLQ.
+    # Kept separate from llm.scoring.max-retries so tuning scoring retries does not
+    # unexpectedly change DLQ behavior.
+    max-retries: ${CV_PARSER_MAX_RETRIES:3}
 
 app:
   storage:

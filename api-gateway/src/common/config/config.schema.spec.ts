@@ -39,6 +39,7 @@ describe('appConfigSchema', () => {
       NODE_ENV: 'development',
       JWT_ACCESS_SECRET: 'development-access-secret-123',
       JWT_REFRESH_SECRET: 'development-refresh-secret-123',
+      INGESTION_API_KEY: 'development-ingestion-key-123',
     });
 
     expect(error).toBeUndefined();

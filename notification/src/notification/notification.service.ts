@@ -5,42 +5,42 @@ import { maskPii } from '../common/utils/pii-masker';
 import { EmailTemplateId } from '../email/email-template';
 import { EmailService } from '../email/email.service';
 import { MetricsService } from '../metrics/metrics.service';
+import { WorkspaceMemberInvitedDto } from '../rabbitmq/dtos/workspace-member-invited.dto';
 import {
   ApplicationCreatedEvent,
   CvFailedEvent,
   CvParsedEvent,
   NotificationSendEvent,
 } from '../rabbitmq/events';
-import { WorkspaceMemberInvitedDto } from '../rabbitmq/dtos/workspace-member-invited.dto';
 import { NotificationResponseDto } from './dto/notification-response.dto';
 import {
   SendNotificationDto,
   SendNotificationType,
 } from './dto/send-notification.dto';
 import { NotificationEntity } from './entities/notification.entity';
+import { NotificationGateway } from './notification.gateway';
+
+const RECEIVE_NOTIFICATION_EVENT = 'receiveNotification';
+
+type NotificationResult = {
+  success: boolean;
+  messageId?: string;
+};
+
+type RealtimeNotificationPayload = Omit<
+  NotificationResponseDto,
+  'recipient' | 'subject'
+>;
 
 @Injectable()
 export class NotificationService {
+  private readonly logger = new Logger(NotificationService.name);
+
   constructor(
     private readonly emailService: EmailService,
+    private readonly notificationGateway: NotificationGateway,
     @Optional() private readonly metricsService?: MetricsService,
   ) {}
-
-  private async executeWithMetrics<T>(operation: () => Promise<T>): Promise<T> {
-    const startMs = Date.now();
-    try {
-      const result = await operation();
-      const durationMs = Date.now() - startMs;
-      this.metricsService?.recordNotificationSent('email', 'success');
-      this.metricsService?.recordDeliveryDuration('email', durationMs);
-      return result;
-    } catch (error) {
-      const durationMs = Date.now() - startMs;
-      this.metricsService?.recordNotificationSent('email', 'failure');
-      this.metricsService?.recordDeliveryDuration('email', durationMs);
-      throw error;
-    }
-  }
 
   async send(
     dto: SendNotificationDto,
@@ -73,7 +73,7 @@ export class NotificationService {
         createdAt: now,
       };
 
-      return this.toResponse(notification);
+      return this.publishRealtime(notification);
     });
   }
 
@@ -92,10 +92,11 @@ export class NotificationService {
 
   async sendFromEvent(
     event: NotificationSendEvent,
-  ): Promise<{ success: boolean; messageId?: string }> {
+  ): Promise<NotificationResult> {
     return this.executeWithMetrics(async () => {
-      const logger = new Logger(NotificationService.name);
-      logger.log(`Processing notification.send event for ${maskPii(event.to)}`);
+      this.logger.log(
+        `Processing notification.send event for ${maskPii(event.to)}`,
+      );
 
       const templateId =
         (event.templateId as EmailTemplateId | undefined) ??
@@ -127,17 +128,20 @@ export class NotificationService {
         createdAt: now,
       };
 
-      logger.log(`sendFromEvent completed, notificationId=${notification.id}`);
+      this.publishRealtime(notification);
+
+      this.logger.log(
+        `sendFromEvent completed, notificationId=${notification.id}`,
+      );
       return { success: true, messageId: notification.id };
     });
   }
 
   async handleApplicationCreated(
     event: ApplicationCreatedEvent,
-  ): Promise<{ success: boolean; messageId?: string }> {
+  ): Promise<NotificationResult> {
     return this.executeWithMetrics(async () => {
-      const logger = new Logger(NotificationService.name);
-      logger.log(
+      this.logger.log(
         `Processing application.created for applicant ${maskPii(event.applicantEmail)}`,
       );
 
@@ -146,6 +150,7 @@ export class NotificationService {
         subject: `Application Received: ${event.jobTitle}`,
         templateId: EmailTemplateId.APPLICATION_CONFIRMATION,
         templateData: {
+          applicantName: event.applicantName,
           candidateName: event.applicantName,
           jobTitle: event.jobTitle,
         },
@@ -166,40 +171,43 @@ export class NotificationService {
         createdAt: new Date(),
       };
 
-      logger.log(
+      this.publishRealtime(notification, event.applicantId ?? null);
+
+      this.logger.log(
         `handleApplicationCreated completed, notificationId=${notification.id}`,
       );
       return { success: true, messageId: notification.id };
     });
   }
 
-  async handleCvParsed(
-    event: CvParsedEvent,
-  ): Promise<{ success: boolean; messageId?: string }> {
+  async handleCvParsed(event: CvParsedEvent): Promise<NotificationResult> {
     return this.executeWithMetrics(async () => {
-      const logger = new Logger(NotificationService.name);
-      logger.log(
+      this.logger.log(
         `Processing cv.parsed for applicant ${maskPii(event.applicantEmail)}`,
       );
+
+      const score = event.score ?? 'N/A';
 
       await this.emailService.sendEmail({
         to: event.applicantEmail,
         subject: `CV Processed: ${event.jobTitle}`,
         templateId: EmailTemplateId.APPLICATION_RESULT,
         templateData: {
+          applicantName: event.applicantName,
           candidateName: event.applicantName,
           jobTitle: event.jobTitle,
-          result: `Score: ${event.score ?? 'N/A'}`,
+          result: `Score: ${score}`,
+          score,
         },
       });
 
       const notification: NotificationEntity = {
         id: randomUUID(),
-        userId: event.applicationId,
+        userId: event.applicantId ?? event.applicationId,
         type: 'application_result',
         channel: 'email',
         title: `CV Processed: ${event.jobTitle}`,
-        message: `Your CV for ${event.jobTitle} has been processed. Score: ${event.score ?? 'N/A'}`,
+        message: `Your CV for ${event.jobTitle} has been processed. Score: ${score}`,
         recipient: event.applicantEmail,
         subject: `CV Processed: ${event.jobTitle}`,
         status: 'sent',
@@ -208,17 +216,18 @@ export class NotificationService {
         createdAt: new Date(),
       };
 
-      logger.log(`handleCvParsed completed, notificationId=${notification.id}`);
+      this.publishRealtime(notification, event.applicantId ?? null);
+
+      this.logger.log(
+        `handleCvParsed completed, notificationId=${notification.id}`,
+      );
       return { success: true, messageId: notification.id };
     });
   }
 
-  async handleCvFailed(
-    event: CvFailedEvent,
-  ): Promise<{ success: boolean; messageId?: string }> {
+  async handleCvFailed(event: CvFailedEvent): Promise<NotificationResult> {
     return this.executeWithMetrics(async () => {
-      const logger = new Logger(NotificationService.name);
-      logger.log(
+      this.logger.log(
         `Processing cv.failed for applicant ${maskPii(event.applicantEmail)}`,
       );
 
@@ -230,7 +239,7 @@ export class NotificationService {
 
       const notification: NotificationEntity = {
         id: randomUUID(),
-        userId: event.applicationId,
+        userId: event.applicantId ?? event.applicationId,
         type: 'application_result',
         channel: 'email',
         title: `CV Processing Failed: ${event.jobTitle}`,
@@ -243,17 +252,20 @@ export class NotificationService {
         createdAt: new Date(),
       };
 
-      logger.log(`handleCvFailed completed, notificationId=${notification.id}`);
+      this.publishRealtime(notification, event.applicantId ?? null);
+
+      this.logger.log(
+        `handleCvFailed completed, notificationId=${notification.id}`,
+      );
       return { success: true, messageId: notification.id };
     });
   }
 
   async handleWorkspaceMemberInvited(
     event: WorkspaceMemberInvitedDto,
-  ): Promise<{ success: boolean; messageId?: string }> {
+  ): Promise<NotificationResult> {
     return this.executeWithMetrics(async () => {
-      const logger = new Logger(NotificationService.name);
-      logger.log(
+      this.logger.log(
         `Processing workspace.member.invited for ${maskPii(event.email)} (workspace=${event.workspaceName})`,
       );
 
@@ -264,6 +276,7 @@ export class NotificationService {
         templateData: {
           workspaceName: event.workspaceName,
           inviteUrl: event.inviteUrl,
+          token: event.token,
         },
       });
 
@@ -272,8 +285,8 @@ export class NotificationService {
         userId: event.email,
         type: 'workspace_invitation',
         channel: 'email',
-        title: `You're invited to join ${event.workspaceName}`,
-        message: `Accept the invitation to join ${event.workspaceName}.`,
+        title: `Workspace invitation: ${event.workspaceName}`,
+        message: `You have been invited to join ${event.workspaceName}.`,
         recipient: event.email,
         subject: `You're invited to join ${event.workspaceName} on TalentFlow`,
         status: 'sent',
@@ -282,11 +295,31 @@ export class NotificationService {
         createdAt: new Date(),
       };
 
-      logger.log(
+      this.publishRealtime(notification);
+
+      this.logger.log(
         `handleWorkspaceMemberInvited completed, notificationId=${notification.id}`,
       );
       return { success: true, messageId: notification.id };
     });
+  }
+
+  private async executeWithMetrics<T>(operation: () => Promise<T>): Promise<T> {
+    const startedAt = Date.now();
+
+    try {
+      const result = await operation();
+      this.metricsService?.recordNotificationSent('email', 'success');
+      return result;
+    } catch (error) {
+      this.metricsService?.recordNotificationSent('email', 'failure');
+      throw error;
+    } finally {
+      this.metricsService?.recordDeliveryDuration(
+        'email',
+        Date.now() - startedAt,
+      );
+    }
   }
 
   private resolveTemplateId(
@@ -301,6 +334,8 @@ export class NotificationService {
         EmailTemplateId.NEW_APPLICATION_HR,
       [SendNotificationType.APPLICATION_RESULT]:
         EmailTemplateId.APPLICATION_RESULT,
+      [SendNotificationType.WORKSPACE_INVITATION]:
+        EmailTemplateId.WORKSPACE_INVITATION,
     };
 
     return templates[type];
@@ -314,5 +349,54 @@ export class NotificationService {
       createdAt: notification.createdAt.toISOString(),
       sentAt: notification.sentAt?.toISOString(),
     };
+  }
+
+  private toRealtimePayload(
+    response: NotificationResponseDto,
+  ): RealtimeNotificationPayload {
+    return {
+      id: response.id,
+      userId: response.userId,
+      type: response.type,
+      channel: response.channel,
+      title: response.title,
+      message: response.message,
+      status: response.status,
+      read: response.read,
+      sentAt: response.sentAt,
+      createdAt: response.createdAt,
+    };
+  }
+
+  private publishRealtime(
+    notification: NotificationEntity,
+    recipientUserId: string | null = notification.userId,
+  ): NotificationResponseDto {
+    const response = this.toResponse(notification);
+    const realtimePayload = this.toRealtimePayload(response);
+
+    if (!recipientUserId) {
+      this.logger.warn(
+        `Realtime notification skipped for notificationId=${notification.id}: missing recipient user id`,
+      );
+      return response;
+    }
+
+    try {
+      this.notificationGateway.sendToUser(
+        recipientUserId,
+        RECEIVE_NOTIFICATION_EVENT,
+        realtimePayload,
+      );
+    } catch (error) {
+      this.metricsService?.recordNotificationSent('websocket', 'failure');
+      this.logger.warn(
+        `Realtime notification push failed for userId=${maskPii(recipientUserId)}: ${maskPii(
+          error instanceof Error ? error.message : String(error),
+        )}`,
+      );
+    }
+
+    return response;
   }
 }
