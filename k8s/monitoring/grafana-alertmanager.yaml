@@ -52,6 +52,13 @@ spec:
           volumeMounts:
             - name: datasource
               mountPath: /etc/grafana/provisioning/datasources
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "300m"
+              memory: "512Mi"
       volumes:
         - name: datasource
           configMap:
@@ -108,6 +115,13 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/alertmanager
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
       volumes:
         - name: config
           configMap:
@@ -131,7 +145,7 @@ data:
     receivers:
       - name: default
         webhook_configs:
-          - url: 'http://notification.talentflow.svc.cluster.local:5000/alerts'
+          - url: 'http://notification-service.talentflow.svc.cluster.local:5000/alerts'
 ---
 apiVersion: v1
 kind: Service
