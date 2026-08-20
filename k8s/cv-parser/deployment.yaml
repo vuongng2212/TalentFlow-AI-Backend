@@ -1,57 +1,56 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api-gateway
+  name: cv-parser
   namespace: talentflow
   labels:
-    app: api-gateway
+    app: cv-parser
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: api-gateway
+      app: cv-parser
   template:
     metadata:
       labels:
-        app: api-gateway
+        app: cv-parser
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "8080"
-        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8081"
+        prometheus.io/path: "/actuator/prometheus"
     spec:
       containers:
-        - name: api-gateway
-          image: your-registry.com/talentflow/api-gateway:latest
+        - name: cv-parser
+          image: your-registry.com/talentflow/cv-parser:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8080
+            - containerPort: 8081
               name: http
           envFrom:
             - configMapRef:
-                name: api-gateway-config
+                name: cv-parser-config
             - secretRef:
-                name: api-gateway-secret
+                name: cv-parser-secret
           resources:
             requests:
-              cpu: "200m"
-              memory: "256Mi"
-            limits:
-              cpu: "500m"
+              cpu: "300m"
               memory: "512Mi"
+            limits:
+              cpu: "800m"
+              memory: "1Gi"
           livenessProbe:
             httpGet:
-              path: /api/v1/health
+              path: /actuator/health
               port: http
-            initialDelaySeconds: 15
+            initialDelaySeconds: 30
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /api/v1/health
+              path: /actuator/health
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
-      # Note: Optional Filebeat/Logstash sidecar can be added here if not using ELK direct transport

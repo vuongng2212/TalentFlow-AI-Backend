@@ -20,9 +20,11 @@ rule_files:
 
 scrape_configs:
   # API Gateway — NestJS / prom-client
+  # NOTE: container listens on 8080 (see api-gateway main.ts default PORT + k8s configmap).
+  # Local dev overrides PORT=3000 via .env, but in-cluster it is 8080.
   - job_name: 'api-gateway'
     static_configs:
-      - targets: ['api-gateway:3000']
+      - targets: ['api-gateway:8080']
     metrics_path: '/metrics'
     scrape_interval: 15s
     scrape_timeout: 10s
