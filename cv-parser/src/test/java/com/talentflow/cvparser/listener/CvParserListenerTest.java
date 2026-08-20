@@ -4,6 +4,7 @@ import com.rabbitmq.client.Channel;
 import com.talentflow.cvparser.shared.config.RabbitMqConfig;
 import com.talentflow.cvparser.shared.dto.CvFailedEvent;
 import com.talentflow.cvparser.shared.dto.CvUploadedEvent;
+import com.talentflow.cvparser.shared.util.PiiRedactor;
 import com.talentflow.cvparser.usecase.CvParsingUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -33,7 +34,7 @@ class CvParserListenerTest {
         // so one slow CV (S3 + parse + LLM, up to 30 s) blocks every subsequent message.
         // The annotation must declare concurrency so the container spawns >1 consumer.
         Method method = CvParserListener.class.getDeclaredMethod(
-                "onCvUploaded", CvUploadedEvent.class, Channel.class, long.class);
+                "onCvUploaded", CvUploadedEvent.class, Channel.class, long.class, Integer.class);
 
         RabbitListener annotation = method.getAnnotation(RabbitListener.class);
 
@@ -74,11 +75,11 @@ class CvParserListenerTest {
         ExecutorService testRunner     = Executors.newSingleThreadExecutor();
 
         try {
-            CvParserListener listener = new CvParserListener(slowUseCase, rabbitTemplate, executor);
+            CvParserListener listener = new CvParserListener(slowUseCase, rabbitTemplate, executor, 3, new PiiRedactor());
             CvUploadedEvent event     = buildEvent();
 
             Future<?> listenerFuture = testRunner.submit(
-                    () -> listener.onCvUploaded(event, channel, 1L));
+                    () -> listener.onCvUploaded(event, channel, 1L, 0));
 
             assertThat(pipelineStarted.await(2, TimeUnit.SECONDS))
                     .as("pipeline must start within 2s after listener is invoked")
@@ -109,11 +110,11 @@ class CvParserListenerTest {
         RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
         Channel channel = mock(Channel.class);
 
-        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run);
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3, new PiiRedactor());
         CvUploadedEvent event = buildEvent();
         long deliveryTag = 123L;
 
-        listener.onCvUploaded(event, channel, deliveryTag);
+        listener.onCvUploaded(event, channel, deliveryTag, 0);
 
         verify(cvParsingUseCase).execute(event);
         verify(channel).basicAck(deliveryTag, false);
@@ -129,11 +130,11 @@ class CvParserListenerTest {
         RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
         Channel channel = mock(Channel.class);
 
-        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run);
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3, new PiiRedactor());
         CvUploadedEvent event = buildEvent();
         long deliveryTag = 123L;
 
-        listener.onCvUploaded(event, channel, deliveryTag);
+        listener.onCvUploaded(event, channel, deliveryTag, 0);
 
         verify(cvParsingUseCase).execute(event);
 
@@ -165,11 +166,11 @@ class CvParserListenerTest {
         RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
         Channel channel = mock(Channel.class);
 
-        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run);
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3, new PiiRedactor());
         CvUploadedEvent event = buildEvent();
         long deliveryTag = 123L;
 
-        listener.onCvUploaded(event, channel, deliveryTag);
+        listener.onCvUploaded(event, channel, deliveryTag, 0);
 
         // Verify use case was invoked and threw OOM
         verify(cvParsingUseCase).execute(event);
@@ -189,11 +190,11 @@ class CvParserListenerTest {
         Channel channel = mock(Channel.class);
         doThrow(new java.io.IOException("Ack connection closed")).when(channel).basicAck(anyLong(), anyBoolean());
 
-        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run);
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3, new PiiRedactor());
         CvUploadedEvent event = buildEvent();
 
         // Should not throw exception
-        assertThatCode(() -> listener.onCvUploaded(event, channel, 123L)).doesNotThrowAnyException();
+        assertThatCode(() -> listener.onCvUploaded(event, channel, 123L, 0)).doesNotThrowAnyException();
 
         verify(channel).basicAck(123L, false);
     }
@@ -209,11 +210,11 @@ class CvParserListenerTest {
         Channel channel = mock(Channel.class);
         doThrow(new java.io.IOException("Nack connection closed")).when(channel).basicNack(anyLong(), anyBoolean(), anyBoolean());
 
-        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run);
+        CvParserListener listener = new CvParserListener(cvParsingUseCase, rabbitTemplate, Runnable::run, 3, new PiiRedactor());
         CvUploadedEvent event = buildEvent();
 
         // Should not throw exception
-        assertThatCode(() -> listener.onCvUploaded(event, channel, 123L)).doesNotThrowAnyException();
+        assertThatCode(() -> listener.onCvUploaded(event, channel, 123L, 0)).doesNotThrowAnyException();
 
         verify(rabbitTemplate).convertAndSend(eq(RabbitMqConfig.ROUTING_KEY_CV_FAILED), any(CvFailedEvent.class));
         verify(channel).basicNack(123L, false, false);
@@ -238,7 +239,7 @@ class CvParserListenerTest {
         // This test verifies the annotation carries the correct concurrency expression and
         // that application.yml lowers prefetch to ≤ 2 — checked transitively via the property key.
         Method method = CvParserListener.class.getDeclaredMethod(
-                "onCvUploaded", CvUploadedEvent.class, Channel.class, long.class);
+                "onCvUploaded", CvUploadedEvent.class, Channel.class, long.class, Integer.class);
 
         RabbitListener annotation = method.getAnnotation(RabbitListener.class);
 

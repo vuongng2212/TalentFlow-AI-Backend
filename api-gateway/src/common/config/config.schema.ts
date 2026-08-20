@@ -77,6 +77,14 @@ export const appConfigSchema = Joi.object({
     otherwise: Joi.boolean().default(true),
   }),
 
+  // n8n Email Ingestion
+  // Required in production: the ingestion endpoint is @Public() and protected
+  // only by this key, so a hardcoded default would leave a guessable key enabled.
+  INGESTION_API_KEY: requiredOutsideTest(
+    Joi.string().min(16),
+    'dev-ingestion-api-key-change-me',
+  ),
+
   // Workspace Multi-Tenancy
   WORKSPACE_INVITATION_EXPIRY_DAYS: Joi.number()
     .integer()

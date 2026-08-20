@@ -75,4 +75,10 @@ public class CvUploadedEvent {
      */
     @NotNull(message = "uploadedAt is required")
     private Instant uploadedAt;
+
+    /**
+     * Job description text for AI scoring (nullable).
+     * If absent or empty, AI scoring will be SKIPPED with aiScore=0.
+     */
+    private String jobDescription;
 }

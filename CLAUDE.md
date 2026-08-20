@@ -73,5 +73,6 @@ Primary development happens here.
 -   **Strict Linting in Tests**: ESLint rules apply strictly to test files as well. Fix type issues instead of using `// eslint-disable` or `@ts-ignore`.
 
 <!-- SPECKIT START -->
-See active plan at: /home/vuongnguyen/Projects/TalentFlow/TalentFlow-AI-Backend/specs/017-api-gateway-cv-event-orchestration/plan.md
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
 <!-- SPECKIT END -->
