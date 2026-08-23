@@ -186,7 +186,8 @@ export class NotificationService {
         `Processing cv.parsed for applicant ${maskPii(event.applicantEmail)}`,
       );
 
-      const score = event.score ?? 'N/A';
+      const score = event.aiScore ?? 'N/A';
+      const parsedAt = event.timestamp ? new Date(event.timestamp) : new Date();
 
       await this.emailService.sendEmail({
         to: event.applicantEmail,
@@ -212,7 +213,7 @@ export class NotificationService {
         subject: `CV Processed: ${event.jobTitle}`,
         status: 'sent',
         read: false,
-        sentAt: new Date(),
+        sentAt: parsedAt,
         createdAt: new Date(),
       };
 
@@ -234,7 +235,7 @@ export class NotificationService {
       await this.emailService.sendEmail({
         to: event.applicantEmail,
         subject: `CV Processing Failed: ${event.jobTitle}`,
-        body: `Dear ${event.applicantName},\n\nWe were unable to process your CV for the ${event.jobTitle} position. Reason: ${event.reason}\n\nPlease try uploading again or contact support.`,
+        body: `Dear ${event.applicantName},\n\nWe were unable to process your CV for the ${event.jobTitle} position. Reason: ${event.errorMessage ?? 'Unknown error'}\n\nPlease try uploading again or contact support.`,
       });
 
       const notification: NotificationEntity = {
@@ -243,7 +244,7 @@ export class NotificationService {
         type: 'application_result',
         channel: 'email',
         title: `CV Processing Failed: ${event.jobTitle}`,
-        message: `CV processing for ${event.jobTitle} failed: ${event.reason}`,
+        message: `CV processing for ${event.jobTitle} failed: ${event.errorMessage ?? 'Unknown error'}`,
         recipient: event.applicantEmail,
         subject: `CV Processing Failed: ${event.jobTitle}`,
         status: 'sent',

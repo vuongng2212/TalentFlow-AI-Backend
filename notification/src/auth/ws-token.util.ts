@@ -2,6 +2,7 @@ type SocketHandshakeLike = {
   auth?: unknown;
   headers?: {
     authorization?: unknown;
+    cookie?: unknown;
   };
 };
 
@@ -9,11 +10,40 @@ type SocketLike = {
   handshake: SocketHandshakeLike;
 };
 
+/**
+ * Extracts a single cookie value by name from a raw `Cookie` header string.
+ * Cookies are sent by the browser automatically when `withCredentials: true`
+ * is set on the Socket.IO client, which is how the frontend authenticates
+ * realtime connections (the access token is an HttpOnly cookie and cannot be
+ * read from JS to place in `handshake.auth`).
+ */
+function extractCookieToken(cookieHeader: unknown, name: string): string | null {
+  if (typeof cookieHeader !== 'string' || cookieHeader.length === 0) {
+    return null;
+  }
+  for (const part of cookieHeader.split(';')) {
+    const [rawKey, ...rest] = part.trim().split('=');
+    if (rawKey === name && rest.length > 0) {
+      return decodeURIComponent(rest.join('='));
+    }
+  }
+  return null;
+}
+
 export function extractSocketToken(socket: SocketLike): string | null {
   const authToken = extractAuthToken(socket.handshake.auth);
   const headerToken = socket.handshake.headers?.authorization;
+  const cookieToken = extractCookieToken(
+    socket.handshake.headers?.cookie,
+    'access_token',
+  );
 
-  return normalizeToken(authToken) ?? normalizeToken(headerToken);
+  // Priority: handshake.auth.token → Authorization header → access_token cookie.
+  return (
+    normalizeToken(authToken) ??
+    normalizeToken(headerToken) ??
+    normalizeToken(cookieToken)
+  );
 }
 
 function extractAuthToken(auth: unknown): unknown {

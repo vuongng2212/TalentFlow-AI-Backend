@@ -19,6 +19,8 @@ import {
 } from './dto/create-email-template.dto';
 import { QueryEmailTemplatesDto } from './dto/query-email-templates.dto';
 import { EmailTemplateResponseDto } from './dto/email-template-response.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 
 @ApiTags('email-templates')
 @ApiBearerAuth()
@@ -32,6 +34,7 @@ export class EmailTemplatesController {
   constructor(private readonly service: EmailTemplatesService) {}
 
   @Post()
+  @Roles(Role.RECRUITER, Role.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() dto: CreateEmailTemplateDto) {
     const template = await this.service.create(dto);
@@ -39,17 +42,20 @@ export class EmailTemplatesController {
   }
 
   @Get()
+  @Roles(Role.RECRUITER, Role.ADMIN, Role.INTERVIEWER)
   async findAll(@Query() query: QueryEmailTemplatesDto) {
     return this.service.findAll(query);
   }
 
   @Get(':id')
+  @Roles(Role.RECRUITER, Role.ADMIN, Role.INTERVIEWER)
   async findOne(@Param('id', new ParseUUIDPipe()) id: string) {
     const template = await this.service.findOne(id);
     return EmailTemplateResponseDto.from(template);
   }
 
   @Patch(':id')
+  @Roles(Role.RECRUITER, Role.ADMIN)
   async update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateEmailTemplateDto,
@@ -59,6 +65,7 @@ export class EmailTemplatesController {
   }
 
   @Delete(':id')
+  @Roles(Role.RECRUITER, Role.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id', new ParseUUIDPipe()) id: string) {
     await this.service.remove(id);

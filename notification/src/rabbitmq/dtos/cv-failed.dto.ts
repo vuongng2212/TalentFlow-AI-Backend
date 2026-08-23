@@ -6,13 +6,23 @@ import {
   IsISO8601,
 } from 'class-validator';
 
+/**
+ * Consumes the `cv.failed` enriched event published by the API Gateway
+ * (see `EnrichedCvFailedEvent` in the api-gateway queue interfaces).
+ * Field names are kept in sync with the gateway payload; previously this DTO
+ * expected `reason`/`failedAt` which the gateway never sent, causing every
+ * event to fail validation and be dropped.
+ */
 export class CvFailedDto {
   @IsString()
   @IsNotEmpty()
   applicationId!: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
+  recruiterId?: string;
+
+  @IsString()
   @IsOptional()
   applicantId?: string;
 
@@ -29,10 +39,10 @@ export class CvFailedDto {
   jobTitle!: string;
 
   @IsString()
-  @IsNotEmpty()
-  reason!: string;
+  @IsOptional()
+  errorMessage?: string;
 
   @IsISO8601()
-  @IsNotEmpty()
-  failedAt!: string;
+  @IsOptional()
+  timestamp?: string;
 }
