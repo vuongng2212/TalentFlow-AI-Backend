@@ -24,7 +24,12 @@ function extractCookieToken(cookieHeader: unknown, name: string): string | null 
   for (const part of cookieHeader.split(';')) {
     const [rawKey, ...rest] = part.trim().split('=');
     if (rawKey === name && rest.length > 0) {
-      return decodeURIComponent(rest.join('='));
+      try {
+        return decodeURIComponent(rest.join('='));
+      } catch {
+        // Malformed percent-encoding (e.g. '%zz') — treat as no token.
+        return null;
+      }
     }
   }
   return null;
