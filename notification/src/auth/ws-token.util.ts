@@ -17,7 +17,10 @@ type SocketLike = {
  * realtime connections (the access token is an HttpOnly cookie and cannot be
  * read from JS to place in `handshake.auth`).
  */
-function extractCookieToken(cookieHeader: unknown, name: string): string | null {
+function extractCookieToken(
+  cookieHeader: unknown,
+  name: string,
+): string | null {
   if (typeof cookieHeader !== 'string' || cookieHeader.length === 0) {
     return null;
   }

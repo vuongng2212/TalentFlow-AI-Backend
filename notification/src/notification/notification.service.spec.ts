@@ -9,7 +9,10 @@ describe('NotificationService - CV result realtime recipient', () => {
   let service: NotificationService;
   let emailService: { sendEmail: jest.Mock };
   let gateway: { sendToUser: jest.Mock };
-  let metricsService: { recordNotificationSent: jest.Mock; recordDeliveryDuration?: jest.Mock };
+  let metricsService: {
+    recordNotificationSent: jest.Mock;
+    recordDeliveryDuration?: jest.Mock;
+  };
   let loggerWarnSpy: jest.SpyInstance;
 
   const recruiterId = 'recruiter-uuid';
@@ -65,7 +68,11 @@ describe('NotificationService - CV result realtime recipient', () => {
     await service.handleCvParsed(parsedEvent);
 
     expect(gateway.sendToUser).toHaveBeenCalledTimes(1);
-    const [userId, event, payload] = gateway.sendToUser.mock.calls[0];
+    const [userId, event, payload] = gateway.sendToUser.mock.calls[0] as [
+      string,
+      string,
+      { type: string; applicationId?: string; title: string },
+    ];
     expect(userId).toBe(recruiterId);
     expect(event).toBe('receiveNotification');
     expect(payload.type).toBe('application_result');
@@ -77,7 +84,11 @@ describe('NotificationService - CV result realtime recipient', () => {
     await service.handleCvFailed(failedEvent);
 
     expect(gateway.sendToUser).toHaveBeenCalledTimes(1);
-    const [userId, event, payload] = gateway.sendToUser.mock.calls[0];
+    const [userId, event, payload] = gateway.sendToUser.mock.calls[0] as [
+      string,
+      string,
+      { type: string; applicationId?: string; title: string },
+    ];
     expect(userId).toBe(recruiterId);
     expect(event).toBe('receiveNotification');
     expect(payload.type).toBe('application_result');

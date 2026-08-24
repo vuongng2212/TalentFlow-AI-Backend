@@ -12,7 +12,10 @@ describe('extractSocketToken', () => {
     const result = extractSocketToken(
       socket({
         auth: { token: 'auth-token' },
-        headers: { authorization: 'Bearer header-token', cookie: 'access_token=cookie-token' },
+        headers: {
+          authorization: 'Bearer header-token',
+          cookie: 'access_token=cookie-token',
+        },
       }),
     );
     expect(result).toBe('auth-token');
@@ -22,7 +25,10 @@ describe('extractSocketToken', () => {
     const result = extractSocketToken(
       socket({
         auth: {},
-        headers: { authorization: 'Bearer header-token', cookie: 'access_token=cookie-token' },
+        headers: {
+          authorization: 'Bearer header-token',
+          cookie: 'access_token=cookie-token',
+        },
       }),
     );
     expect(result).toBe('header-token');
@@ -37,7 +43,10 @@ describe('extractSocketToken', () => {
 
   it('strips a Bearer prefix from the cookie value', () => {
     const result = extractSocketToken(
-      socket({ auth: {}, headers: { cookie: 'access_token=Bearer%20cookie-token' } }),
+      socket({
+        auth: {},
+        headers: { cookie: 'access_token=Bearer%20cookie-token' },
+      }),
     );
     expect(result).toBe('cookie-token');
   });
