@@ -217,7 +217,10 @@ export class NotificationService {
         createdAt: new Date(),
       };
 
-      this.publishRealtime(notification, event.applicantId ?? null);
+      // Realtime CV result is pushed to the recruiter (job creator) room
+      // per the cv-parsing-notification contract. The enriched event does
+      // not carry applicantId, so use recruiterId as the socket recipient.
+      this.publishRealtime(notification, event.recruiterId ?? null);
 
       this.logger.log(
         `handleCvParsed completed, notificationId=${notification.id}`,
@@ -253,7 +256,10 @@ export class NotificationService {
         createdAt: new Date(),
       };
 
-      this.publishRealtime(notification, event.applicantId ?? null);
+      // Realtime CV result is pushed to the recruiter (job creator) room
+      // per the cv-parsing-notification contract. The enriched event does
+      // not carry applicantId, so use recruiterId as the socket recipient.
+      this.publishRealtime(notification, event.recruiterId ?? null);
 
       this.logger.log(
         `handleCvFailed completed, notificationId=${notification.id}`,
