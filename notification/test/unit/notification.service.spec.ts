@@ -196,8 +196,8 @@ describe('NotificationService', () => {
         applicantEmail: 'bob@example.com',
         applicantName: 'Bob Smith',
         jobTitle: 'Backend Engineer',
-        score: 92,
-        parsedAt: '2026-05-07T10:00:00Z',
+        aiScore: 92,
+        timestamp: '2026-05-07T10:00:00Z',
       });
 
       expectSuccessfulResult(result);
@@ -227,7 +227,7 @@ describe('NotificationService', () => {
         applicantEmail: 'no-score@example.com',
         applicantName: 'Alice',
         jobTitle: 'Designer',
-        parsedAt: '2026-05-07T10:00:00Z',
+        timestamp: '2026-05-07T10:00:00Z',
       });
 
       const [input] = emailService.sendEmail.mock.calls[0];
@@ -242,7 +242,7 @@ describe('NotificationService', () => {
         applicantEmail: 'no-recipient@example.com',
         applicantName: 'No Recipient',
         jobTitle: 'Designer',
-        parsedAt: '2026-05-07T10:00:00Z',
+        timestamp: '2026-05-07T10:00:00Z',
       });
 
       expect(notificationGateway.sendToUser).not.toHaveBeenCalled();
@@ -259,8 +259,8 @@ describe('NotificationService', () => {
         applicantEmail: 'fail@example.com',
         applicantName: 'Tom Error',
         jobTitle: 'Data Scientist',
-        reason: 'Unsupported file format',
-        failedAt: '2026-05-07T10:00:00Z',
+        errorMessage: 'Unsupported file format',
+        timestamp: '2026-05-07T10:00:00Z',
       });
 
       expectSuccessfulResult(result);
@@ -287,8 +287,8 @@ describe('NotificationService', () => {
         applicantEmail: 'failed-no-recipient@example.com',
         applicantName: 'Failed Recipient',
         jobTitle: 'Data Scientist',
-        reason: 'Unsupported file format',
-        failedAt: '2026-05-07T10:00:00Z',
+        errorMessage: 'Unsupported file format',
+        timestamp: '2026-05-07T10:00:00Z',
       });
 
       expect(notificationGateway.sendToUser).not.toHaveBeenCalled();
