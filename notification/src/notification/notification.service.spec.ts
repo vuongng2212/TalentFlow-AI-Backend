@@ -69,6 +69,7 @@ describe('NotificationService - CV result realtime recipient', () => {
     expect(userId).toBe(recruiterId);
     expect(event).toBe('receiveNotification');
     expect(payload.type).toBe('application_result');
+    expect(payload.applicationId).toBe(applicationId);
     expect(payload.title).toContain('CV Processed');
   });
 
@@ -80,6 +81,7 @@ describe('NotificationService - CV result realtime recipient', () => {
     expect(userId).toBe(recruiterId);
     expect(event).toBe('receiveNotification');
     expect(payload.type).toBe('application_result');
+    expect(payload.applicationId).toBe(applicationId);
     expect(payload.title).toContain('Failed');
   });
 

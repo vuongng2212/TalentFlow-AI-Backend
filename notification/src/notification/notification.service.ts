@@ -205,6 +205,7 @@ export class NotificationService {
       const notification: NotificationEntity = {
         id: randomUUID(),
         userId: event.applicantId ?? event.applicationId,
+        applicationId: event.applicationId,
         type: 'application_result',
         channel: 'email',
         title: `CV Processed: ${event.jobTitle}`,
@@ -244,6 +245,7 @@ export class NotificationService {
       const notification: NotificationEntity = {
         id: randomUUID(),
         userId: event.applicantId ?? event.applicationId,
+        applicationId: event.applicationId,
         type: 'application_result',
         channel: 'email',
         title: `CV Processing Failed: ${event.jobTitle}`,
@@ -364,6 +366,7 @@ export class NotificationService {
     return {
       id: response.id,
       userId: response.userId,
+      applicationId: response.applicationId,
       type: response.type,
       channel: response.channel,
       title: response.title,
