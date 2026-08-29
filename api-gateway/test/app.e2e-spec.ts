@@ -52,7 +52,7 @@ describe('AppController (e2e)', () => {
       .get('/')
       .expect(200)
       .expect((res) => {
-        expect(res.body.data).toBe('Hello World!');
+        expect((res.body as { data?: unknown }).data).toBe('Hello World!');
       });
   });
 
