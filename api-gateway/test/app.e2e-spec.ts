@@ -48,7 +48,12 @@ describe('AppController (e2e)', () => {
 
   it('/ (GET)', () => {
     const server = app.getHttpServer() as unknown as import('http').Server;
-    return request(server).get('/').expect(200).expect('Hello World!');
+    return request(server)
+      .get('/')
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.data).toBe('Hello World!');
+      });
   });
 
   // Health endpoint is excluded from global prefix in main.ts, but handled by HealthController

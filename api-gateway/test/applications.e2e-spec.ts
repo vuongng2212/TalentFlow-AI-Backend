@@ -132,7 +132,7 @@ describe('Applications (e2e)', () => {
         status: JobStatus.OPEN,
       });
 
-    jobId = jobResponse.body.id;
+    jobId = jobResponse.body.data.id;
   });
 
   afterAll(async () => {
@@ -155,14 +155,14 @@ describe('Applications (e2e)', () => {
         })
         .expect(201);
 
-      expect(response.body).toMatchObject({
+      expect(response.body.data).toMatchObject({
         jobId,
         candidateId: expect.any(String),
         stage: expect.any(String),
         status: ApplicationStatus.SUBMITTED,
       });
 
-      applicationId = response.body.id;
+      applicationId = response.body.data.id;
     });
 
     it('should return 409 if already applied', async () => {
@@ -183,7 +183,7 @@ describe('Applications (e2e)', () => {
         .set('x-workspace-id', recruiterWorkspaceId)
         .expect(200);
 
-      expect(response.body.data).toBeInstanceOf(Array);
+      expect(response.body.data.data).toBeInstanceOf(Array);
     });
 
     it('should get applications for recruiter (their jobs)', async () => {
@@ -193,7 +193,7 @@ describe('Applications (e2e)', () => {
         .set('x-workspace-id', recruiterWorkspaceId)
         .expect(200);
 
-      expect(response.body.data).toBeInstanceOf(Array);
+      expect(response.body.data.data).toBeInstanceOf(Array);
     });
   });
 
@@ -209,8 +209,8 @@ describe('Applications (e2e)', () => {
         })
         .expect(200);
 
-      expect(response.body.status).toBe(ApplicationStatus.REVIEWING);
-      expect(response.body.notes).toBe('Good candidate');
+      expect(response.body.data.status).toBe(ApplicationStatus.REVIEWING);
+      expect(response.body.data.notes).toBe('Good candidate');
     });
   });
 

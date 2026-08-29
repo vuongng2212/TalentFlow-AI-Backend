@@ -1,3 +1,4 @@
+import { StorageService } from '../src/storage/storage.service';
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
@@ -26,7 +27,17 @@ describe('CV Upload (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(StorageService)
+      .useValue({
+        upload: jest.fn().mockImplementation((buffer, key) =>
+          Promise.resolve({ key, url: `http://localhost:9000/talentflow-cvs/${key}` }),
+        ),
+        getBucketName: jest.fn().mockReturnValue('talentflow-cvs'),
+        getSignedUrl: jest.fn().mockResolvedValue('http://localhost:9000/talentflow-cvs/signed'),
+        delete: jest.fn().mockResolvedValue(undefined),
+      })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1', { exclude: ['health', 'ready', 'metrics'] });
@@ -127,7 +138,7 @@ describe('CV Upload (e2e)', () => {
         status: JobStatus.OPEN,
       });
 
-    jobId = jobResponse.body.id;
+    jobId = jobResponse.body.data.id;
   });
 
   afterAll(async () => {
@@ -152,7 +163,7 @@ describe('CV Upload (e2e)', () => {
         })
         .expect(201);
 
-      expect(response.body).toMatchObject({
+      expect(response.body.data).toMatchObject({
         applicationId: expect.any(String),
         fileKey: expect.any(String),
         fileUrl: expect.any(String),

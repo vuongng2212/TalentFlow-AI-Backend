@@ -5,7 +5,6 @@ import request from 'supertest';
 import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 
 const extractCookies = (header: string[] | string | undefined): string[] => {
   if (!header) {
@@ -39,7 +38,6 @@ describe('Workspaces (e2e)', () => {
         transform: true,
       }),
     );
-    app.useGlobalInterceptors(new TransformInterceptor());
 
     await app.init();
 
