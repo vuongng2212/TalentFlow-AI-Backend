@@ -1,7 +1,3 @@
-import {
-  ROUTING_KEY_APPLICATION_CV_PROCESSED_SUCCESSFULLY,
-  ROUTING_KEY_APPLICATION_CV_PROCESSED_FAILED,
-} from './constants/queue.constants';
 /* eslint-disable @typescript-eslint/unbound-method */
 
 import { Logger } from '@nestjs/common';
@@ -15,10 +11,13 @@ import {
   CV_PARSING_DLQ,
   CV_PROCESSING_QUEUE,
   ROUTING_KEY_CV_UPLOADED,
+  ROUTING_KEY_WORKSPACE_MEMBER_INVITED,
   ROUTING_KEY_APPLICATION_CREATED,
   ROUTING_KEY_NOTIFICATION_SEND,
   ROUTING_KEY_CV_PARSED,
   ROUTING_KEY_CV_FAILED,
+  ROUTING_KEY_APPLICATION_CV_PROCESSED_SUCCESSFULLY,
+  ROUTING_KEY_APPLICATION_CV_PROCESSED_FAILED,
 } from './constants/queue.constants';
 import { NotificationType } from './interfaces/notification-send-event.interface';
 
@@ -50,6 +49,14 @@ const mockEvent = {
   fileKey: 'cvs/key.pdf',
   mimeType: 'application/pdf',
   uploadedAt: new Date().toISOString(),
+};
+
+const mockWorkspaceMemberInvitedEvent = {
+  workspaceId: 'workspace-1',
+  email: 'invited@example.com',
+  role: 'MEMBER',
+  invitedByUserId: 'user-1',
+  invitedAt: new Date().toISOString(),
 };
 
 const mockAppCreatedEvent = {
@@ -196,10 +203,30 @@ describe('QueueService', () => {
     expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_UPLOADED,
-      expect.any(Buffer),
+      Buffer.from(JSON.stringify(mockEvent)),
       expect.objectContaining({
         persistent: true,
         contentType: 'application/json',
+        timestamp: expect.any(Number),
+      }),
+    );
+  });
+
+  it('should publish workspace.member.invited event', async () => {
+    await service.onModuleInit();
+
+    await service.publishWorkspaceMemberInvited(
+      mockWorkspaceMemberInvitedEvent,
+    );
+
+    expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_WORKSPACE_MEMBER_INVITED,
+      Buffer.from(JSON.stringify(mockWorkspaceMemberInvitedEvent)),
+      expect.objectContaining({
+        persistent: true,
+        contentType: 'application/json',
+        timestamp: expect.any(Number),
       }),
     );
   });
@@ -212,10 +239,11 @@ describe('QueueService', () => {
     expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_APPLICATION_CREATED,
-      expect.any(Buffer),
+      Buffer.from(JSON.stringify(mockAppCreatedEvent)),
       expect.objectContaining({
         persistent: true,
         contentType: 'application/json',
+        timestamp: expect.any(Number),
       }),
     );
   });
@@ -228,10 +256,11 @@ describe('QueueService', () => {
     expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_NOTIFICATION_SEND,
-      expect.any(Buffer),
+      Buffer.from(JSON.stringify(mockNotificationSendEvent)),
       expect.objectContaining({
         persistent: true,
         contentType: 'application/json',
+        timestamp: expect.any(Number),
       }),
     );
   });
@@ -253,8 +282,12 @@ describe('QueueService', () => {
     expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_APPLICATION_CV_PROCESSED_SUCCESSFULLY,
-      expect.any(Buffer),
-      expect.any(Object),
+      Buffer.from(JSON.stringify(event)),
+      expect.objectContaining({
+        persistent: true,
+        contentType: 'application/json',
+        timestamp: expect.any(Number),
+      }),
     );
   });
 
@@ -275,8 +308,12 @@ describe('QueueService', () => {
     expect(jest.mocked(mockChannel.publish)).toHaveBeenCalledWith(
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_APPLICATION_CV_PROCESSED_FAILED,
-      expect.any(Buffer),
-      expect.any(Object),
+      Buffer.from(JSON.stringify(event)),
+      expect.objectContaining({
+        persistent: true,
+        contentType: 'application/json',
+        timestamp: expect.any(Number),
+      }),
     );
   });
 
@@ -295,7 +332,6 @@ describe('QueueService', () => {
   });
 
   it('should log and continue when module init fails', async () => {
-    // We suppress console error logs for this test
     const logErrorSpy = jest
       .spyOn(Logger.prototype, 'error')
       .mockImplementation(() => undefined);
