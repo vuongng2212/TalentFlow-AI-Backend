@@ -67,4 +67,47 @@ class CvParseResultJpaRepositoryTest {
         Optional<CvParseResultEntity> found = repository.findByApplicationId(UUID.randomUUID());
         assertFalse(found.isPresent());
     }
+
+    @Test
+    void shouldSaveFailedParseResultWithNullParsedDataAndErrorDetails() {
+        UUID applicationId = UUID.randomUUID();
+        CvParseResultEntity entity = CvParseResultEntity.builder()
+                .applicationId(applicationId)
+                .candidateId(UUID.randomUUID())
+                .jobId(UUID.randomUUID())
+                .status(ParseStatus.FAILED)
+                .errorCode("CORRUPT_DOCUMENT")
+                .errorMessage("Document stream was truncated or corrupted")
+                .parsedData(null)
+                .build();
+
+        repository.save(entity);
+
+        Optional<CvParseResultEntity> found = repository.findByApplicationId(applicationId);
+        assertTrue(found.isPresent());
+        assertEquals(ParseStatus.FAILED, found.get().getStatus());
+        assertEquals("CORRUPT_DOCUMENT", found.get().getErrorCode());
+        assertEquals("Document stream was truncated or corrupted", found.get().getErrorMessage());
+        assertNull(found.get().getParsedData());
+    }
+
+    @Test
+    void shouldSaveParseResultWithCorruptParsedDataString() {
+        UUID applicationId = UUID.randomUUID();
+        CvParseResultEntity entity = CvParseResultEntity.builder()
+                .applicationId(applicationId)
+                .candidateId(UUID.randomUUID())
+                .jobId(UUID.randomUUID())
+                .status(ParseStatus.FAILED)
+                .errorCode("PARSING_FAILED")
+                .errorMessage("Invalid JSON structure extracted")
+                .parsedData("{corrupt_raw_json: incomplete")
+                .build();
+
+        repository.save(entity);
+
+        Optional<CvParseResultEntity> found = repository.findByApplicationId(applicationId);
+        assertTrue(found.isPresent());
+        assertEquals("{corrupt_raw_json: incomplete", found.get().getParsedData());
+    }
 }

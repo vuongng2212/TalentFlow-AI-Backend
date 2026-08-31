@@ -1,5 +1,6 @@
 package com.talentflow.cvparser.shared.dto;
 
+import com.talentflow.cvparser.shared.validation.ValidationPatterns;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
@@ -19,27 +20,25 @@ import java.time.Instant;
 @AllArgsConstructor
 public class CvParsedEvent {
 
-    private static final String UUID_PATTERN = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
-
     /**
      * UUID of the candidate.
      */
     @NotBlank(message = "candidateId is required")
-    @Pattern(regexp = UUID_PATTERN, message = "candidateId must be a valid UUID")
+    @Pattern(regexp = ValidationPatterns.UUID_PATTERN, message = "candidateId must be a valid UUID")
     private String candidateId;
 
     /**
      * UUID of the job application.
      */
     @NotBlank(message = "applicationId is required")
-    @Pattern(regexp = UUID_PATTERN, message = "applicationId must be a valid UUID")
+    @Pattern(regexp = ValidationPatterns.UUID_PATTERN, message = "applicationId must be a valid UUID")
     private String applicationId;
 
     /**
      * UUID of the job.
      */
     @NotBlank(message = "jobId is required")
-    @Pattern(regexp = UUID_PATTERN, message = "jobId must be a valid UUID")
+    @Pattern(regexp = ValidationPatterns.UUID_PATTERN, message = "jobId must be a valid UUID")
     private String jobId;
 
     /**
