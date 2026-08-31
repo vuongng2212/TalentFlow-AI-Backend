@@ -19,6 +19,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueService } from '../queue/queue.service';
+import { WorkspaceConfigService } from './workspace-config.service';
+import { WorkspaceCoreService } from './workspace-core.service';
+import { WorkspaceMemberService } from './workspace-member.service';
+import { WorkspaceInvitationService } from './workspace-invitation.service';
 import { WorkspacesService } from './workspaces.service';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 
@@ -46,6 +50,10 @@ describe('WorkspacesService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WorkspacesService,
+        WorkspaceConfigService,
+        WorkspaceCoreService,
+        WorkspaceMemberService,
+        WorkspaceInvitationService,
         {
           provide: PrismaService,
           useValue: mockDeep<PrismaClient>(),

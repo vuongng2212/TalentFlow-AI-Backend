@@ -3,6 +3,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApplicationsService } from './applications.service';
+import { CvOrchestrationService } from './cv-orchestration.service';
+import { CvUploadService } from './cv-upload.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { QueueService } from '../queue/queue.service';
@@ -28,6 +30,7 @@ import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 
 describe('ApplicationsService', () => {
   let service: ApplicationsService;
+  let cvUploadService: CvUploadService;
   let prisma: DeepMockProxy<PrismaClient>;
 
   const mockUser = {
@@ -129,6 +132,8 @@ describe('ApplicationsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ApplicationsService,
+        CvOrchestrationService,
+        CvUploadService,
         {
           provide: PrismaService,
           useValue: mockDeep<PrismaClient>(),
@@ -149,6 +154,7 @@ describe('ApplicationsService', () => {
     }).compile();
 
     service = module.get<ApplicationsService>(ApplicationsService);
+    cvUploadService = module.get<CvUploadService>(CvUploadService);
     prisma = module.get(PrismaService);
   });
 
@@ -379,7 +385,7 @@ describe('ApplicationsService', () => {
 
       // Silence the logger error for this test
       const loggerSpy = jest
-        .spyOn(service['logger'], 'error')
+        .spyOn(cvUploadService['logger'], 'error')
         .mockImplementation();
 
       await expect(
@@ -411,7 +417,7 @@ describe('ApplicationsService', () => {
 
       // Silence the logger error for this test
       const loggerSpy = jest
-        .spyOn(service['logger'], 'error')
+        .spyOn(cvUploadService['logger'], 'error')
         .mockImplementation();
 
       const resultPromise = service.createWithCv('user-1', mockFile, {
@@ -1175,7 +1181,7 @@ describe('ApplicationsService', () => {
       mockStorageService.upload.mockRejectedValue(new Error('S3 error'));
 
       const loggerSpy = jest
-        .spyOn(service['logger'], 'error')
+        .spyOn(cvUploadService['logger'], 'error')
         .mockImplementation();
 
       await expect(
@@ -1203,7 +1209,7 @@ describe('ApplicationsService', () => {
       mockStorageService.delete.mockResolvedValue(undefined);
 
       const loggerSpy = jest
-        .spyOn(service['logger'], 'error')
+        .spyOn(cvUploadService['logger'], 'error')
         .mockImplementation();
 
       await expect(

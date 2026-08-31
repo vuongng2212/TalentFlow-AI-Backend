@@ -64,8 +64,8 @@ describe('AuthController (E2E)', () => {
       .send(testUser)
       .expect(201)
       .expect((res) => {
-        const body = res.body as Record<string, unknown>;
-        const user = body.user as { email?: string } | undefined;
+        const body = res.body as { message?: string; data?: { user?: { email?: string } } };
+        const user = body.data?.user;
         expect(body.message).toEqual('User registered successfully');
         expect(user).toBeDefined();
         expect(user?.email).toEqual(testUser.email);
@@ -97,8 +97,8 @@ describe('AuthController (E2E)', () => {
       .set('Cookie', [accessToken])
       .expect(200)
       .expect((res) => {
-        const body = res.body as { user?: { email?: string } };
-        expect(body.user?.email).toEqual(testUser.email);
+        const body = res.body as { data?: { user?: { email?: string } } };
+        expect(body.data?.user?.email).toEqual(testUser.email);
       });
   });
 
