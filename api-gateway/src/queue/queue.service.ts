@@ -14,6 +14,8 @@ import {
   TALENTFLOW_EVENTS_EXCHANGE,
   CV_PROCESSING_QUEUE,
   CV_PARSING_DLQ,
+  GATEWAY_CV_EVENTS_QUEUE,
+  GATEWAY_CV_EVENTS_DLQ,
   ROUTING_KEY_CV_UPLOADED,
   ROUTING_KEY_WORKSPACE_MEMBER_INVITED,
   ROUTING_KEY_APPLICATION_CREATED,
@@ -63,6 +65,8 @@ interface AmqpChannel {
       durable: boolean;
       deadLetterExchange?: string;
       deadLetterRoutingKey?: string;
+      messageTtl?: number;
+      arguments?: Record<string, unknown>;
     },
   ): Promise<unknown>;
   bindQueue(queue: string, source: string, pattern: string): Promise<unknown>;
@@ -267,6 +271,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       durable: true,
       deadLetterExchange: '',
       deadLetterRoutingKey: CV_PARSING_DLQ,
+      messageTtl: 86400000,
     });
 
     await this.channel.bindQueue(
@@ -275,14 +280,24 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       ROUTING_KEY_CV_UPLOADED,
     );
 
+    await this.channel.assertQueue(GATEWAY_CV_EVENTS_DLQ, {
+      durable: true,
+    });
+
+    await this.channel.assertQueue(GATEWAY_CV_EVENTS_QUEUE, {
+      durable: true,
+      deadLetterExchange: '',
+      deadLetterRoutingKey: GATEWAY_CV_EVENTS_DLQ,
+    });
+
     await this.channel.bindQueue(
-      CV_PROCESSING_QUEUE,
+      GATEWAY_CV_EVENTS_QUEUE,
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_PARSED,
     );
 
     await this.channel.bindQueue(
-      CV_PROCESSING_QUEUE,
+      GATEWAY_CV_EVENTS_QUEUE,
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_FAILED,
     );
@@ -293,7 +308,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private async setupConsumers(): Promise<void> {
     if (!this.channel) return;
 
-    await this.channel.consume(CV_PROCESSING_QUEUE, async (msg) => {
+    await this.channel.consume(GATEWAY_CV_EVENTS_QUEUE, async (msg) => {
       if (!msg) return;
 
       try {

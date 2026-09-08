@@ -30,7 +30,7 @@ public class GeminiConfig {
     @Value("${llm.base-url:https://generativelanguage.googleapis.com/v1beta}")
     private String baseUrl;
 
-    @Value("${llm.model:gemini-2.5-flash}")
+    @Value("${llm.model:gemini-3.5-flash-lite}")
     private String model;
 
     @Value("${llm.timeout-seconds:8}")

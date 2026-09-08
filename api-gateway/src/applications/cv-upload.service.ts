@@ -285,7 +285,12 @@ export class CvUploadService {
 
   private async processCvUpload(params: {
     workspaceId: string;
-    job: { id: string; title: string };
+    job: {
+      id: string;
+      title: string;
+      description?: string | null;
+      requirements?: unknown;
+    };
     candidate: { id: string; email: string; fullName: string };
     file: Express.Multer.File;
     coverLetter?: string;
@@ -315,6 +320,20 @@ export class CvUploadService {
 
       applicationId = application.id;
 
+      const jobDescription = [
+        params.job.title ? `Job Title: ${params.job.title}` : '',
+        params.job.description ? `Description: ${params.job.description}` : '',
+        params.job.requirements
+          ? `Requirements: ${
+              typeof params.job.requirements === 'object'
+                ? JSON.stringify(params.job.requirements)
+                : params.job.requirements
+            }`
+          : '',
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+
       await this.queueService.publishCvUploaded({
         candidateId: params.candidate.id,
         applicationId: application.id,
@@ -323,6 +342,7 @@ export class CvUploadService {
         fileKey,
         mimeType: params.file.mimetype,
         uploadedAt: new Date().toISOString(),
+        jobDescription: jobDescription || undefined,
       });
 
       await this.queueService.publishApplicationCreated({

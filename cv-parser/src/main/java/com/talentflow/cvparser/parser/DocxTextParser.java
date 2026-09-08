@@ -42,7 +42,11 @@ public class DocxTextParser implements DocumentParser {
 
     @Override
     public boolean supports(String mimeType) {
-        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document".equalsIgnoreCase(mimeType);
+        if (mimeType == null) return false;
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document".equalsIgnoreCase(mimeType)
+                || "application/x-tika-ooxml".equalsIgnoreCase(mimeType)
+                || "application/x-tika-msoffice".equalsIgnoreCase(mimeType)
+                || "application/msword".equalsIgnoreCase(mimeType);
     }
 
     @Override

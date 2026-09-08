@@ -2,8 +2,8 @@
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/talentflow_dev
-    username: postgres
-    password: postgres
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:1111}
   jpa:
     show-sql: true
     hibernate:
@@ -27,12 +27,13 @@ server:
 
 # LLM (Development - may use mock or real API)
 llm:
-  model: gemini-2.5-flash
+  model: ${LLM_MODEL:gemini-3.5-flash-lite}
+  api-key: ${GEMINI_API_KEY:}
   timeout-seconds: 60
 
-# Tesseract (Windows development path)
+# Tesseract (OCR path)
 tesseract:
-  data-path: ${TESSERACT_DATA_PATH:C:/Program Files/Tesseract-OCR/tessdata}
+  data-path: ${TESSERACT_DATA_PATH:/usr/share/tesseract-ocr/5/tessdata}
   language: eng+vie
 
 # Actuator - expose all endpoints in dev

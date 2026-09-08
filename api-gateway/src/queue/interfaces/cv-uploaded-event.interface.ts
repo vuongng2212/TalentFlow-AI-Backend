@@ -15,4 +15,5 @@ export interface CvUploadedEvent {
   fileKey: string;
   mimeType: string;
   uploadedAt: string;
+  jobDescription?: string;
 }

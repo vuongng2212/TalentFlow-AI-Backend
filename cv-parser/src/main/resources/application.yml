@@ -67,7 +67,7 @@ storage:
 # LLM Configuration (Google Gemini)
 llm:
   provider: ${LLM_PROVIDER:google}
-  model: ${LLM_MODEL:gemini-2.5-flash}
+  model: ${LLM_MODEL:gemini-3.5-flash-lite}
   api-key: ${GEMINI_API_KEY:}
   base-url: https://generativelanguage.googleapis.com/v1beta
   timeout-seconds: ${LLM_TIMEOUT_SECONDS:8}

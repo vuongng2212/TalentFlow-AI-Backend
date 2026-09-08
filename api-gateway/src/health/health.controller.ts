@@ -58,11 +58,22 @@ class RabbitMQHealthIndicator extends HealthIndicator {
     try {
       const isHealthy = await this.queue.isHealthy();
       if (!isHealthy) {
-        throw new Error('RabbitMQ connection is not healthy');
+        throw new HealthCheckError(
+          'RabbitMQ check failed',
+          this.getStatus(key, false, { message: 'RabbitMQ connection is not healthy' }),
+        );
       }
       return this.getStatus(key, true);
     } catch (error) {
-      throw new HealthCheckError('RabbitMQ check failed', error);
+      if (error instanceof HealthCheckError) {
+        throw error;
+      }
+      throw new HealthCheckError(
+        'RabbitMQ check failed',
+        this.getStatus(key, false, {
+          message: error instanceof Error ? error.message : 'Unknown error',
+        }),
+      );
     }
   }
 }

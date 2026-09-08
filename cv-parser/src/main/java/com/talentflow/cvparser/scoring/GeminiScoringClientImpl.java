@@ -56,7 +56,7 @@ public class GeminiScoringClientImpl implements GeminiScoringClient {
     public GeminiScoringClientImpl(
             WebClient geminiWebClient,
             GeminiConfig geminiConfig,
-            @org.springframework.beans.factory.annotation.Value("${llm.model:gemini-2.5-flash}") String model,
+            @org.springframework.beans.factory.annotation.Value("${llm.model:gemini-3.5-flash-lite}") String model,
             ObjectMapper objectMapper,
             CircuitBreakerRegistry cbRegistry,
             RateLimiterRegistry rlRegistry,
@@ -108,7 +108,7 @@ public class GeminiScoringClientImpl implements GeminiScoringClient {
         request.set("contents", contents);
         ObjectNode generationConfig = objectMapper.createObjectNode();
         generationConfig.put("temperature", 0.1);
-        generationConfig.put("maxOutputTokens", 20);
+        generationConfig.put("maxOutputTokens", 2048);
         generationConfig.put("responseMimeType", "text/plain");
         request.set("generationConfig", generationConfig);
 

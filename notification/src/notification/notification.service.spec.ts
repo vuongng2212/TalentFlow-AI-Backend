@@ -1,17 +1,20 @@
 import { Logger } from '@nestjs/common';
 import { EmailService } from '../email/email.service';
 import { MetricsService } from '../metrics/metrics.service';
-import { CvFailedEvent, CvParsedEvent } from '../rabbitmq/events';
+import { CvFailedEvent, CvParsedEvent, ApplicationCreatedEvent } from '../rabbitmq/events';
+import { WorkspaceMemberInvitedDto } from '../rabbitmq/dtos/workspace-member-invited.dto';
 import { NotificationGateway } from './notification.gateway';
 import { NotificationService } from './notification.service';
+import { SendNotificationDto, SendNotificationType } from './dto/send-notification.dto';
+import { AuthenticatedUser } from '../auth/jwt.strategy';
 
-describe('NotificationService - CV result realtime recipient', () => {
+describe('NotificationService', () => {
   let service: NotificationService;
   let emailService: { sendEmail: jest.Mock };
   let gateway: { sendToUser: jest.Mock };
   let metricsService: {
     recordNotificationSent: jest.Mock;
-    recordDeliveryDuration?: jest.Mock;
+    recordDeliveryDuration: jest.Mock;
   };
   let loggerWarnSpy: jest.SpyInstance;
 
@@ -64,53 +67,135 @@ describe('NotificationService - CV result realtime recipient', () => {
     timestamp: new Date().toISOString(),
   };
 
-  it('handleCvParsed pushes the realtime socket event to the recruiter room (user:{recruiterId})', async () => {
-    await service.handleCvParsed(parsedEvent);
+  describe('handleCvParsed & handleCvFailed', () => {
+    it('handleCvParsed pushes the realtime socket event to the recruiter room (user:{recruiterId})', async () => {
+      await service.handleCvParsed(parsedEvent);
 
-    expect(gateway.sendToUser).toHaveBeenCalledTimes(1);
-    const [userId, event, payload] = gateway.sendToUser.mock.calls[0] as [
-      string,
-      string,
-      { type: string; applicationId?: string; title: string },
-    ];
-    expect(userId).toBe(recruiterId);
-    expect(event).toBe('receiveNotification');
-    expect(payload.type).toBe('application_result');
-    expect(payload.applicationId).toBe(applicationId);
-    expect(payload.title).toContain('CV Processed');
+      expect(gateway.sendToUser).toHaveBeenCalledTimes(1);
+      const [userId, event, payload] = gateway.sendToUser.mock.calls[0] as [
+        string,
+        string,
+        { type: string; applicationId?: string; title: string },
+      ];
+      expect(userId).toBe(recruiterId);
+      expect(event).toBe('receiveNotification');
+      expect(payload.type).toBe('application_result');
+      expect(payload.applicationId).toBe(applicationId);
+      expect(payload.title).toContain('CV Processed');
+    });
+
+    it('handleCvFailed pushes the realtime socket event to the recruiter room (user:{recruiterId})', async () => {
+      await service.handleCvFailed(failedEvent);
+
+      expect(gateway.sendToUser).toHaveBeenCalledTimes(1);
+      const [userId, event, payload] = gateway.sendToUser.mock.calls[0] as [
+        string,
+        string,
+        { type: string; applicationId?: string; title: string },
+      ];
+      expect(userId).toBe(recruiterId);
+      expect(event).toBe('receiveNotification');
+      expect(payload.type).toBe('application_result');
+      expect(payload.applicationId).toBe(applicationId);
+      expect(payload.title).toContain('Failed');
+    });
+
+    it('handleCvParsed skips the realtime push and warns when recruiterId is missing', async () => {
+      await service.handleCvParsed({ ...parsedEvent, recruiterId: undefined });
+
+      expect(gateway.sendToUser).not.toHaveBeenCalled();
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('missing recipient user id'),
+      );
+    });
+
+    it('handleCvFailed skips the realtime push and warns when recruiterId is missing', async () => {
+      await service.handleCvFailed({ ...failedEvent, recruiterId: undefined });
+
+      expect(gateway.sendToUser).not.toHaveBeenCalled();
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('missing recipient user id'),
+      );
+    });
   });
 
-  it('handleCvFailed pushes the realtime socket event to the recruiter room (user:{recruiterId})', async () => {
-    await service.handleCvFailed(failedEvent);
+  describe('send method', () => {
+    it('should send email and push realtime notification with body', async () => {
+      const dto: SendNotificationDto = {
+        to: 'applicant@example.com',
+        subject: 'Welcome to TalentFlow',
+        type: SendNotificationType.EMAIL,
+        body: 'Hello and welcome!',
+      };
+      const user: AuthenticatedUser = {
+        userId: 'admin-123',
+        email: 'admin@talentflow.invalid',
+        role: 'ADMIN',
+      };
 
-    expect(gateway.sendToUser).toHaveBeenCalledTimes(1);
-    const [userId, event, payload] = gateway.sendToUser.mock.calls[0] as [
-      string,
-      string,
-      { type: string; applicationId?: string; title: string },
-    ];
-    expect(userId).toBe(recruiterId);
-    expect(event).toBe('receiveNotification');
-    expect(payload.type).toBe('application_result');
-    expect(payload.applicationId).toBe(applicationId);
-    expect(payload.title).toContain('Failed');
+      const result = await service.send(dto, user);
+
+      expect(emailService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'applicant@example.com',
+          subject: 'Welcome to TalentFlow',
+          body: 'Hello and welcome!',
+        }),
+      );
+      expect(gateway.sendToUser).toHaveBeenCalled();
+      expect(result.title).toBe('Welcome to TalentFlow');
+      expect(result.status).toBe('sent');
+    });
   });
 
-  it('handleCvParsed skips the realtime push and warns when recruiterId is missing (previously a silent dead path)', async () => {
-    await service.handleCvParsed({ ...parsedEvent, recruiterId: undefined });
+  describe('handleApplicationCreated', () => {
+    it('should send email and notify applicant on application created', async () => {
+      const event: ApplicationCreatedEvent = {
+        applicationId: 'app-uuid',
+        jobId: 'job-uuid',
+        jobTitle: 'Backend Engineer',
+        applicantId: 'applicant-uuid',
+        applicantEmail: 'candidate@example.com',
+        applicantName: 'Nguyen Van A',
+        appliedAt: new Date().toISOString(),
+      };
 
-    expect(gateway.sendToUser).not.toHaveBeenCalled();
-    expect(loggerWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('missing recipient user id'),
-    );
+      const result = await service.handleApplicationCreated(event);
+
+      expect(result.success).toBe(true);
+      expect(emailService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'candidate@example.com',
+        }),
+      );
+    });
   });
 
-  it('handleCvFailed skips the realtime push and warns when recruiterId is missing', async () => {
-    await service.handleCvFailed({ ...failedEvent, recruiterId: undefined });
+  describe('handleWorkspaceMemberInvited', () => {
+    it('should send invitation email when member invited to workspace', async () => {
+      const event: WorkspaceMemberInvitedDto = {
+        email: 'newmember@company.com',
+        workspaceName: 'Acme Corp',
+        token: 'invite-token-123',
+        inviteUrl: 'http://localhost:3000/invite/accept?token=xyz',
+      };
 
-    expect(gateway.sendToUser).not.toHaveBeenCalled();
-    expect(loggerWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('missing recipient user id'),
-    );
+      const result = await service.handleWorkspaceMemberInvited(event);
+
+      expect(result.success).toBe(true);
+      expect(emailService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'newmember@company.com',
+        }),
+      );
+    });
+  });
+
+  describe('getNotificationById', () => {
+    it('should return notification response DTO', () => {
+      const result = service.getNotificationById('notif-1', 'user-1');
+      expect(result.id).toBe('notif-1');
+      expect(result.userId).toBe('user-1');
+    });
   });
 });
