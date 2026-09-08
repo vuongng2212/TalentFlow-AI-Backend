@@ -32,7 +32,7 @@ class GeminiConfigTest {
         ThreadPoolTaskExecutor llmExec = (ThreadPoolTaskExecutor) poolConfig.llmExecutor();
 
         GeminiConfig config = new GeminiConfig();
-        ReflectionTestUtils.setField(config, "maxConnections", 10);
+        ReflectionTestUtils.setField(config, "maxConnections", 20);
 
         int maxConnections = (Integer) ReflectionTestUtils.getField(config, "maxConnections");
         assertThat(maxConnections)

@@ -36,6 +36,7 @@ public class CandidateScoringService implements CandidateScoringUseCase {
     private final Counter successCounter;
     private final Counter fallbackCounter;
     private final Counter errorCounter;
+    private final Counter fastPathCounter;
 
     public CandidateScoringService(
             GeminiScoringClient scoringClient,
@@ -49,6 +50,10 @@ public class CandidateScoringService implements CandidateScoringUseCase {
         this.successCounter = Counter.builder(METRIC_NAME)
                 .tag(TAG_TYPE, TYPE_SCORING)
                 .tag(TAG_OUTCOME, "success")
+                .register(meterRegistry);
+        this.fastPathCounter = Counter.builder(METRIC_NAME)
+                .tag(TAG_TYPE, TYPE_SCORING)
+                .tag(TAG_OUTCOME, "fast_path")
                 .register(meterRegistry);
         this.fallbackCounter = Counter.builder(METRIC_NAME)
                 .tag(TAG_TYPE, TYPE_SCORING)
@@ -69,6 +74,22 @@ public class CandidateScoringService implements CandidateScoringUseCase {
                     .aiScore(0)
                     .scoringReasoning(null)
                     .scoringStatus(ScoringStatus.SKIPPED)
+                    .build();
+        }
+
+        // FAST-PATH: score already computed via unified extraction prompt!
+        if (candidateProfile.getAiScore() != null) {
+            int score = Math.max(0, Math.min(100, candidateProfile.getAiScore()));
+            String reasoning = candidateProfile.getScoringReasoning() != null && !candidateProfile.getScoringReasoning().isBlank()
+                    ? candidateProfile.getScoringReasoning()
+                    : buildReasoning(score);
+
+            log.info("[SCORE] Fast-path success from unified extraction. score={}", score);
+            fastPathCounter.increment();
+            return ScoringResult.builder()
+                    .aiScore(score)
+                    .scoringReasoning(reasoning)
+                    .scoringStatus(ScoringStatus.SUCCESS)
                     .build();
         }
 

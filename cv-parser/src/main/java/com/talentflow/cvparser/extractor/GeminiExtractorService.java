@@ -35,17 +35,24 @@ public class GeminiExtractorService implements CvExtractorService {
     @Override
     @Async("llmExecutor")
     public CompletableFuture<CandidateProfile> extract(String rawText) {
-        log.info("[GEMINI-EXTRACTOR] Starting extraction. textLength={}", rawText.length());
-        return extractWithGemini(rawText)
+        return extract(rawText, null);
+    }
+
+    @Override
+    @Async("llmExecutor")
+    public CompletableFuture<CandidateProfile> extract(String rawText, String jobDescription) {
+        log.info("[GEMINI-EXTRACTOR] Starting unified extraction & scoring. textLength={}, hasJobDesc={}",
+                rawText.length(), jobDescription != null && !jobDescription.isBlank());
+        return extractWithGemini(rawText, jobDescription)
                 .doOnNext(profile -> log.info(
-                        "[GEMINI-EXTRACTOR] Gemini extraction succeeded. status={}", profile.getExtractionStatus()))
+                        "[GEMINI-EXTRACTOR] Gemini extraction succeeded. status={}, aiScore={}",
+                        profile.getExtractionStatus(), profile.getAiScore()))
                 .onErrorResume(e -> Mono.just(fallback(rawText, e)))
                 .toFuture();
     }
 
-
-    private Mono<CandidateProfile> extractWithGemini(String rawText) {
-        CvExtractionPrompt prompt = promptBuilder.build(rawText);
+    private Mono<CandidateProfile> extractWithGemini(String rawText, String jobDescription) {
+        CvExtractionPrompt prompt = promptBuilder.build(rawText, jobDescription);
         return geminiLlmClient.generate(prompt)
                 .map(responseValidator::validateAndParse);
     }

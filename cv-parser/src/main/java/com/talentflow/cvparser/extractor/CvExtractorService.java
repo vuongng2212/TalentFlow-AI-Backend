@@ -14,4 +14,8 @@ public interface CvExtractorService {
      * @return CandidateProfile với extractionStatus = SUCCESS / PARTIAL / REGEX_FALLBACK
      */
     CompletableFuture<CandidateProfile> extract(String rawText);
+
+    default CompletableFuture<CandidateProfile> extract(String rawText, String jobDescription) {
+        return extract(rawText);
+    }
 }
