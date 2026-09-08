@@ -7,7 +7,8 @@ export const DEAD_LETTER_QUEUE = 'notification.dlq';
 export const ROUTING_KEYS = {
   // Application Flow
   APPLICATION_CREATED: 'application.created',
-  APPLICATION_CV_PROCESSED_SUCCESSFULLY: 'application.cv_processed_successfully',
+  APPLICATION_CV_PROCESSED_SUCCESSFULLY:
+    'application.cv_processed_successfully',
   APPLICATION_CV_PROCESSED_FAILED: 'application.cv_processed_failed',
 
   // CV Parsing Flow

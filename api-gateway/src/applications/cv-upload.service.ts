@@ -320,16 +320,17 @@ export class CvUploadService {
 
       applicationId = application.id;
 
+      const reqStr =
+        params.job.requirements != null
+          ? typeof params.job.requirements === 'string'
+            ? params.job.requirements
+            : JSON.stringify(params.job.requirements)
+          : '';
+
       const jobDescription = [
         params.job.title ? `Job Title: ${params.job.title}` : '',
         params.job.description ? `Description: ${params.job.description}` : '',
-        params.job.requirements
-          ? `Requirements: ${
-              typeof params.job.requirements === 'object'
-                ? JSON.stringify(params.job.requirements)
-                : params.job.requirements
-            }`
-          : '',
+        reqStr ? `Requirements: ${reqStr}` : '',
       ]
         .filter(Boolean)
         .join('\n\n');

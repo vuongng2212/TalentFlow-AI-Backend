@@ -1,11 +1,18 @@
 import { Logger } from '@nestjs/common';
 import { EmailService } from '../email/email.service';
 import { MetricsService } from '../metrics/metrics.service';
-import { CvFailedEvent, CvParsedEvent, ApplicationCreatedEvent } from '../rabbitmq/events';
+import {
+  CvFailedEvent,
+  CvParsedEvent,
+  ApplicationCreatedEvent,
+} from '../rabbitmq/events';
 import { WorkspaceMemberInvitedDto } from '../rabbitmq/dtos/workspace-member-invited.dto';
 import { NotificationGateway } from './notification.gateway';
 import { NotificationService } from './notification.service';
-import { SendNotificationDto, SendNotificationType } from './dto/send-notification.dto';
+import {
+  SendNotificationDto,
+  SendNotificationType,
+} from './dto/send-notification.dto';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
 
 describe('NotificationService', () => {

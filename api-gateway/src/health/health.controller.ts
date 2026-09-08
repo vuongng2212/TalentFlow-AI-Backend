@@ -60,7 +60,9 @@ class RabbitMQHealthIndicator extends HealthIndicator {
       if (!isHealthy) {
         throw new HealthCheckError(
           'RabbitMQ check failed',
-          this.getStatus(key, false, { message: 'RabbitMQ connection is not healthy' }),
+          this.getStatus(key, false, {
+            message: 'RabbitMQ connection is not healthy',
+          }),
         );
       }
       return this.getStatus(key, true);

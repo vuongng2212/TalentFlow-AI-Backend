@@ -64,7 +64,10 @@ describe('AuthController (E2E)', () => {
       .send(testUser)
       .expect(201)
       .expect((res) => {
-        const body = res.body as { message?: string; data?: { user?: { email?: string } } };
+        const body = res.body as {
+          message?: string;
+          data?: { user?: { email?: string } };
+        };
         const user = body.data?.user;
         expect(body.message).toEqual('User registered successfully');
         expect(user).toBeDefined();
