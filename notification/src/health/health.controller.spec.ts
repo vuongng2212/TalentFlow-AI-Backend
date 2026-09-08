@@ -12,12 +12,16 @@ describe('HealthController', () => {
 
   beforeEach(() => {
     healthCheckService = {
-      check: jest.fn().mockImplementation(async (checks: Array<() => Promise<HealthIndicatorResult>>) => {
-        for (const check of checks) {
-          await check();
-        }
-        return { status: 'ok', info: {}, error: {}, details: {} };
-      }),
+      check: jest
+        .fn()
+        .mockImplementation(
+          async (checks: Array<() => Promise<HealthIndicatorResult>>) => {
+            for (const check of checks) {
+              await check();
+            }
+            return { status: 'ok', info: {}, error: {}, details: {} };
+          },
+        ),
     } as unknown as jest.Mocked<HealthCheckService>;
 
     prismaService = {
@@ -50,7 +54,9 @@ describe('HealthController', () => {
   });
 
   it('should throw ServiceUnavailableException when health check fails', async () => {
-    healthCheckService.check.mockRejectedValue(new Error('Health check failed'));
+    healthCheckService.check.mockRejectedValue(
+      new Error('Health check failed'),
+    );
 
     await expect(controller.readiness()).rejects.toThrow(
       ServiceUnavailableException,

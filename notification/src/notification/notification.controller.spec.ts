@@ -1,7 +1,11 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 import { AuthenticatedUser } from '../auth/jwt.strategy';
-import { SendNotificationDto, SendNotificationType } from './dto/send-notification.dto';
+import {
+  SendNotificationDto,
+  SendNotificationType,
+} from './dto/send-notification.dto';
 import { NotificationResponseDto } from './dto/notification-response.dto';
 
 describe('NotificationController', () => {

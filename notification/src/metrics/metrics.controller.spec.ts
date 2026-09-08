@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { MetricsController } from './metrics.controller';
 import { MetricsService } from './metrics.service';
 import type { Response } from 'express';
