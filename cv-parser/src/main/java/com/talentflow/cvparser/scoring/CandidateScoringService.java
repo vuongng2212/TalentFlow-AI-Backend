@@ -72,6 +72,22 @@ public class CandidateScoringService implements CandidateScoringUseCase {
                     .build();
         }
 
+        // FAST-PATH: score already computed via unified extraction prompt!
+        if (candidateProfile.getAiScore() != null) {
+            int score = Math.max(0, Math.min(100, candidateProfile.getAiScore()));
+            String reasoning = candidateProfile.getScoringReasoning() != null && !candidateProfile.getScoringReasoning().isBlank()
+                    ? candidateProfile.getScoringReasoning()
+                    : buildReasoning(score);
+
+            log.info("[SCORE] Fast-path success from unified extraction. score={}", score);
+            successCounter.increment();
+            return ScoringResult.builder()
+                    .aiScore(score)
+                    .scoringReasoning(reasoning)
+                    .scoringStatus(ScoringStatus.SUCCESS)
+                    .build();
+        }
+
         try {
             String rawScore = scoringClient.callScoringApi(candidateProfile, jobDescription).block();
             int aiScore = validator.validate(rawScore);

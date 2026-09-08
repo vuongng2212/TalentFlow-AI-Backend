@@ -23,6 +23,8 @@ public class CandidateProfile {
     private List<WorkExperience> experience;
     private List<EducationEntry> education;
     private ExtractionStatus extractionStatus;
+    private Integer aiScore;
+    private String scoringReasoning;
 
     @Getter
     @Builder

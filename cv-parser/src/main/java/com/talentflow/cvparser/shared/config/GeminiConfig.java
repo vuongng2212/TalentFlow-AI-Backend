@@ -36,9 +36,9 @@ public class GeminiConfig {
     @Value("${llm.timeout-seconds:8}")
     private int timeoutSeconds;
 
-    // Must be >= llmExecutor.maxPoolSize (10) to prevent connection queuing when all
+    // Must be >= llmExecutor.maxPoolSize (20) to prevent connection queuing when all
     // executor threads issue concurrent Gemini requests.
-    @Value("${llm.http.max-connections:10}")
+    @Value("${llm.http.max-connections:20}")
     private int maxConnections;
 
     /**

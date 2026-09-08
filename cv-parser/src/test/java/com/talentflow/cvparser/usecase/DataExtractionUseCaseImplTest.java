@@ -86,7 +86,7 @@ class DataExtractionUseCaseImplTest {
 
         CompletableFuture<CandidateProfile> future = CompletableFuture.completedFuture(expectedProfile);
         String rawText = "This is a sufficiently long raw text that is parsed from a CV document.";
-        when(cvExtractorService.extract(rawText)).thenReturn(future);
+        when(cvExtractorService.extract(rawText, null)).thenReturn(future);
 
         DataExtractionUseCaseImpl useCase = new DataExtractionUseCaseImpl(cvExtractorService, ruleBasedExtractorService);
         ReflectionTestUtils.setField(useCase, "minLlmTextLength", 50);
@@ -95,7 +95,7 @@ class DataExtractionUseCaseImplTest {
         CandidateProfile profile = useCase.extract(rawText);
 
         assertThat(profile).isSameAs(expectedProfile);
-        verify(cvExtractorService).extract(rawText);
+        verify(cvExtractorService).extract(rawText, null);
         verifyNoInteractions(ruleBasedExtractorService);
     }
 
@@ -108,7 +108,7 @@ class DataExtractionUseCaseImplTest {
         when(future.get(anyLong(), any(TimeUnit.class))).thenThrow(new TimeoutException("LLM timeout"));
 
         String rawText = "This is a sufficiently long raw text that is parsed from a CV document.";
-        when(cvExtractorService.extract(rawText)).thenReturn(future);
+        when(cvExtractorService.extract(rawText, null)).thenReturn(future);
 
         CandidateProfile fallbackProfile = CandidateProfile.builder()
                 .fullName("Fallback Profile")
@@ -123,7 +123,7 @@ class DataExtractionUseCaseImplTest {
         CandidateProfile profile = useCase.extract(rawText);
 
         assertThat(profile).isSameAs(fallbackProfile);
-        verify(cvExtractorService).extract(rawText);
+        verify(cvExtractorService).extract(rawText, null);
         verify(ruleBasedExtractorService).extractSync(rawText);
     }
 
@@ -137,7 +137,7 @@ class DataExtractionUseCaseImplTest {
                 .thenThrow(new ExecutionException("LLM failure", new RuntimeException("API error")));
 
         String rawText = "This is a sufficiently long raw text that is parsed from a CV document.";
-        when(cvExtractorService.extract(rawText)).thenReturn(future);
+        when(cvExtractorService.extract(rawText, null)).thenReturn(future);
 
         CandidateProfile fallbackProfile = CandidateProfile.builder()
                 .fullName("Fallback Profile")
@@ -152,7 +152,7 @@ class DataExtractionUseCaseImplTest {
         CandidateProfile profile = useCase.extract(rawText);
 
         assertThat(profile).isSameAs(fallbackProfile);
-        verify(cvExtractorService).extract(rawText);
+        verify(cvExtractorService).extract(rawText, null);
         verify(ruleBasedExtractorService).extractSync(rawText);
     }
 
@@ -165,7 +165,7 @@ class DataExtractionUseCaseImplTest {
         when(future.get(anyLong(), any(TimeUnit.class))).thenThrow(new InterruptedException("Interrupted"));
 
         String rawText = "This is a sufficiently long raw text that is parsed from a CV document.";
-        when(cvExtractorService.extract(rawText)).thenReturn(future);
+        when(cvExtractorService.extract(rawText, null)).thenReturn(future);
 
         CandidateProfile fallbackProfile = CandidateProfile.builder()
                 .fullName("Fallback Profile")
@@ -185,7 +185,7 @@ class DataExtractionUseCaseImplTest {
         assertThat(Thread.currentThread().isInterrupted()).isTrue();
         Thread.interrupted(); // Clean up thread state
 
-        verify(cvExtractorService).extract(rawText);
+        verify(cvExtractorService).extract(rawText, null);
         verify(ruleBasedExtractorService).extractSync(rawText);
     }
 }

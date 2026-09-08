@@ -15,4 +15,8 @@ public interface DataExtractionUseCase {
      * @return Populated profile, never null.
      */
     CandidateProfile extract(String rawText);
+
+    default CandidateProfile extract(String rawText, String jobDescription) {
+        return extract(rawText);
+    }
 }

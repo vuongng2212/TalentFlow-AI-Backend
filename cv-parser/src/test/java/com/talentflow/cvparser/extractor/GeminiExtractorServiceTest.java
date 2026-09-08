@@ -43,7 +43,7 @@ class GeminiExtractorServiceTest {
                 .extractionStatus(ExtractionStatus.SUCCESS)
                 .build();
 
-        when(promptBuilder.build(rawText)).thenReturn(prompt);
+        when(promptBuilder.build(rawText, null)).thenReturn(prompt);
         when(geminiLlmClient.generate(prompt)).thenReturn(Mono.just("gemini json response"));
         when(responseValidator.validateAndParse("gemini json response")).thenReturn(expectedProfile);
 
@@ -51,7 +51,7 @@ class GeminiExtractorServiceTest {
         CandidateProfile result = future.get();
 
         assertThat(result).isSameAs(expectedProfile);
-        verify(promptBuilder).build(rawText);
+        verify(promptBuilder).build(rawText, null);
         verify(geminiLlmClient).generate(prompt);
         verify(responseValidator).validateAndParse("gemini json response");
         verifyNoInteractions(ruleBasedExtractorService);
@@ -67,7 +67,7 @@ class GeminiExtractorServiceTest {
                 .extractionStatus(ExtractionStatus.REGEX_FALLBACK)
                 .build();
 
-        when(promptBuilder.build(rawText)).thenReturn(prompt);
+        when(promptBuilder.build(rawText, null)).thenReturn(prompt);
         when(geminiLlmClient.generate(prompt)).thenReturn(Mono.error(exception));
         when(ruleBasedExtractorService.extractSync(rawText)).thenReturn(fallbackProfile);
 
@@ -75,7 +75,7 @@ class GeminiExtractorServiceTest {
         CandidateProfile result = future.get();
 
         assertThat(result).isSameAs(fallbackProfile);
-        verify(promptBuilder).build(rawText);
+        verify(promptBuilder).build(rawText, null);
         verify(geminiLlmClient).generate(prompt);
         verify(ruleBasedExtractorService).extractSync(rawText);
         verifyNoInteractions(responseValidator);
@@ -87,7 +87,7 @@ class GeminiExtractorServiceTest {
         CvExtractionPrompt prompt = new CvExtractionPrompt("system", "user");
         RuntimeException exception = new RuntimeException("Unexpected LLM crash");
 
-        when(promptBuilder.build(rawText)).thenReturn(prompt);
+        when(promptBuilder.build(rawText, null)).thenReturn(prompt);
         when(geminiLlmClient.generate(prompt)).thenReturn(Mono.error(exception));
         when(ruleBasedExtractorService.extractSync(rawText)).thenThrow(new RuntimeException("Fallback crash"));
 
@@ -98,7 +98,7 @@ class GeminiExtractorServiceTest {
         assertThat(result.getSkills()).isEmpty();
         assertThat(result.getExtractionStatus()).isEqualTo(ExtractionStatus.FAILED);
 
-        verify(promptBuilder).build(rawText);
+        verify(promptBuilder).build(rawText, null);
         verify(geminiLlmClient).generate(prompt);
         verify(ruleBasedExtractorService).extractSync(rawText);
     }

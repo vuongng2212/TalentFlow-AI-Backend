@@ -86,7 +86,7 @@ class CvParsingUseCaseImplTest {
 
         when(storageService.downloadSafely(event.getFileKey())).thenReturn(tempFile);
         when(parserFactory.parse(tempFile)).thenReturn("raw text");
-        when(dataExtractionUseCase.extract("raw text")).thenReturn(sampleProfile());
+        when(dataExtractionUseCase.extract(eq("raw text"), any())).thenReturn(sampleProfile());
         when(candidateScoringUseCase.score(any(), any()))
                 .thenReturn(new ScoringResult(85, "Good match", com.talentflow.cvparser.shared.dto.ScoringStatus.SUCCESS));
 
@@ -124,7 +124,7 @@ class CvParsingUseCaseImplTest {
 
         when(storageService.downloadSafely(event.getFileKey())).thenReturn(tempFile);
         when(parserFactory.parse(tempFile)).thenReturn("raw text");
-        when(dataExtractionUseCase.extract("raw text")).thenReturn(failedProfile());
+        when(dataExtractionUseCase.extract(eq("raw text"), any())).thenReturn(failedProfile());
         when(candidateScoringUseCase.score(any(), any()))
                 .thenReturn(new ScoringResult(50, "Fallback", com.talentflow.cvparser.shared.dto.ScoringStatus.FALLBACK));
 
@@ -143,7 +143,7 @@ class CvParsingUseCaseImplTest {
 
         when(storageService.downloadSafely(event.getFileKey())).thenReturn(tempFile);
         when(parserFactory.parse(tempFile)).thenReturn("raw text");
-        when(dataExtractionUseCase.extract("raw text")).thenReturn(sampleProfile());
+        when(dataExtractionUseCase.extract(eq("raw text"), any())).thenReturn(sampleProfile());
         when(candidateScoringUseCase.score(any(), any()))
                 .thenReturn(new ScoringResult(85, "Good match", com.talentflow.cvparser.shared.dto.ScoringStatus.SUCCESS));
         doThrow(new RuntimeException("db failed"))
@@ -164,7 +164,7 @@ class CvParsingUseCaseImplTest {
 
         when(storageService.downloadSafely(event.getFileKey())).thenReturn(tempFile);
         when(parserFactory.parse(tempFile)).thenReturn("raw text");
-        when(dataExtractionUseCase.extract("raw text")).thenReturn(sampleProfile());
+        when(dataExtractionUseCase.extract(eq("raw text"), any())).thenReturn(sampleProfile());
         when(candidateScoringUseCase.score(any(), any()))
                 .thenReturn(new ScoringResult(100, "Perfect match", com.talentflow.cvparser.shared.dto.ScoringStatus.SUCCESS));
 
@@ -183,7 +183,7 @@ class CvParsingUseCaseImplTest {
 
         when(storageService.downloadSafely(event.getFileKey())).thenReturn(tempFile);
         when(parserFactory.parse(tempFile)).thenReturn("");
-        when(dataExtractionUseCase.extract("")).thenReturn(failedProfile());
+        when(dataExtractionUseCase.extract(eq(""), any())).thenReturn(failedProfile());
         when(candidateScoringUseCase.score(any(), any()))
                 .thenReturn(new ScoringResult(0, "No text extracted", com.talentflow.cvparser.shared.dto.ScoringStatus.SKIPPED));
 

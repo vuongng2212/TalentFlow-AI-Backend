@@ -103,7 +103,7 @@ public class CvParsingUseCaseImpl implements CvParsingUseCase {
             log.debug("[CVP-USECASE] Parsed. candidateId={}, textLength={}",
                     event.getCandidateId(), rawText.length());
 
-            CandidateProfile profile = dataExtractionUseCase.extract(rawText);
+            CandidateProfile profile = dataExtractionUseCase.extract(rawText, event.getJobDescription());
             log.info("[CVP-USECASE] Extracted. candidateId={}, status={}",
                     event.getCandidateId(), profile.getExtractionStatus());
 
