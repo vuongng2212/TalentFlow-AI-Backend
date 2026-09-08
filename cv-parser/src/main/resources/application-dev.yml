@@ -3,7 +3,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/talentflow_dev
     username: ${DB_USER:postgres}
-    password: ${DB_PASS:1111}
+    password: ${DB_PASS:postgres}
   jpa:
     show-sql: true
     hibernate:

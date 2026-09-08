@@ -140,14 +140,12 @@ export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
         await this.notificationService.handleApplicationCreated(validated);
         break;
       }
-      case ROUTING_KEYS.APPLICATION_CV_PROCESSED_SUCCESSFULLY:
-      case ROUTING_KEYS.CV_PARSED: {
+      case ROUTING_KEYS.APPLICATION_CV_PROCESSED_SUCCESSFULLY: {
         const validated = await this.validatePayload(data, CvParsedDto);
         await this.notificationService.handleCvParsed(validated);
         break;
       }
-      case ROUTING_KEYS.APPLICATION_CV_PROCESSED_FAILED:
-      case ROUTING_KEYS.CV_FAILED: {
+      case ROUTING_KEYS.APPLICATION_CV_PROCESSED_FAILED: {
         const validated = await this.validatePayload(data, CvFailedDto);
         await this.notificationService.handleCvFailed(validated);
         break;
