@@ -36,6 +36,7 @@ public class CandidateScoringService implements CandidateScoringUseCase {
     private final Counter successCounter;
     private final Counter fallbackCounter;
     private final Counter errorCounter;
+    private final Counter fastPathCounter;
 
     public CandidateScoringService(
             GeminiScoringClient scoringClient,
@@ -49,6 +50,10 @@ public class CandidateScoringService implements CandidateScoringUseCase {
         this.successCounter = Counter.builder(METRIC_NAME)
                 .tag(TAG_TYPE, TYPE_SCORING)
                 .tag(TAG_OUTCOME, "success")
+                .register(meterRegistry);
+        this.fastPathCounter = Counter.builder(METRIC_NAME)
+                .tag(TAG_TYPE, TYPE_SCORING)
+                .tag(TAG_OUTCOME, "fast_path")
                 .register(meterRegistry);
         this.fallbackCounter = Counter.builder(METRIC_NAME)
                 .tag(TAG_TYPE, TYPE_SCORING)
@@ -80,7 +85,7 @@ public class CandidateScoringService implements CandidateScoringUseCase {
                     : buildReasoning(score);
 
             log.info("[SCORE] Fast-path success from unified extraction. score={}", score);
-            successCounter.increment();
+            fastPathCounter.increment();
             return ScoringResult.builder()
                     .aiScore(score)
                     .scoringReasoning(reasoning)
