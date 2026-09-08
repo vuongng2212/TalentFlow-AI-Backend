@@ -10,6 +10,8 @@ import {
   TALENTFLOW_EVENTS_EXCHANGE,
   CV_PARSING_DLQ,
   CV_PROCESSING_QUEUE,
+  GATEWAY_CV_EVENTS_QUEUE,
+  GATEWAY_CV_EVENTS_DLQ,
   ROUTING_KEY_CV_UPLOADED,
   ROUTING_KEY_WORKSPACE_MEMBER_INVITED,
   ROUTING_KEY_APPLICATION_CREATED,
@@ -176,6 +178,21 @@ describe('QueueService', () => {
         durable: true,
         deadLetterExchange: '',
         deadLetterRoutingKey: CV_PARSING_DLQ,
+        messageTtl: 86400000,
+      },
+    );
+    expect(jest.mocked(mockChannel.assertQueue)).toHaveBeenCalledWith(
+      GATEWAY_CV_EVENTS_DLQ,
+      {
+        durable: true,
+      },
+    );
+    expect(jest.mocked(mockChannel.assertQueue)).toHaveBeenCalledWith(
+      GATEWAY_CV_EVENTS_QUEUE,
+      {
+        durable: true,
+        deadLetterExchange: '',
+        deadLetterRoutingKey: GATEWAY_CV_EVENTS_DLQ,
       },
     );
     expect(jest.mocked(mockChannel.bindQueue)).toHaveBeenCalledWith(
@@ -184,12 +201,12 @@ describe('QueueService', () => {
       ROUTING_KEY_CV_UPLOADED,
     );
     expect(jest.mocked(mockChannel.bindQueue)).toHaveBeenCalledWith(
-      CV_PROCESSING_QUEUE,
+      GATEWAY_CV_EVENTS_QUEUE,
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_PARSED,
     );
     expect(jest.mocked(mockChannel.bindQueue)).toHaveBeenCalledWith(
-      CV_PROCESSING_QUEUE,
+      GATEWAY_CV_EVENTS_QUEUE,
       TALENTFLOW_EVENTS_EXCHANGE,
       ROUTING_KEY_CV_FAILED,
     );

@@ -5,6 +5,10 @@ export const TALENTFLOW_EVENTS_EXCHANGE = 'talentflow.events';
 export const CV_PROCESSING_QUEUE = 'cv_parser.jobs';
 export const CV_PARSING_DLQ = 'cv_parser.jobs.dlq';
 
+// Gateway queues
+export const GATEWAY_CV_EVENTS_QUEUE = 'api_gateway.cv_events';
+export const GATEWAY_CV_EVENTS_DLQ = 'api_gateway.cv_events.dlq';
+
 // Notification queues (for future use)
 export const NOTIFICATION_EVENTS_QUEUE = 'notification.events';
 export const NOTIFICATION_EVENTS_DLQ = 'notification.events.dlq';

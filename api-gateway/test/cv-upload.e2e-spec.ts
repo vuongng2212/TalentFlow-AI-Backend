@@ -31,10 +31,15 @@ describe('CV Upload (e2e)', () => {
       .overrideProvider(StorageService)
       .useValue({
         upload: jest.fn().mockImplementation((buffer, key) =>
-          Promise.resolve({ key, url: `http://localhost:9000/talentflow-cvs/${key}` }),
+          Promise.resolve({
+            key,
+            url: `http://localhost:9000/talentflow-cvs/${key}`,
+          }),
         ),
         getBucketName: jest.fn().mockReturnValue('talentflow-cvs'),
-        getSignedUrl: jest.fn().mockResolvedValue('http://localhost:9000/talentflow-cvs/signed'),
+        getSignedUrl: jest
+          .fn()
+          .mockResolvedValue('http://localhost:9000/talentflow-cvs/signed'),
         delete: jest.fn().mockResolvedValue(undefined),
       })
       .compile();

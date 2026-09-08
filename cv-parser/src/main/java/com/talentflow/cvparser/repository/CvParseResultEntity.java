@@ -47,6 +47,7 @@ public class CvParseResultEntity {
     @Column(name = "scoring_status", length = 16)
     private ScoringStatus scoringStatus;
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(name = "parsed_data", columnDefinition = "JSONB")
     private String parsedData;  // JSON string, serialized by Jackson
 

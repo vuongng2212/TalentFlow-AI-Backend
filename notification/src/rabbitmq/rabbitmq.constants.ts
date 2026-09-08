@@ -5,12 +5,11 @@ export const DEAD_LETTER_EXCHANGE = 'talentflow.dlx';
 export const DEAD_LETTER_QUEUE = 'notification.dlq';
 
 export const ROUTING_KEYS = {
-  // Application Flow
+  // Application Flow (Enriched)
   APPLICATION_CREATED: 'application.created',
-
-  // CV Parsing Flow
-  CV_PARSED: 'cv.parsed',
-  CV_FAILED: 'cv.failed',
+  APPLICATION_CV_PROCESSED_SUCCESSFULLY:
+    'application.cv_processed_successfully',
+  APPLICATION_CV_PROCESSED_FAILED: 'application.cv_processed_failed',
 
   // Direct Notification
   NOTIFICATION_SEND: 'notification.send',
@@ -21,8 +20,8 @@ export const ROUTING_KEYS = {
 
 export const BINDING_KEYS = [
   ROUTING_KEYS.APPLICATION_CREATED,
-  ROUTING_KEYS.CV_PARSED,
-  ROUTING_KEYS.CV_FAILED,
+  ROUTING_KEYS.APPLICATION_CV_PROCESSED_SUCCESSFULLY,
+  ROUTING_KEYS.APPLICATION_CV_PROCESSED_FAILED,
   ROUTING_KEYS.NOTIFICATION_SEND,
   ROUTING_KEYS.WORKSPACE_MEMBER_INVITED,
 ];

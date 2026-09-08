@@ -44,7 +44,14 @@ public class S3StorageService implements StorageService {
         fileValidator.validateFileKey(fileKey);
 
         long maxSizeBytes = (long) maxSizeMb * 1024 * 1024;
-        Path tempFile = createTempFile();
+        String suffix = ".tmp";
+        if (fileKey != null && fileKey.lastIndexOf('.') != -1) {
+            String ext = fileKey.substring(fileKey.lastIndexOf('.')).toLowerCase();
+            if (ext.equals(".pdf") || ext.equals(".docx") || ext.equals(".doc")) {
+                suffix = ext;
+            }
+        }
+        Path tempFile = createTempFile(suffix);
         boolean success = false;
 
         try {
@@ -86,14 +93,14 @@ public class S3StorageService implements StorageService {
         }
     }
 
-    private Path createTempFile() throws IOException {
+    private Path createTempFile(String suffix) throws IOException {
         Path createdTempFile;
         if (tempDir != null && !tempDir.isBlank()) {
             Path secureTempDir = Path.of(tempDir).toAbsolutePath().normalize();
             Files.createDirectories(secureTempDir);
-            createdTempFile = Files.createTempFile(secureTempDir, "cv-", ".tmp");
+            createdTempFile = Files.createTempFile(secureTempDir, "cv-", suffix);
         } else {
-            createdTempFile = Files.createTempFile("cv-", ".tmp");
+            createdTempFile = Files.createTempFile("cv-", suffix);
         }
         return createdTempFile;
     }

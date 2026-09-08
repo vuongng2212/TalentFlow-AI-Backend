@@ -47,7 +47,7 @@ public class GeminiLlmClient {
     public GeminiLlmClient(
             WebClient geminiWebClient,
             GeminiConfig geminiConfig,
-            @Value("${llm.model:gemini-2.5-flash}") String model,
+            @Value("${llm.model:gemini-3.5-flash-lite}") String model,
             @Value("${llm.max-tokens:8192}") int maxTokens,
             CircuitBreakerRegistry cbRegistry,
             RateLimiterRegistry rlRegistry,

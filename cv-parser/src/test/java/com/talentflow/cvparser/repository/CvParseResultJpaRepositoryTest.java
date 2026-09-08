@@ -101,13 +101,13 @@ class CvParseResultJpaRepositoryTest {
                 .status(ParseStatus.FAILED)
                 .errorCode("PARSING_FAILED")
                 .errorMessage("Invalid JSON structure extracted")
-                .parsedData("{corrupt_raw_json: incomplete")
+                .parsedData("{\"raw\":\"corrupt_raw_json: incomplete\"}")
                 .build();
 
         repository.save(entity);
 
         Optional<CvParseResultEntity> found = repository.findByApplicationId(applicationId);
         assertTrue(found.isPresent());
-        assertEquals("{corrupt_raw_json: incomplete", found.get().getParsedData());
+        assertEquals("{\"raw\":\"corrupt_raw_json: incomplete\"}", found.get().getParsedData());
     }
 }
