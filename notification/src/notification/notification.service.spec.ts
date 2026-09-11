@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { EmailService } from '../email/email.service';
 import { MetricsService } from '../metrics/metrics.service';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   CvFailedEvent,
   CvParsedEvent,
@@ -23,6 +24,12 @@ describe('NotificationService', () => {
     recordNotificationSent: jest.Mock;
     recordDeliveryDuration: jest.Mock;
   };
+  let prismaService: {
+    notification: {
+      create: jest.Mock;
+      update: jest.Mock;
+    };
+  };
   let loggerWarnSpy: jest.SpyInstance;
 
   const recruiterId = 'recruiter-uuid';
@@ -38,10 +45,50 @@ describe('NotificationService', () => {
       recordNotificationSent: jest.fn(),
       recordDeliveryDuration: jest.fn(),
     };
+    const storedBase = {
+      id: 'notification-id',
+      applicationId: null,
+      subject: null,
+      recipient: null,
+      templateId: null,
+      templateData: null,
+      metadata: null,
+      externalId: null,
+      isRead: false,
+      readAt: null,
+      sentAt: null,
+      failedAt: null,
+      errorMessage: null,
+      expiresAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+    };
+    let pendingNotification: Record<string, unknown>;
+    prismaService = {
+      notification: {
+        create: jest
+          .fn()
+          .mockImplementation(({ data }: { data: Record<string, unknown> }) => {
+            pendingNotification = { ...storedBase, ...data };
+            return Promise.resolve(pendingNotification);
+          }),
+        update: jest
+          .fn()
+          .mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+            Promise.resolve({
+              ...pendingNotification,
+              ...data,
+              updatedAt: new Date(),
+            }),
+          ),
+      },
+    };
 
     service = new NotificationService(
       emailService as unknown as EmailService,
       gateway as unknown as NotificationGateway,
+      prismaService as unknown as PrismaService,
       metricsService as unknown as MetricsService,
     );
 
@@ -195,14 +242,6 @@ describe('NotificationService', () => {
           to: 'newmember@company.com',
         }),
       );
-    });
-  });
-
-  describe('getNotificationById', () => {
-    it('should return notification response DTO', () => {
-      const result = service.getNotificationById('notif-1', 'user-1');
-      expect(result.id).toBe('notif-1');
-      expect(result.userId).toBe('user-1');
     });
   });
 });
