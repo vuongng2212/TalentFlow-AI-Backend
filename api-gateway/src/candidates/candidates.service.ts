@@ -4,18 +4,23 @@ import { QueryCandidatesDto } from './dto/query-candidates.dto';
 import { UpdateCandidateDto } from './dto/update-candidate.dto';
 import type { PaginatedResult } from '../common/dto/pagination.dto';
 import type { Candidate } from '@prisma/client';
+import { WorkspaceContextService } from '../common/services/workspace-context.service';
 
 @Injectable()
 export class CandidatesService {
   private readonly logger = new Logger(CandidatesService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly workspaceContext: WorkspaceContextService,
+  ) {}
 
   async findAll(
     query: QueryCandidatesDto,
   ): Promise<
     PaginatedResult<Candidate & { _count: { applications: number } }>
   > {
+    const workspaceId = this.workspaceContext.getWorkspaceId();
     const {
       page = 1,
       limit = 10,
@@ -25,7 +30,9 @@ export class CandidatesService {
     } = query;
     const skip = (page - 1) * limit;
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = {
+      workspaceId,
+    };
 
     if (search) {
       where.OR = [
@@ -59,8 +66,9 @@ export class CandidatesService {
   }
 
   async findOne(id: string) {
-    const candidate = await this.prisma.candidate.findUnique({
-      where: { id },
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const candidate = await this.prisma.candidate.findFirst({
+      where: { id, workspaceId },
       include: {
         applications: {
           where: { deletedAt: null },
@@ -82,13 +90,16 @@ export class CandidatesService {
   }
 
   async update(id: string, data: UpdateCandidateDto) {
-    const existing = await this.prisma.candidate.findUnique({ where: { id } });
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const existing = await this.prisma.candidate.findFirst({
+      where: { id, workspaceId },
+    });
 
     if (!existing) {
       throw new NotFoundException(`Candidate with ID "${id}" not found`);
     }
 
-    this.logger.log(`Updating candidate ${id}`);
+    this.logger.log(`Updating candidate ${id} in workspace ${workspaceId}`);
 
     return this.prisma.candidate.update({
       where: { id },
@@ -103,13 +114,16 @@ export class CandidatesService {
   }
 
   async remove(id: string): Promise<void> {
-    const existing = await this.prisma.candidate.findUnique({ where: { id } });
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const existing = await this.prisma.candidate.findFirst({
+      where: { id, workspaceId },
+    });
 
     if (!existing) {
       throw new NotFoundException(`Candidate with ID "${id}" not found`);
     }
 
-    this.logger.log(`Deleting candidate ${id}`);
+    this.logger.log(`Deleting candidate ${id} in workspace ${workspaceId}`);
 
     // Hard delete — Candidate model has no deletedAt
     // This will cascade delete all applications for this candidate

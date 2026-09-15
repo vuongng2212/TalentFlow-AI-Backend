@@ -1,7 +1,7 @@
 # Test Profile Configuration
 spring:
   datasource:
-    url: jdbc:h2:mem:testdb
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;INIT=CREATE SCHEMA IF NOT EXISTS cv_parser
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -13,23 +13,26 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
         format_sql: false
+        default_schema: cv_parser
   rabbitmq:
     host: localhost
     port: 5672
     username: guest
     password: guest
+  flyway:
+    enabled: false
 
 # Storage (Mock/Test)
 storage:
-  endpoint: http://localhost:9000
-  access-key-id: test
-  secret-access-key: test
-  bucket: test-bucket
-  region: us-east-1
+  endpoint: ${TEST_STORAGE_ENDPOINT:http://localhost:9000}
+  access-key-id: ${TEST_STORAGE_ACCESS_KEY:test}
+  secret-access-key: ${TEST_STORAGE_SECRET_KEY:test}
+  bucket: ${TEST_STORAGE_BUCKET:test-bucket}
+  region: ${TEST_STORAGE_REGION:us-east-1}
 
 # LLM (Test - use mocks)
 llm:
-  api-key: test-key
+  api-key: ${TEST_LLM_API_KEY:test-key}
   model: gemini-2.5-flash
   timeout-seconds: 5
   base-url: https://generativelanguage.googleapis.com/v1beta

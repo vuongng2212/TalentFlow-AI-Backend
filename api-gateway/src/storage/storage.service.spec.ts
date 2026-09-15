@@ -140,7 +140,9 @@ describe('StorageService', () => {
       'application/pdf',
     );
 
-    expect(result.url).toBe('https://cdn.example.com/cvs/file.pdf');
+    expect(jest.mocked(result.url)).toBe(
+      'https://cdn.example.com/cvs/file.pdf',
+    );
   });
 
   it('should fallback endpoint to account-based R2 URL', async () => {
@@ -175,7 +177,7 @@ describe('StorageService', () => {
       'application/pdf',
     );
 
-    expect(result.url).toBe(
+    expect(jest.mocked(result.url)).toBe(
       'https://acc123.r2.cloudflarestorage.com/talentflow-cvs/cvs/file.pdf',
     );
   });
@@ -212,7 +214,7 @@ describe('StorageService', () => {
       'application/pdf',
     );
 
-    expect(result.url).toBe(
+    expect(jest.mocked(result.url)).toBe(
       'http://localhost:9000/talentflow-cvs/cvs/file.pdf',
     );
   });

@@ -1,31 +1,32 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { AnalyticsService } from './analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { WorkspaceContextService } from '../common/services/workspace-context.service';
+import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { PrismaClient, Job } from '@prisma/client';
 
-const mockPrismaService = {
-  job: {
-    count: jest.fn(),
-    findMany: jest.fn(),
-  },
-  candidate: {
-    count: jest.fn(),
-  },
-  application: {
-    count: jest.fn(),
-    groupBy: jest.fn(),
-    findMany: jest.fn(),
-  },
+const MOCK_WORKSPACE_ID = 'ws-test-1';
+
+const mockWorkspaceContextService = {
+  getWorkspaceId: jest.fn().mockReturnValue(MOCK_WORKSPACE_ID),
 };
 
 describe('AnalyticsService', () => {
   let service: AnalyticsService;
-  let prisma: typeof mockPrismaService;
+  let prisma: DeepMockProxy<PrismaClient>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AnalyticsService,
-        { provide: PrismaService, useValue: mockPrismaService },
+        { provide: PrismaService, useValue: mockDeep<PrismaClient>() },
+        {
+          provide: WorkspaceContextService,
+          useValue: mockWorkspaceContextService,
+        },
       ],
     }).compile();
 
@@ -40,7 +41,7 @@ describe('AnalyticsService', () => {
   });
 
   describe('getOverview', () => {
-    it('should return overview stats', async () => {
+    it('should return overview stats scoped to workspace', async () => {
       prisma.job.count
         .mockResolvedValueOnce(10) // totalJobs
         .mockResolvedValueOnce(5); // openJobs
@@ -59,6 +60,13 @@ describe('AnalyticsService', () => {
         hiredCount: 8,
         hireRate: 10,
       });
+
+      // Verify workspace scoping
+      expect(prisma.job.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ workspaceId: MOCK_WORKSPACE_ID }),
+        }),
+      );
     });
 
     it('should return 0 hire rate when no applications', async () => {
@@ -72,36 +80,47 @@ describe('AnalyticsService', () => {
   });
 
   describe('getPipeline', () => {
-    it('should return all stages with counts', async () => {
-      prisma.application.groupBy.mockResolvedValue([
+    it('should return all stages with counts scoped to workspace', async () => {
+      (prisma.application.groupBy as jest.Mock).mockResolvedValue([
         { stage: 'APPLIED', _count: { id: 20 } },
         { stage: 'SCREENING', _count: { id: 10 } },
         { stage: 'HIRED', _count: { id: 3 } },
-      ]);
+      ] as any);
 
       const result = await service.getPipeline();
 
       expect(result).toHaveLength(6); // All 6 stages
       expect(result.find((s) => s.stage === 'APPLIED')?.count).toBe(20);
-      expect(result.find((s) => s.stage === 'INTERVIEW')?.count).toBe(0); // Missing = 0
+      expect(result.find((s) => s.stage === 'INTERVIEW')?.count).toBe(0);
+
+      expect(prisma.application.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ workspaceId: MOCK_WORKSPACE_ID }),
+        }),
+      );
     });
   });
 
   describe('getTrends', () => {
-    it('should return trend points for date range', async () => {
+    it('should return trend points scoped to workspace', async () => {
       prisma.application.findMany.mockResolvedValue([]);
 
       const result = await service.getTrends(7);
 
-      // Should return 8 data points (day 0 through day 7)
       expect(result.length).toBeGreaterThanOrEqual(7);
       expect(result[0]).toHaveProperty('date');
       expect(result[0]).toHaveProperty('applications');
+
+      expect(prisma.application.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ workspaceId: MOCK_WORKSPACE_ID }),
+        }),
+      );
     });
   });
 
   describe('getTopJobs', () => {
-    it('should return top jobs sorted by application count', async () => {
+    it('should return top jobs sorted by application count scoped to workspace', async () => {
       const mockJobs = [
         {
           id: '1',
@@ -118,13 +137,19 @@ describe('AnalyticsService', () => {
           _count: { applications: 5 },
         },
       ];
-      prisma.job.findMany.mockResolvedValue(mockJobs);
+      prisma.job.findMany.mockResolvedValue(mockJobs as unknown as Job[]);
 
       const result = await service.getTopJobs(5);
 
       expect(result).toHaveLength(2);
       expect(result[0].applicationCount).toBe(10);
       expect(result[1].title).toBe('Designer');
+
+      expect(prisma.job.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ workspaceId: MOCK_WORKSPACE_ID }),
+        }),
+      );
     });
   });
 });

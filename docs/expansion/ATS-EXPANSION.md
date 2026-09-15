@@ -38,19 +38,30 @@ Mục tiêu:
 
 ### 2. Gmail + n8n CV Ingestion
 
+*Tài liệu kiến trúc và lộ trình thực tế:* [email-ingestion-automation.md](docs/expansion/email-ingestion-automation.md)
+
 Hệ thống sẽ hỗ trợ tự động lấy CV từ Gmail theo subject pattern gắn với JD, ví dụ:
 
 - `[Java-Backend]`
 - `[Frontend-ReactJs]`
 
-Luồng mong muốn:
+Luồng mong muốn (Được chia làm 2 Pha để tối ưu tốc độ ship MVP và phân bổ nhân sự):
 
-1. Gmail nhận email ứng viên
-2. n8n lọc email theo rule
-3. n8n tải attachment PDF/DOCX
-4. n8n gọi API Gateway qua protected ingestion endpoint
-5. API Gateway validate, resolve subject tag -> jobId, upload file, tạo application, publish `cv.uploaded`
-6. CV Parser xử lý tiếp như flow hiện tại
+**Pha 1 (MVP):**
+1. Gmail nhận email ứng viên.
+2. n8n lắng nghe, tải attachment PDF/DOCX.
+3. n8n thực hiện Email Parsing đơn giản (trích xuất email, tên ứng viên, body làm cover letter) và tự động phân tích tiêu đề (Subject) để phân loại `jobId`.
+4. n8n gọi API Gateway qua route `/api/v1/applications/ingestion`.
+5. API Gateway validate API Key/JobId, tạo Candidate/Application, upload file lên R2 và publish `cv.uploaded`.
+6. CV Parser (Spring Boot) thực hiện parse nội dung CV và chấm điểm.
+
+**Pha 2 (Maintain & Scale - Tích hợp .NET Engine):**
+1. Gmail nhận email ứng viên.
+2. n8n forward email thô và file đính kèm sang **.NET Ingestion Engine**.
+3. **.NET Ingestion Engine** chạy thuật toán so khớp Job (Priority & Specificity Matching) và check trùng file (Deduplicate).
+4. .NET Engine gọi API Gateway qua `/api/v1/applications/ingestion`.
+5. API Gateway xử lý lưu trữ và tiếp tục pipeline như Pha 1.
+6. CV Parser (Spring Boot) xử lý tiếp.
 
 ---
 

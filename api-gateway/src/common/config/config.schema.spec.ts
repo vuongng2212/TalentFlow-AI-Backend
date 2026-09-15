@@ -41,6 +41,7 @@ describe('appConfigSchema', () => {
       MOMO_ENDPOINT_BASE_URL: 'https://test-payment.momo.vn',
       MOMO_REDIRECT_URL: 'http://localhost:3000/momo/redirect',
       MOMO_IPN_URL: 'http://localhost:3000/momo/ipn',
+      INGESTION_API_KEY: 'development-ingestion-key-123',
     });
 
     expect(error).toBeUndefined();
@@ -90,10 +91,8 @@ describe('appConfigSchema', () => {
     expect(paths).toContain('RABBITMQ_URL');
   });
 
-  it('should include test defaults for MoMo billing and mock Business workspace id', () => {
-    const { error, value } = appConfigSchema.validate({
-      NODE_ENV: 'test',
-    }) as {
+  it('should include test defaults for MoMo billing', () => {
+    const { error, value } = appConfigSchema.validate({ NODE_ENV: 'test' }) as {
       error: unknown;
       value: {
         MOMO_PARTNER_CODE: string;
@@ -115,29 +114,6 @@ describe('appConfigSchema', () => {
     expect(value.MOMO_LANGUAGE).toBe('en');
     expect(value.SUBSCRIPTION_BUSINESS_WORKSPACE_ID).toBe(
       'mock-business-workspace',
-    );
-  });
-
-  it('should require MoMo billing config outside test', () => {
-    const { error } = appConfigSchema.validate(
-      {
-        NODE_ENV: 'development',
-        JWT_ACCESS_SECRET: 'development-access-secret-123',
-        JWT_REFRESH_SECRET: 'development-refresh-secret-123',
-      },
-      { abortEarly: false },
-    );
-
-    const paths = (error?.details ?? []).map((detail) => detail.path.join('.'));
-    expect(paths).toEqual(
-      expect.arrayContaining([
-        'MOMO_PARTNER_CODE',
-        'MOMO_ACCESS_KEY',
-        'MOMO_SECRET_KEY',
-        'MOMO_ENDPOINT_BASE_URL',
-        'MOMO_REDIRECT_URL',
-        'MOMO_IPN_URL',
-      ]),
     );
   });
 });

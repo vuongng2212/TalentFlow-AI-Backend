@@ -16,7 +16,7 @@ describe('FileValidationPipe', () => {
       buffer: Buffer.from('%PDF-1.7\ncontent'),
     } as Express.Multer.File;
 
-    expect(pipe.transform(file)).toBe(file);
+    expect(jest.mocked(pipe.transform(file))).toBe(file);
   });
 
   it('should validate DOCX file', () => {
@@ -28,7 +28,7 @@ describe('FileValidationPipe', () => {
       buffer: Buffer.from([0x50, 0x4b, 0x03, 0x04]),
     } as Express.Multer.File;
 
-    expect(pipe.transform(file)).toBe(file);
+    expect(jest.mocked(pipe.transform(file))).toBe(file);
   });
 
   it('should throw when file is missing', () => {

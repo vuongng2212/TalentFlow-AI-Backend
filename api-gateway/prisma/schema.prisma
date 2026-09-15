@@ -10,20 +10,27 @@ datasource db {
 }
 
 model User {
-  id                  String               @id @default(uuid())
-  email               String               @unique
-  password            String
-  role                Role                 @default(RECRUITER)
-  fullName            String               @map("full_name")
-  createdJobs         Job[]                @relation("JobCreator")
-  interviews          Interview[]          @relation("InterviewInterviewer")
-  subscriptions       UserSubscription[]
-  paymentTransactions PaymentTransaction[]
-  aiUsageRecords      AiUsageRecord[]      @relation("AiUsageActor")
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
-  deletedAt           DateTime?            @map("deleted_at")
+  id                          String                @id @default(uuid())
+  email                       String                @unique
+  password                    String
+  role                        Role                  @default(RECRUITER)
+  fullName                    String                @map("full_name")
+  activeWorkspaceId           String?               @map("active_workspace_id")
+  activeWorkspace             Workspace?            @relation("UserActiveWorkspace", fields: [activeWorkspaceId], references: [id], onDelete: SetNull)
+  createdJobs                 Job[]                 @relation("JobCreator")
+  interviews                  Interview[]           @relation("InterviewInterviewer")
+  subscriptions               UserSubscription[]
+  paymentTransactions         PaymentTransaction[]
+  aiUsageRecords              AiUsageRecord[]       @relation("AiUsageActor")
+  workspaceMembers            WorkspaceMember[]
+  invitedWorkspaceMembers     WorkspaceMember[]     @relation("WorkspaceInvitation")
+  createdWorkspaces           Workspace[]           @relation("WorkspaceCreator")
+  workspaceInvitationsCreated WorkspaceInvitation[] @relation("WorkspaceInvitationCreator")
+  createdAt                   DateTime              @default(now()) @map("created_at")
+  updatedAt                   DateTime              @updatedAt @map("updated_at")
+  deletedAt                   DateTime?             @map("deleted_at")
 
+  @@index([activeWorkspaceId])
   @@map("users")
 }
 
@@ -38,6 +45,8 @@ model Job {
   salaryMin      Int?
   salaryMax      Int?
   status         JobStatus      @default(DRAFT)
+  workspaceId    String         @map("workspace_id")
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdById    String         @map("created_by_id")
   createdBy      User           @relation("JobCreator", fields: [createdById], references: [id], onDelete: Cascade)
   applications   Application[]
@@ -47,6 +56,7 @@ model Job {
 
   @@index([createdById])
   @@index([status])
+  @@index([workspaceId])
   @@map("jobs")
 }
 
@@ -162,42 +172,109 @@ model PaymentConfirmation {
   @@map("payment_confirmations")
 }
 
+model Workspace {
+  id             String                @id @default(uuid())
+  name           String
+  isBusiness     Boolean               @default(false) @map("is_business")
+  createdById    String?               @map("created_by_id")
+  createdBy      User?                 @relation("WorkspaceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  members        WorkspaceMember[]
+  activeUsers    User[]                @relation("UserActiveWorkspace")
+  jobs           Job[]
+  candidates     Candidate[]
+  applications   Application[]
+  interviews     Interview[]
+  emailTemplates EmailTemplate[]
+  invitations    WorkspaceInvitation[]
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String                @id @default(uuid())
+  workspaceId String                @map("workspace_id")
+  userId      String                @map("user_id")
+  role        WorkspaceMemberRole   @default(RECRUITER)
+  status      WorkspaceMemberStatus @default(ACTIVE)
+  invitedById String?               @map("invited_by_id")
+  invitedBy   User?                 @relation("WorkspaceInvitation", fields: [invitedById], references: [id], onDelete: SetNull)
+  workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId, status])
+  @@index([userId, status])
+  @@map("workspace_members")
+}
+
+model WorkspaceInvitation {
+  id          String              @id @default(uuid())
+  email       String
+  workspaceId String              @map("workspace_id")
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  token       String              @unique
+  role        WorkspaceMemberRole @default(RECRUITER)
+  invitedById String              @map("invited_by_id")
+  invitedBy   User                @relation("WorkspaceInvitationCreator", fields: [invitedById], references: [id], onDelete: Cascade)
+  expiresAt   DateTime            @map("expires_at")
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  @@index([email])
+  @@index([workspaceId])
+  @@map("workspace_invitations")
+}
+
 model Candidate {
-  id          String  @id @default(uuid())
-  email       String  @unique
-  fullName    String  @map("full_name")
+  id          String    @id @default(uuid())
+  email       String
+  fullName    String    @map("full_name")
   phone       String?
-  linkedinUrl String? @map("linkedin_url")
-  resumeUrl   String? @map("resume_url")
-  resumeText  String? @map("resume_text") @db.Text
+  linkedinUrl String?   @map("linkedin_url")
+  resumeUrl   String?   @map("resume_url")
+  resumeText  String?   @map("resume_text") @db.Text
+  workspaceId String    @map("workspace_id")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   applications Application[]
 
+  @@unique([workspaceId, email])
   @@index([email])
   @@index([fullName])
+  @@index([workspaceId])
   @@map("candidates")
 }
 
 model Application {
-  id          String            @id @default(uuid())
-  jobId       String            @map("job_id")
-  job         Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  candidateId String            @map("candidate_id")
-  candidate   Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  stage       ApplicationStage  @default(APPLIED)
-  status      ApplicationStatus @default(SUBMITTED)
-  cvFileKey   String?           @map("cv_file_key")
-  cvFileUrl   String?           @map("cv_file_url")
-  coverLetter String?           @map("cover_letter")
-  notes       String?
-  appliedAt   DateTime          @default(now()) @map("applied_at")
-  reviewedAt  DateTime?         @map("reviewed_at")
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
-  deletedAt   DateTime?         @map("deleted_at")
+  id                String            @id @default(uuid())
+  jobId             String            @map("job_id")
+  job               Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidateId       String            @map("candidate_id")
+  candidate         Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  workspaceId       String            @map("workspace_id")
+  workspace         Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stage             ApplicationStage  @default(APPLIED)
+  status            ApplicationStatus @default(SUBMITTED)
+  cvFileKey         String?           @map("cv_file_key")
+  cvFileUrl         String?           @map("cv_file_url")
+  coverLetter       String?           @map("cover_letter")
+  externalMessageId String?           @map("external_message_id")
+  notes             String?
+  cvParsingStatus   CvParsingStatus   @default(PENDING) @map("cv_parsing_status")
+  aiScore           Int?              @map("ai_score")
+  scoringReasoning  String?           @map("scoring_reasoning") @db.Text
+  parsedData        Json?             @map("parsed_data")
+  appliedAt         DateTime          @default(now()) @map("applied_at")
+  reviewedAt        DateTime?         @map("reviewed_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  deletedAt         DateTime?         @map("deleted_at")
 
   interviews Interview[]
 
@@ -205,6 +282,7 @@ model Application {
   @@index([jobId])
   @@index([candidateId])
   @@index([status])
+  @@index([workspaceId])
   @@map("applications")
 }
 
@@ -212,6 +290,8 @@ model Interview {
   id            String          @id @default(uuid())
   applicationId String          @map("application_id")
   application   Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  workspaceId   String          @map("workspace_id")
+  workspace     Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   scheduledAt   DateTime        @map("scheduled_at")
   duration      Int             @default(60) // duration in minutes
   type          InterviewType   @default(VIDEO)
@@ -227,7 +307,23 @@ model Interview {
   @@index([scheduledAt])
   @@index([status])
   @@index([interviewerId])
+  @@index([workspaceId])
   @@map("interviews")
+}
+
+model EmailTemplate {
+  id          String    @id @default(uuid())
+  name        String
+  subject     String
+  body        String
+  workspaceId String    @map("workspace_id")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+  @@map("email_templates")
 }
 
 enum Role {
@@ -286,6 +382,27 @@ enum InterviewStatus {
   COMPLETED
   CANCELLED
   NO_SHOW
+}
+
+enum WorkspaceMemberRole {
+  OWNER
+  ADMIN
+  RECRUITER
+  VIEWER
+}
+
+enum WorkspaceMemberStatus {
+  ACTIVE
+  INVITED
+  REMOVED
+  EXPIRED
+}
+
+enum CvParsingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
 
 enum SubscriptionPlanCode {

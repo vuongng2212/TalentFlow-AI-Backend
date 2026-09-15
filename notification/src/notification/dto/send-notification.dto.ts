@@ -16,6 +16,7 @@ export enum SendNotificationType {
   INTERVIEW_INVITATION = 'interview_invitation',
   NEW_APPLICATION_HR = 'new_application_hr',
   APPLICATION_RESULT = 'application_result',
+  WORKSPACE_INVITATION = 'workspace_invitation',
 }
 
 export enum SendNotificationChannel {

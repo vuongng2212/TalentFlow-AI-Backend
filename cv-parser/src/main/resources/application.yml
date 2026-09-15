@@ -14,7 +14,7 @@ spring:
     listener:
       simple:
         acknowledge-mode: manual
-        prefetch: 10
+        prefetch: ${AMQP_LISTENER_PREFETCH:2}
         retry:
           enabled: true
           initial-interval: 1000
@@ -35,6 +35,15 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+        default_schema: cv_parser
+    open-in-view: false
+
+  # Flyway Migration
+  flyway:
+    enabled: true
+    schemas: cv_parser
+    create-schemas: true
+    locations: classpath:db/migration
 
   # Jackson Configuration
   jackson:
@@ -58,12 +67,20 @@ storage:
 # LLM Configuration (Google Gemini)
 llm:
   provider: ${LLM_PROVIDER:google}
-  model: ${LLM_MODEL:gemini-2.5-flash}
+  model: ${LLM_MODEL:gemini-3.5-flash-lite}
   api-key: ${GEMINI_API_KEY:}
   base-url: https://generativelanguage.googleapis.com/v1beta
-  timeout-seconds: ${LLM_TIMEOUT_SECONDS:30}
+  timeout-seconds: ${LLM_TIMEOUT_SECONDS:8}
+  extraction-timeout-seconds: ${LLM_EXTRACTION_TIMEOUT_SECONDS:20}
+  http:
+    max-connections: ${LLM_HTTP_MAX_CONNECTIONS:10}
   max-tokens: ${LLM_MAX_TOKENS:8192}
   min-text-length: ${LLM_MIN_TEXT_LENGTH:50}
+  scoring:
+    timeout-seconds: ${LLM_SCORING_TIMEOUT_SECONDS:10}
+    fallback-score: ${LLM_SCORING_FALLBACK_SCORE:50}
+    fallback-reason: "Scoring unavailable"
+    max-retries: ${LLM_SCORING_MAX_RETRIES:2}
 
 # OCR Configuration (Tesseract)
 tesseract:
@@ -111,7 +128,7 @@ resilience4j:
   retry:
     instances:
       geminiApi:
-        max-attempts: 3
+        max-attempts: 2
         wait-duration: 2s
         exponential-backoff-multiplier: 2
         retry-exceptions:
@@ -128,6 +145,11 @@ resilience4j:
         limit-refresh-period: 60s
         timeout-duration: 5s
 
+# AMQP Listener Configuration
+amqp:
+  listener:
+    concurrency: ${AMQP_LISTENER_CONCURRENCY:2}
+
 # Logging Configuration
 logging:
   level:
@@ -138,14 +160,13 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
-  rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASS:guest}
-    listener:
-      simple:
-        acknowledge-mode: manual
+# CV Parser worker configuration (decoupled from scoring-client retry settings)
+cv:
+  parser:
+    # Max redelivery attempts for transient pipeline failures before routing to DLQ.
+    # Kept separate from llm.scoring.max-retries so tuning scoring retries does not
+    # unexpectedly change DLQ behavior.
+    max-retries: ${CV_PARSER_MAX_RETRIES:3}
 
 app:
   storage:
@@ -159,6 +180,8 @@ app:
     temp-dir: ${CV_PARSER_TEMP_DIR:}
 
   parser:
+    ocr-timeout-seconds: ${OCR_TIMEOUT_SECONDS:30}
+    page-timeout-seconds: ${OCR_PAGE_TIMEOUT_SECONDS:15}
     docx:
       min-inflate-ratio: ${DOCX_MIN_INFLATE_RATIO:0.01}
       max-entry-size: ${DOCX_MAX_ENTRY_SIZE:20971520}
@@ -170,9 +193,10 @@ app:
   ocr:
     tessdata-path: ${TESSDATA_PATH:/usr/share/tesseract-ocr/4.00/tessdata}
     language: ${OCR_LANGUAGE:vie+eng}
-    dpi: ${OCR_DPI:300}
+    dpi: ${OCR_DPI:150}
     max-pages: ${OCR_MAX_PAGES:20}
     max-parallel-pages: ${OCR_MAX_PARALLEL_PAGES:2}
+    pool-borrow-timeout-seconds: ${OCR_POOL_BORROW_TIMEOUT_SECONDS:30}
     max-rendered-pixels-per-page: ${OCR_MAX_RENDERED_PIXELS_PER_PAGE:20000000}
     min-text-length-threshold: ${OCR_MIN_TEXT_THRESHOLD:100}
 

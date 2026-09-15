@@ -62,7 +62,7 @@ describe('CandidatesController', () => {
       const result = await controller.findAll(query);
 
       expect(result).toEqual(expectedResult);
-      expect(service.findAll).toHaveBeenCalledWith(query);
+      expect(jest.mocked(service.findAll)).toHaveBeenCalledWith(query);
     });
   });
 
@@ -73,7 +73,7 @@ describe('CandidatesController', () => {
       const result = await controller.findOne('1');
 
       expect(result).toEqual(mockCandidate);
-      expect(service.findOne).toHaveBeenCalledWith('1');
+      expect(jest.mocked(service.findOne)).toHaveBeenCalledWith('1');
     });
   });
 
@@ -87,7 +87,7 @@ describe('CandidatesController', () => {
       const result = await controller.update('1', updateDto);
 
       expect(result).toEqual(expectedResult);
-      expect(service.update).toHaveBeenCalledWith('1', updateDto);
+      expect(jest.mocked(service.update)).toHaveBeenCalledWith('1', updateDto);
     });
   });
 
@@ -97,7 +97,7 @@ describe('CandidatesController', () => {
 
       await controller.remove('1');
 
-      expect(service.remove).toHaveBeenCalledWith('1');
+      expect(jest.mocked(service.remove)).toHaveBeenCalledWith('1');
     });
   });
 });

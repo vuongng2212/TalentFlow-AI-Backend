@@ -37,7 +37,7 @@ public class DataExtractionUseCaseImpl implements DataExtractionUseCase {
     private final CvExtractorService cvExtractorService;
     private final RuleBasedExtractorService ruleBasedExtractorService;
 
-    @Value("${llm.timeout-seconds:30}")
+    @Value("${llm.extraction-timeout-seconds:20}")
     private long timeoutSeconds;
 
     @Value("${llm.min-text-length:50}")
@@ -45,21 +45,27 @@ public class DataExtractionUseCaseImpl implements DataExtractionUseCase {
 
     @Override
     public CandidateProfile extract(String rawText) {
+        return extract(rawText, null);
+    }
+
+    @Override
+    public CandidateProfile extract(String rawText, String jobDescription) {
         if (rawText == null || rawText.length() < minLlmTextLength) {
             log.info("[DATA-EXTRACTION] Text too short ({} chars, min={}) — skipping LLM, using rule-based.",
                     rawText == null ? 0 : rawText.length(), minLlmTextLength);
             return rawText == null ? emptyProfile() : ruleBasedExtractorService.extractSync(rawText);
         }
 
-        log.info("[DATA-EXTRACTION] Starting hybrid extraction. textLength={}, timeoutSeconds={}",
-                rawText.length(), timeoutSeconds);
+        log.info("[DATA-EXTRACTION] Starting hybrid extraction. textLength={}, timeoutSeconds={}, hasJobDesc={}",
+                rawText.length(), timeoutSeconds, jobDescription != null && !jobDescription.isBlank());
 
         try {
             CandidateProfile profile = cvExtractorService
-                    .extract(rawText)
+                    .extract(rawText, jobDescription)
                     .get(timeoutSeconds, TimeUnit.SECONDS);
 
-            log.info("[DATA-EXTRACTION] Extraction completed. status={}", profile.getExtractionStatus());
+            log.info("[DATA-EXTRACTION] Extraction completed. status={}, aiScore={}",
+                    profile.getExtractionStatus(), profile.getAiScore());
             return profile;
 
         } catch (TimeoutException e) {

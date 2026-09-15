@@ -5,6 +5,10 @@ export const TALENTFLOW_EVENTS_EXCHANGE = 'talentflow.events';
 export const CV_PROCESSING_QUEUE = 'cv_parser.jobs';
 export const CV_PARSING_DLQ = 'cv_parser.jobs.dlq';
 
+// Gateway queues
+export const GATEWAY_CV_EVENTS_QUEUE = 'api_gateway.cv_events';
+export const GATEWAY_CV_EVENTS_DLQ = 'api_gateway.cv_events.dlq';
+
 // Notification queues (for future use)
 export const NOTIFICATION_EVENTS_QUEUE = 'notification.events';
 export const NOTIFICATION_EVENTS_DLQ = 'notification.events.dlq';
@@ -16,9 +20,16 @@ export const ROUTING_KEY_CV_FAILED = 'cv.failed';
 
 // Routing keys - Application events
 export const ROUTING_KEY_APPLICATION_CREATED = 'application.created';
+export const ROUTING_KEY_APPLICATION_CV_PROCESSED_SUCCESSFULLY =
+  'application.cv_processed_successfully';
+export const ROUTING_KEY_APPLICATION_CV_PROCESSED_FAILED =
+  'application.cv_processed_failed';
 
 // Routing keys - Notification events
 export const ROUTING_KEY_NOTIFICATION_SEND = 'notification.send';
+
+// Routing keys - Workspace events
+export const ROUTING_KEY_WORKSPACE_MEMBER_INVITED = 'workspace.member.invited';
 
 /** @deprecated Use TALENTFLOW_EVENTS_EXCHANGE instead */
 export const CV_EVENTS_EXCHANGE = TALENTFLOW_EVENTS_EXCHANGE;

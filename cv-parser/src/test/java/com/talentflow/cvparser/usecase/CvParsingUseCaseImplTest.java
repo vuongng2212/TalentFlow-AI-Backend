@@ -4,12 +4,22 @@ import com.talentflow.cvparser.extractor.CandidateProfile;
 import com.talentflow.cvparser.extractor.ExtractionStatus;
 import com.talentflow.cvparser.parser.ParserFactory;
 import com.talentflow.cvparser.repository.CvParseResultRepository;
+import com.talentflow.cvparser.scoring.CandidateScoringUseCase;
+import com.talentflow.cvparser.scoring.ScoringResult;
 import com.talentflow.cvparser.shared.config.RabbitMqConfig;
 import com.talentflow.cvparser.shared.dto.CvParsedEvent;
 import com.talentflow.cvparser.shared.dto.CvUploadedEvent;
+import com.talentflow.cvparser.shared.dto.ParseStatus;
 import com.talentflow.cvparser.storage.StorageService;
+import com.talentflow.cvparser.shared.util.PiiRedactor;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,13 +44,40 @@ class CvParsingUseCaseImplTest {
     private final CvParseResultRepository cvParseResultRepository = mock(CvParseResultRepository.class);
     private final RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
 
+    private final CandidateScoringUseCase candidateScoringUseCase = mock(CandidateScoringUseCase.class);
+    private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
+    private final PiiRedactor piiRedactor = new PiiRedactor();
+
     private final CvParsingUseCaseImpl useCase = new CvParsingUseCaseImpl(
             storageService,
             parserFactory,
             dataExtractionUseCase,
+            candidateScoringUseCase,
             cvParseResultRepository,
-            rabbitTemplate
+            rabbitTemplate,
+            meterRegistry,
+            piiRedactor
     );
+
+    @BeforeEach
+    void initTransaction() {
+        TransactionSynchronizationManager.initSynchronization();
+    }
+
+    @AfterEach
+    void cleanTransaction() {
+        TransactionSynchronizationManager.clear();
+    }
+
+    /**
+     * Trigger post-commit synchronizations that were registered during execute().
+     * In a Spring-managed transaction this fires automatically; in mock tests
+     * we must invoke it manually.
+     */
+    private static void triggerAfterCommit() {
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(org.springframework.transaction.support.TransactionSynchronization::afterCommit);
+    }
 
     @Test
     void executeDeletesTempFileOnSuccess() throws Exception {
@@ -49,12 +86,15 @@ class CvParsingUseCaseImplTest {
 
         when(storageService.downloadSafely(event.getFileKey())).thenReturn(tempFile);
         when(parserFactory.parse(tempFile)).thenReturn("raw text");
-        when(dataExtractionUseCase.extract("raw text")).thenReturn(sampleProfile());
+        when(dataExtractionUseCase.extract(eq("raw text"), any())).thenReturn(sampleProfile());
+        when(candidateScoringUseCase.score(any(), any()))
+                .thenReturn(new ScoringResult(85, "Good match", com.talentflow.cvparser.shared.dto.ScoringStatus.SUCCESS));
 
         useCase.execute(event);
+        triggerAfterCommit();
 
         assertThat(Files.exists(tempFile)).isFalse();
-        verify(cvParseResultRepository).save(eq(event), any(CandidateProfile.class));
+        verify(cvParseResultRepository).save(eq(event), any(CandidateProfile.class), any(ScoringResult.class), any(ParseStatus.class));
         verify(rabbitTemplate).convertAndSend(eq(RabbitMqConfig.ROUTING_KEY_CV_PARSED), any(CvParsedEvent.class));
     }
 
@@ -72,7 +112,7 @@ class CvParsingUseCaseImplTest {
 
         assertThat(Files.exists(tempFile)).isFalse();
         verify(dataExtractionUseCase, never()).extract(any());
-        verify(cvParseResultRepository, never()).save(any(), any());
+        verify(cvParseResultRepository, never()).save(any(), any(), any(), any());
     }
 
     @Test
@@ -84,12 +124,15 @@ class CvParsingUseCaseImplTest {
 
         when(storageService.downloadSafely(event.getFileKey())).thenReturn(tempFile);
         when(parserFactory.parse(tempFile)).thenReturn("raw text");
-        when(dataExtractionUseCase.extract("raw text")).thenReturn(failedProfile());
+        when(dataExtractionUseCase.extract(eq("raw text"), any())).thenReturn(failedProfile());
+        when(candidateScoringUseCase.score(any(), any()))
+                .thenReturn(new ScoringResult(50, "Fallback", com.talentflow.cvparser.shared.dto.ScoringStatus.FALLBACK));
 
         useCase.execute(event);
+        triggerAfterCommit();
 
         assertThat(Files.exists(tempFile)).isFalse();
-        verify(cvParseResultRepository).save(eq(event), any(CandidateProfile.class));
+        verify(cvParseResultRepository).save(eq(event), any(CandidateProfile.class), any(ScoringResult.class), any(ParseStatus.class));
         verify(rabbitTemplate).convertAndSend(eq(RabbitMqConfig.ROUTING_KEY_CV_PARSED), any(CvParsedEvent.class));
     }
 
@@ -100,9 +143,11 @@ class CvParsingUseCaseImplTest {
 
         when(storageService.downloadSafely(event.getFileKey())).thenReturn(tempFile);
         when(parserFactory.parse(tempFile)).thenReturn("raw text");
-        when(dataExtractionUseCase.extract("raw text")).thenReturn(sampleProfile());
+        when(dataExtractionUseCase.extract(eq("raw text"), any())).thenReturn(sampleProfile());
+        when(candidateScoringUseCase.score(any(), any()))
+                .thenReturn(new ScoringResult(85, "Good match", com.talentflow.cvparser.shared.dto.ScoringStatus.SUCCESS));
         doThrow(new RuntimeException("db failed"))
-                .when(cvParseResultRepository).save(eq(event), any(CandidateProfile.class));
+                .when(cvParseResultRepository).save(eq(event), any(CandidateProfile.class), any(ScoringResult.class), any(ParseStatus.class));
 
         assertThatThrownBy(() -> useCase.execute(event))
                 .isInstanceOf(RuntimeException.class)
@@ -110,6 +155,44 @@ class CvParsingUseCaseImplTest {
 
         assertThat(Files.exists(tempFile)).isFalse();
         verify(rabbitTemplate, never()).convertAndSend(any(String.class), any(Object.class));
+    }
+
+    @Test
+    void executeHandlesBoundaryScoresZeroAndOneHundred() throws Exception {
+        Path tempFile = Files.createTempFile("cv-boundary-score-", ".tmp");
+        CvUploadedEvent event = sampleEvent();
+
+        when(storageService.downloadSafely(event.getFileKey())).thenReturn(tempFile);
+        when(parserFactory.parse(tempFile)).thenReturn("raw text");
+        when(dataExtractionUseCase.extract(eq("raw text"), any())).thenReturn(sampleProfile());
+        when(candidateScoringUseCase.score(any(), any()))
+                .thenReturn(new ScoringResult(100, "Perfect match", com.talentflow.cvparser.shared.dto.ScoringStatus.SUCCESS));
+
+        useCase.execute(event);
+        triggerAfterCommit();
+
+        ArgumentCaptor<CvParsedEvent> captor = ArgumentCaptor.forClass(CvParsedEvent.class);
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMqConfig.ROUTING_KEY_CV_PARSED), captor.capture());
+        assertThat(captor.getValue().getAiScore()).isEqualTo(100);
+    }
+
+    @Test
+    void executeHandlesEmptyParsedText() throws Exception {
+        Path tempFile = Files.createTempFile("cv-empty-text-", ".tmp");
+        CvUploadedEvent event = sampleEvent();
+
+        when(storageService.downloadSafely(event.getFileKey())).thenReturn(tempFile);
+        when(parserFactory.parse(tempFile)).thenReturn("");
+        when(dataExtractionUseCase.extract(eq(""), any())).thenReturn(failedProfile());
+        when(candidateScoringUseCase.score(any(), any()))
+                .thenReturn(new ScoringResult(0, "No text extracted", com.talentflow.cvparser.shared.dto.ScoringStatus.SKIPPED));
+
+        useCase.execute(event);
+        triggerAfterCommit();
+
+        assertThat(Files.exists(tempFile)).isFalse();
+        verify(cvParseResultRepository).save(eq(event), any(CandidateProfile.class), any(ScoringResult.class), any(ParseStatus.class));
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMqConfig.ROUTING_KEY_CV_PARSED), any(CvParsedEvent.class));
     }
 
     private CvUploadedEvent sampleEvent() {

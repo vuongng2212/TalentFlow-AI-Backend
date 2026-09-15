@@ -16,7 +16,7 @@ describe('MetricsService', () => {
       const registry = service.getRegistry();
 
       expect(registry).toBeDefined();
-      expect(typeof registry.metrics).toBe('function');
+      expect(jest.mocked(typeof registry.metrics)).toBe('function');
     });
 
     it('should include default metrics', async () => {

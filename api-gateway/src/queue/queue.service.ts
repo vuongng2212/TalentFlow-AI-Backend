@@ -3,10 +3,38 @@ import {
   Logger,
   OnModuleDestroy,
   OnModuleInit,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { connect } from 'amqplib';
+import { ApplicationsService } from '../applications/applications.service';
 import { sanitizeError } from '../common/utils/sanitize.util';
+import {
+  TALENTFLOW_EVENTS_EXCHANGE,
+  CV_PROCESSING_QUEUE,
+  CV_PARSING_DLQ,
+  GATEWAY_CV_EVENTS_QUEUE,
+  GATEWAY_CV_EVENTS_DLQ,
+  ROUTING_KEY_CV_UPLOADED,
+  ROUTING_KEY_WORKSPACE_MEMBER_INVITED,
+  ROUTING_KEY_APPLICATION_CREATED,
+  ROUTING_KEY_NOTIFICATION_SEND,
+  ROUTING_KEY_CV_PARSED,
+  ROUTING_KEY_CV_FAILED,
+  ROUTING_KEY_APPLICATION_CV_PROCESSED_SUCCESSFULLY,
+  ROUTING_KEY_APPLICATION_CV_PROCESSED_FAILED,
+} from './constants/queue.constants';
+import { CvUploadedEvent } from './interfaces/cv-uploaded-event.interface';
+import { WorkspaceMemberInvitedEvent } from './interfaces/workspace-member-invited-event.interface';
+import { ApplicationCreatedEvent } from './interfaces/application-created-event.interface';
+import { NotificationSendEvent } from './interfaces/notification-send-event.interface';
+import {
+  EnrichedCvParsedEvent,
+  EnrichedCvFailedEvent,
+  RawCvParsedEvent,
+  RawCvFailedEvent,
+} from './interfaces/cv-events.interface';
 
 interface AmqpConnection {
   createChannel(): Promise<AmqpChannel>;
@@ -37,6 +65,8 @@ interface AmqpChannel {
       durable: boolean;
       deadLetterExchange?: string;
       deadLetterRoutingKey?: string;
+      messageTtl?: number;
+      arguments?: Record<string, unknown>;
     },
   ): Promise<unknown>;
   bindQueue(queue: string, source: string, pattern: string): Promise<unknown>;
@@ -54,14 +84,14 @@ interface AmqpChannel {
     queue: string,
   ): Promise<{ queue: string; messageCount: number; consumerCount: number }>;
   close(): Promise<void>;
+  consume(
+    queue: string,
+    onMessage: (msg: unknown) => void | Promise<void>,
+    options?: unknown,
+  ): Promise<unknown>;
+  ack(msg: unknown): void;
+  nack(msg: unknown, allUpTo?: boolean, requeue?: boolean): void;
 }
-import {
-  TALENTFLOW_EVENTS_EXCHANGE,
-  CV_PROCESSING_QUEUE,
-  CV_PARSING_DLQ,
-  ROUTING_KEY_CV_UPLOADED,
-} from './constants/queue.constants';
-import { CvUploadedEvent } from './interfaces/cv-uploaded-event.interface';
 
 @Injectable()
 export class QueueService implements OnModuleInit, OnModuleDestroy {
@@ -72,7 +102,11 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private isShuttingDown = false;
   private readonly logger = new Logger(QueueService.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    @Inject(forwardRef(() => ApplicationsService))
+    private readonly applicationsService: ApplicationsService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     await this.connectWithSetup();
@@ -82,6 +116,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.connect();
       await this.setupTopology();
+      await this.setupConsumers();
       this.reconnectAttempt = 0;
       this.logger.log('RabbitMQ connection established');
     } catch (error) {
@@ -119,7 +154,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     const connection = (await connect(
       url,
       this.getConnectionOptions(timeoutMs),
-    )) as AmqpConnection;
+    )) as unknown as AmqpConnection;
 
     this.connection = connection;
     this.channel = await connection.createChannel();
@@ -236,6 +271,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       durable: true,
       deadLetterExchange: '',
       deadLetterRoutingKey: CV_PARSING_DLQ,
+      messageTtl: 86400000,
     });
 
     await this.channel.bindQueue(
@@ -244,10 +280,77 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       ROUTING_KEY_CV_UPLOADED,
     );
 
+    await this.channel.assertQueue(GATEWAY_CV_EVENTS_DLQ, {
+      durable: true,
+    });
+
+    await this.channel.assertQueue(GATEWAY_CV_EVENTS_QUEUE, {
+      durable: true,
+      deadLetterExchange: '',
+      deadLetterRoutingKey: GATEWAY_CV_EVENTS_DLQ,
+    });
+
+    await this.channel.bindQueue(
+      GATEWAY_CV_EVENTS_QUEUE,
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_CV_PARSED,
+    );
+
+    await this.channel.bindQueue(
+      GATEWAY_CV_EVENTS_QUEUE,
+      TALENTFLOW_EVENTS_EXCHANGE,
+      ROUTING_KEY_CV_FAILED,
+    );
+
     this.logger.log('RabbitMQ topology configured');
   }
 
-  async publishCvUploaded(event: CvUploadedEvent): Promise<void> {
+  private async setupConsumers(): Promise<void> {
+    if (!this.channel) return;
+
+    await this.channel.consume(GATEWAY_CV_EVENTS_QUEUE, async (msg) => {
+      if (!msg) return;
+
+      try {
+        const message = msg as {
+          fields: { routingKey: string };
+          content: Buffer;
+        };
+        const routingKey = message.fields.routingKey;
+        const content = JSON.parse(message.content.toString()) as unknown;
+
+        this.logger.log(`Received message with routing key: ${routingKey}`);
+
+        switch (routingKey) {
+          case ROUTING_KEY_CV_PARSED:
+            await this.applicationsService.handleCvParsedEvent(
+              content as RawCvParsedEvent,
+            );
+            break;
+          case ROUTING_KEY_CV_FAILED:
+            await this.applicationsService.handleCvFailedEvent(
+              content as RawCvFailedEvent,
+            );
+            break;
+          default:
+            this.logger.debug(
+              `Ignoring message with routing key: ${routingKey}`,
+            );
+        }
+
+        this.channel?.ack(msg);
+      } catch (error) {
+        this.logger.error('Error processing message', sanitizeError(error));
+        this.channel?.nack(msg, false, false);
+      }
+    });
+  }
+
+  private publishEvent<T>(
+    routingKey: string,
+    event: T,
+    logLabel: string,
+  ): Promise<void> {
     if (!this.channel) {
       this.logger.error('Cannot publish: channel not initialized');
       throw new Error('RabbitMQ channel not initialized');
@@ -257,7 +360,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
     const published = this.channel.publish(
       TALENTFLOW_EVENTS_EXCHANGE,
-      ROUTING_KEY_CV_UPLOADED,
+      routingKey,
       message,
       {
         persistent: true,
@@ -271,11 +374,60 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       throw new Error('RabbitMQ outbound buffer full');
     }
 
-    this.logger.log(
-      `Published cv.uploaded event for application ${event.applicationId}`,
-    );
-
+    this.logger.log(`Published ${logLabel}`);
     return Promise.resolve();
+  }
+
+  async publishCvUploaded(event: CvUploadedEvent): Promise<void> {
+    await this.publishEvent(
+      ROUTING_KEY_CV_UPLOADED,
+      event,
+      `cv.uploaded event for application ${event.applicationId}`,
+    );
+  }
+
+  async publishWorkspaceMemberInvited(
+    event: WorkspaceMemberInvitedEvent,
+  ): Promise<void> {
+    await this.publishEvent(
+      ROUTING_KEY_WORKSPACE_MEMBER_INVITED,
+      event,
+      `workspace.member.invited event for ${event.email}`,
+    );
+  }
+
+  async publishApplicationCreated(
+    event: ApplicationCreatedEvent,
+  ): Promise<void> {
+    await this.publishEvent(
+      ROUTING_KEY_APPLICATION_CREATED,
+      event,
+      `application.created event for application ${event.applicationId}`,
+    );
+  }
+
+  async publishNotificationSend(event: NotificationSendEvent): Promise<void> {
+    await this.publishEvent(
+      ROUTING_KEY_NOTIFICATION_SEND,
+      event,
+      `notification.send event for user ${event.userId}`,
+    );
+  }
+
+  async publishEnrichedCvParsed(event: EnrichedCvParsedEvent): Promise<void> {
+    await this.publishEvent(
+      ROUTING_KEY_APPLICATION_CV_PROCESSED_SUCCESSFULLY,
+      event,
+      `enriched cv.success event for application ${event.applicationId}`,
+    );
+  }
+
+  async publishEnrichedCvFailed(event: EnrichedCvFailedEvent): Promise<void> {
+    await this.publishEvent(
+      ROUTING_KEY_APPLICATION_CV_PROCESSED_FAILED,
+      event,
+      `enriched cv.failed event for application ${event.applicationId}`,
+    );
   }
 
   isHealthy(): Promise<boolean> {

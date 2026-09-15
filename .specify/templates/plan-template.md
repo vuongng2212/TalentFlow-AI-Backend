@@ -30,6 +30,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 - Cross-service changes require producer and consumer alignment.
 - Schema changes in the gateway require schema and migration updates together.
 - Validation, logging, and failure behavior must remain boundary-focused.
+- Tests and TDD: For non-trivial work, developers MUST author failing tests before implementing behavior (TDD). This TDD gate is required for Phase 2+ implementation unless a justified exception is documented in the plan.
 
 ## Project Structure
 

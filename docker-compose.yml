@@ -22,6 +22,14 @@ services:
       - S3_ACCESS_KEY=minioadmin
       - S3_SECRET_KEY=minioadmin
       - S3_BUCKET_NAME=talentflow-cvs
+      # Observability — structured logs forwarded to Elasticsearch
+      - ELK_HOST=http://elasticsearch:9200
+      - ELK_LOG_LEVEL=info
+      - ELK_INDEX_PREFIX=talentflow-api-gateway
+      # Distributed tracing — OpenTelemetry -> Jaeger
+      - OTEL_ENABLED=true
+      - OTEL_SERVICE_NAME=api-gateway
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     depends_on:
       postgres:
         condition: service_healthy
@@ -30,6 +38,8 @@ services:
       rabbitmq:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/v1/health"]
@@ -52,6 +62,14 @@ services:
       - DATABASE_URL=postgresql://postgres:123@postgres:5432/talentflow_dev?schema=public
       - REDIS_HOST=redis
       - RABBITMQ_URL=amqp://rabbitmq:rabbitmq@rabbitmq:5672
+      # Observability — structured logs forwarded to Elasticsearch
+      - ELK_HOST=http://elasticsearch:9200
+      - ELK_LOG_LEVEL=info
+      - ELK_INDEX_PREFIX=talentflow-notification
+      # Distributed tracing — OpenTelemetry -> Jaeger
+      - OTEL_ENABLED=true
+      - OTEL_SERVICE_NAME=notification-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     ports:
       - "${NOTIFICATION_HOST_PORT:-5000}:5000"
     depends_on:
@@ -60,6 +78,8 @@ services:
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health"]
@@ -166,6 +186,218 @@ services:
     networks:
       - talentflow-network
 
+  # ─────────────────────────────────────────────────────────────────
+  # ELK Stack — Log collection, processing & storage
+  # Elasticsearch API: http://localhost:9200
+  # Kibana UI:         http://localhost:5601
+  # ─────────────────────────────────────────────────────────────────
+
+  # Elasticsearch — log storage & full-text search engine
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: talentflow-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false      # disabled for local dev
+      - xpack.monitoring.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - talentflow-network
+
+  # Kibana — log visualization & exploration UI
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.4
+    container_name: talentflow-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - TELEMETRY_ENABLED=false
+      - XPACK_SECURITY_ENABLED=false
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5601/api/status"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - talentflow-network
+
+  # Logstash — log processing pipeline
+  # Receives logs via TCP JSON (port 5044) or Beats (port 5045)
+  # Normalizes, enriches, and routes to Elasticsearch
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.13.4
+    container_name: talentflow-logstash
+    ports:
+      - "5044:5044"    # TCP JSON input (used by services directly)
+      - "5045:5045"    # Beats input (Filebeat)
+      - "9600:9600"    # Logstash monitoring API
+    volumes:
+      - ./monitoring/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./monitoring/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - logstash_data:/usr/share/logstash/data
+    environment:
+      - LS_JAVA_OPTS=-Xms256m -Xmx256m
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9600"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - talentflow-network
+
+  # Elasticsearch Setup — runs once to create ILM policy, index templates & Kibana data view
+  elasticsearch-setup:
+    image: curlimages/curl:8.7.1
+    container_name: talentflow-elasticsearch-setup
+    volumes:
+      - ./monitoring/elasticsearch/setup.sh:/setup.sh:ro
+    entrypoint: ["/bin/sh", "/setup.sh"]
+    environment:
+      - ELASTICSEARCH_HOST=http://elasticsearch:9200
+      - KIBANA_HOST=http://kibana:5601
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_healthy
+    networks:
+      - talentflow-network
+
+  # ─────────────────────────────────────────────────────────────────
+  # Metrics Stack
+  # Prometheus UI:  http://localhost:9090
+  # Grafana UI:     http://localhost:3001  (admin / admin)
+
+  # ─────────────────────────────────────────────────────────────────
+
+  # Prometheus — metrics scraping & storage
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: talentflow-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - talentflow-network
+
+  # AlertManager — alert routing & notifications (Slack, email, PagerDuty...)
+  # UI: http://localhost:9093
+  # Set SLACK_WEBHOOK_URL env var before starting
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: talentflow-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    environment:
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-https://hooks.slack.com/services/REPLACE_ME}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - talentflow-network
+
+  # Jaeger — distributed tracing UI & storage
+  # UI: http://localhost:16686
+  # Receives traces from services via OTLP HTTP (port 4318)
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: talentflow-jaeger
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTLP gRPC receiver
+      - "4318:4318"     # OTLP HTTP receiver (used by services)
+      - "14250:14250"   # Jaeger gRPC model.proto
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - SPAN_STORAGE_TYPE=badger
+      - BADGER_EPHEMERAL=false
+      - BADGER_DIRECTORY_VALUE=/badger/data
+      - BADGER_DIRECTORY_KEY=/badger/key
+    volumes:
+      - jaeger_data:/badger
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:14269/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - talentflow-network
+
+  # Grafana — visualization & dashboards
+  # Default credentials: admin / admin  (change on first login)
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: talentflow-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - talentflow-network
+
 volumes:
   postgres_data:
     driver: local
@@ -175,7 +407,20 @@ volumes:
     driver: local
   minio_data:
     driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  elasticsearch_data:
+    driver: local
+  logstash_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+  jaeger_data:
+    driver: local
 
 networks:
   talentflow-network:
     driver: bridge
+

@@ -6,13 +6,13 @@
 
 | Phase | Name | Duration | Owner | Status |
 |-------|------|----------|-------|--------|
-| 1 | Project Setup & Core Infrastructure | Week 1 (Day 1-3) | Team Lead | Not Started |
-| 2 | Parsing Module | Week 1-2 (Day 3-7) | Core Java Dev | Not Started |
-| 3 | Extraction Module | Week 2 (Day 6-10) | Core Java Dev | Not Started |
+| 1 | Project Setup & Core Infrastructure | Week 1 (Day 1-3) | Team Lead | In Progress |
+| 2 | Parsing Module | Week 1-2 (Day 3-7) | Core Java Dev | Completed |
+| 3 | Extraction Module | Week 2 (Day 6-10) | Core Java Dev | Completed |
 | 4 | Scoring & Event Publishing | Week 2 (Day 6-10) | Team Lead | Not Started |
 | 5 | Integration & Orchestration | Week 3 (Day 11-13) | Team Lead | Not Started |
-| 6 | Testing | Week 3 (Day 11-14) | Both | Not Started |
-| 7 | Deployment & Documentation | Week 3 (Day 14-15) | Team Lead | Not Started |
+| 6 | Testing | Week 3 (Day 11-14) | Both | In Progress |
+| 7 | Deployment & Documentation | Week 3 (Day 14-15) | Team Lead | In Progress |
 
 **Legend:** Not Started | In Progress | Completed | Blocked
 
@@ -39,15 +39,15 @@ Phase 1 (Setup) -> Phase 4 (Scoring) -> Phase 5 (Integration) -> Phase 6 (Testin
 **DoD:** curl /actuator/health returns UP
 
 **Tasks:**
-- [ ] 1.1 Create Maven project with Spring Boot 3.3.0
-- [ ] 1.2 Add dependencies (AMQP, JPA, PDFBox, POI, Tess4J, Resilience4j, Gemini SDK)
-- [ ] 1.3 Create application.yml configs
-- [ ] 1.4 Setup RabbitMqConfig, S3Config, GeminiConfig, ThreadPoolConfig
-- [ ] 1.5 Create DTOs: CvUploadedEvent, CvParsedEvent, CvFailedEvent
+- [x] 1.1 Create Maven project with Spring Boot 3.3.0
+- [x] 1.2 Add dependencies (AMQP, JPA, PDFBox, POI, Tess4J, Resilience4j, Gemini SDK)
+- [x] 1.3 Create application.yml configs
+- [x] 1.4 Setup RabbitMqConfig, S3Config, GeminiConfig, ThreadPoolConfig
+- [x] 1.5 Create DTOs: CvUploadedEvent, CvParsedEvent, CvFailedEvent
 - [ ] 1.6 Create JPA entities and Flyway migrations
-- [ ] 1.7 Configure RabbitMQ with DLQ
-- [ ] 1.8 Add health checks and Docker setup
-- [ ] 1.9 Add startup validation (fail-fast if secrets missing)
+- [x] 1.7 Configure RabbitMQ with DLQ
+- [x] 1.8 Add health checks and Docker setup
+- [x] 1.9 Add startup validation (fail-fast if secrets missing)
 
 **Security:** Test health endpoint, verify no secrets in logs
 
@@ -60,13 +60,13 @@ Phase 1 (Setup) -> Phase 4 (Scoring) -> Phase 5 (Integration) -> Phase 6 (Testin
 **DoD:** Can parse sample PDFs and DOCXs
 
 **Tasks:**
-- [ ] 2.1 StorageAdapter - S3 download using bucket+fileKey (NOT URLs)
-- [ ] 2.2 PdfBoxParserImpl with XXE protection (CRITICAL)
-- [ ] 2.3 PoiDocxParserImpl with XXE + ZIP-slip protection (CRITICAL)
-- [ ] 2.4 TesseractOcrImpl with 20 page limit
-- [ ] 2.5 DocumentParserService factory
-- [ ] 2.6 RabbitMQ Consumer with manual ACK
-- [ ] 2.7 CvParsingUseCase orchestration
+- [x] 2.1 StorageAdapter - S3 download using bucket+fileKey (NOT URLs)
+- [x] 2.2 PdfBoxParserImpl with XXE protection (CRITICAL)
+- [x] 2.3 PoiDocxParserImpl with XXE + ZIP-slip protection (CRITICAL)
+- [x] 2.4 TesseractOcrImpl with 20 page limit
+- [x] 2.5 DocumentParserService factory
+- [x] 2.6 RabbitMQ Consumer with manual ACK
+- [x] 2.7 CvParsingUseCase orchestration
 
 **Security:** Test XXE, ZIP-slip, file validation
 
@@ -79,13 +79,13 @@ Phase 1 (Setup) -> Phase 4 (Scoring) -> Phase 5 (Integration) -> Phase 6 (Testin
 **DoD:** Returns ExtractedProfile with name, email, skills
 
 **Tasks:**
-- [ ] 3.1 Extraction Models + JSON Schema
-- [ ] 3.2 RuleBasedExtractor (email, phone, LinkedIn regex)
-- [ ] 3.3 GeminiLlmClient with CircuitBreaker, Retry, RateLimiter
-- [ ] 3.4 Prompt template with system/user separation
-- [ ] 3.5 JSON schema validation for response
-- [ ] 3.6 Fallback to rule-based on failure
-- [ ] 3.7 DataExtractionUseCase (hybrid strategy)
+- [x] 3.1 Extraction Models + JSON Schema
+- [x] 3.2 RuleBasedExtractor (email, phone, LinkedIn regex)
+- [x] 3.3 GeminiLlmClient with CircuitBreaker, Retry, RateLimiter
+- [x] 3.4 Prompt template with system/user separation
+- [x] 3.5 JSON schema validation for response
+- [x] 3.6 Fallback to rule-based on failure
+- [x] 3.7 DataExtractionUseCase (hybrid strategy)
 
 **Security:** Test prompt injection, rate limiting
 
@@ -134,13 +134,13 @@ Phase 1 (Setup) -> Phase 4 (Scoring) -> Phase 5 (Integration) -> Phase 6 (Testin
 **DoD:** All tests pass, coverage >= 80%
 
 **Tasks:**
-- [ ] 6.1 Unit Tests - Parsing (Core Java Dev)
-- [ ] 6.2 Unit Tests - Extraction with WireMock (Core Java Dev)
+- [x] 6.1 Unit Tests - Parsing (Core Java Dev)
+- [x] 6.2 Unit Tests - Extraction with WireMock (Core Java Dev)
 - [ ] 6.3 Unit Tests - Scoring (Team Lead)
 - [ ] 6.4 Unit Tests - Orchestration (Team Lead)
 - [ ] 6.5 Integration Tests with Testcontainers
-- [ ] 6.6 Security Tests (XXE, ZIP-slip, prompt injection)
-- [ ] 6.7 Coverage Report
+- [x] 6.6 Security Tests (XXE, ZIP-slip, prompt injection)
+- [x] 6.7 Coverage Report
 
 ---
 
@@ -151,7 +151,7 @@ Phase 1 (Setup) -> Phase 4 (Scoring) -> Phase 5 (Integration) -> Phase 6 (Testin
 **DoD:** Docker works, CI green, docs complete
 
 **Tasks:**
-- [ ] 7.1 Docker multi-stage build
+- [x] 7.1 Docker multi-stage build
 - [ ] 7.2 CI/CD Pipeline (.github/workflows/cv-parser.yml)
 - [ ] 7.3 Environment documentation
 - [ ] 7.4 Runbook and troubleshooting guide

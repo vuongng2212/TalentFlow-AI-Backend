@@ -96,6 +96,16 @@
           }
         }
       }
+    },
+    "aiScore": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Suitability match score from 0 to 100 against the provided job description. Null if no job description was provided."
+    },
+    "scoringReasoning": {
+      "type": ["string", "null"],
+      "description": "Concise reasoning for the assigned suitability match score against the job description."
     }
   }
 }

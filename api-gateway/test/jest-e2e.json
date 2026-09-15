@@ -12,5 +12,6 @@
       }
     ]
   },
-  "maxWorkers": 1
+  "maxWorkers": 1,
+  "forceExit": true
 }

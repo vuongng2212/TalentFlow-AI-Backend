@@ -1,3 +1,5 @@
+// ⚠️  Must be the very first import — initialises OpenTelemetry before any other module
+import './tracing';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -6,9 +8,6 @@ import helmet from 'helmet';
 import hpp from 'hpp';
 import { json, urlencoded, Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
-import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ElkLoggerService } from './common/logger';
@@ -73,11 +72,10 @@ async function bootstrap() {
     }),
   );
 
-  app.useGlobalInterceptors(
-    new RequestLoggerInterceptor(),
-    new TransformInterceptor(),
-  );
-  app.useGlobalFilters(new HttpExceptionFilter());
+  // NOTE: Interceptors and filters are registered via APP_INTERCEPTOR / APP_FILTER
+  // providers in app.module.ts so they benefit from full dependency injection.
+  // Do NOT add useGlobalInterceptors / useGlobalFilters here to avoid duplicate
+  // registrations and to ensure ElkLoggerService / MetricsService are injected.
 
   const swaggerEnabled = configService.get<boolean>('SWAGGER_ENABLED', true);
   if (swaggerEnabled) {

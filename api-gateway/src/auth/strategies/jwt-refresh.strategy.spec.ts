@@ -66,13 +66,14 @@ describe('JwtRefreshStrategy', () => {
 
       expect(result).toEqual({
         id: payload.sub,
+        userId: payload.sub,
         email: payload.email,
         tokenId: payload.tokenId,
       });
-      expect(mockRedisService.get).toHaveBeenCalledWith(
+      expect(jest.mocked(mockRedisService.get)).toHaveBeenCalledWith(
         `refresh_token:${payload.sub}`,
       );
-      expect(mockRedisService.exists).toHaveBeenCalledWith(
+      expect(jest.mocked(mockRedisService.exists)).toHaveBeenCalledWith(
         `blacklist:${payload.tokenId}`,
       );
     });
@@ -80,18 +81,18 @@ describe('JwtRefreshStrategy', () => {
     it('should throw UnauthorizedException when token not found in cookies', async () => {
       const request = createMockRequest(undefined);
 
-      await expect(strategy.validate(request, payload)).rejects.toThrow(
-        new UnauthorizedException('Refresh token not found'),
-      );
+      await expect(
+        jest.mocked(strategy.validate(request, payload)),
+      ).rejects.toThrow(new UnauthorizedException('Refresh token not found'));
     });
 
     it('should throw UnauthorizedException when stored token does not match', async () => {
       const request = createMockRequest(mockToken);
       mockRedisService.get.mockResolvedValue('different-token');
 
-      await expect(strategy.validate(request, payload)).rejects.toThrow(
-        new UnauthorizedException('Invalid refresh token'),
-      );
+      await expect(
+        jest.mocked(strategy.validate(request, payload)),
+      ).rejects.toThrow(new UnauthorizedException('Invalid refresh token'));
     });
 
     it('should throw UnauthorizedException when token is blacklisted', async () => {
@@ -99,18 +100,18 @@ describe('JwtRefreshStrategy', () => {
       mockRedisService.get.mockResolvedValue(mockToken);
       mockRedisService.exists.mockResolvedValue(true);
 
-      await expect(strategy.validate(request, payload)).rejects.toThrow(
-        new UnauthorizedException('Token has been revoked'),
-      );
+      await expect(
+        jest.mocked(strategy.validate(request, payload)),
+      ).rejects.toThrow(new UnauthorizedException('Token has been revoked'));
     });
 
     it('should throw UnauthorizedException when stored token is null', async () => {
       const request = createMockRequest(mockToken);
       mockRedisService.get.mockResolvedValue(null);
 
-      await expect(strategy.validate(request, payload)).rejects.toThrow(
-        new UnauthorizedException('Invalid refresh token'),
-      );
+      await expect(
+        jest.mocked(strategy.validate(request, payload)),
+      ).rejects.toThrow(new UnauthorizedException('Invalid refresh token'));
     });
   });
 });

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { QueueMetricsCollector } from './queue-metrics.collector';
@@ -59,10 +60,9 @@ describe('QueueMetricsCollector', () => {
 
       await collector.onModuleInit();
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(queueService.getQueueStats).toHaveBeenCalled();
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(configService.get).toHaveBeenCalledWith(
+      expect(jest.mocked(queueService.getQueueStats)).toHaveBeenCalled();
+
+      expect(jest.mocked(configService.get)).toHaveBeenCalledWith(
         'QUEUE_METRICS_POLL_INTERVAL_MS',
         30000,
       );
@@ -74,8 +74,7 @@ describe('QueueMetricsCollector', () => {
 
       await collector.onModuleInit();
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(configService.get).toHaveBeenCalledWith(
+      expect(jest.mocked(configService.get)).toHaveBeenCalledWith(
         'QUEUE_METRICS_POLL_INTERVAL_MS',
         30000,
       );
@@ -92,8 +91,7 @@ describe('QueueMetricsCollector', () => {
 
       await collector.collectMetrics();
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(queueService.getQueueStats).toHaveBeenCalled();
+      expect(jest.mocked(queueService.getQueueStats)).toHaveBeenCalled();
 
       const metrics = await mockRegistry.getMetricsAsJSON();
       const queueMessagesMetric = metrics.find(
@@ -110,7 +108,9 @@ describe('QueueMetricsCollector', () => {
     it('should handle empty stats gracefully', async () => {
       queueService.getQueueStats.mockResolvedValue([]);
 
-      await expect(collector.collectMetrics()).resolves.not.toThrow();
+      await expect(
+        jest.mocked(collector.collectMetrics()),
+      ).resolves.not.toThrow();
     });
   });
 
@@ -126,7 +126,7 @@ describe('QueueMetricsCollector', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      expect(queueService.getQueueStats.mock.calls.length).toBe(
+      expect(jest.mocked(queueService.getQueueStats.mock.calls.length)).toBe(
         callCountBeforeDestroy,
       );
     });

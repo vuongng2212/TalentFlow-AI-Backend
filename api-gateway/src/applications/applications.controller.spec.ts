@@ -6,6 +6,7 @@ import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { QueryApplicationsDto } from './dto/query-applications.dto';
 import { ApplicationStatus, ApplicationStage, Role } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 
 describe('ApplicationsController', () => {
   let controller: ApplicationsController;
@@ -52,6 +53,7 @@ describe('ApplicationsController', () => {
   const mockApplicationsService = {
     create: jest.fn(),
     createWithCv: jest.fn(),
+    ingestApplication: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
     update: jest.fn(),
@@ -65,6 +67,12 @@ describe('ApplicationsController', () => {
         {
           provide: ApplicationsService,
           useValue: mockApplicationsService,
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue('dev-ingestion-api-key-123'),
+          },
         },
       ],
     }).compile();
@@ -91,7 +99,10 @@ describe('ApplicationsController', () => {
       const result = await controller.create(mockUser, createDto);
 
       expect(result).toEqual(mockApplication);
-      expect(service.create).toHaveBeenCalledWith(mockUser.id, createDto);
+      expect(jest.mocked(service.create)).toHaveBeenCalledWith(
+        mockUser.id,
+        createDto,
+      );
     });
   });
 
@@ -121,7 +132,68 @@ describe('ApplicationsController', () => {
       const result = await controller.uploadCv(mockUser, file, dto);
 
       expect(result).toEqual(expected);
-      expect(service.createWithCv).toHaveBeenCalledWith(mockUser.id, file, dto);
+      expect(jest.mocked(service.createWithCv)).toHaveBeenCalledWith(
+        mockUser.id,
+        file,
+        dto,
+      );
+    });
+  });
+
+  describe('ingest', () => {
+    it('should ingest an application via webhook', async () => {
+      const file = {
+        originalname: 'resume.pdf',
+        mimetype: 'application/pdf',
+        buffer: Buffer.from('pdf-content'),
+      } as Express.Multer.File;
+
+      const dto = {
+        jobId: 'job-1',
+        candidateEmail: 'candidate@test.com',
+        candidateName: 'Test Candidate',
+        coverLetter: 'Interested',
+        externalMessageId: 'gmail-123',
+      };
+
+      const expected = {
+        success: true,
+        data: {
+          applicationId: 'app-1',
+          candidateId: 'candidate-1',
+          status: 'processing',
+          message: 'CV ingestion initiated successfully.',
+        },
+      };
+
+      mockApplicationsService.ingestApplication.mockResolvedValue(expected);
+
+      const result = await controller.ingest('ws-1', file, dto);
+
+      expect(result).toEqual(expected);
+      expect(jest.mocked(service.ingestApplication)).toHaveBeenCalledWith(
+        'ws-1',
+        file,
+        dto,
+      );
+    });
+
+    it('should throw BadRequestException when x-workspace-id is missing', async () => {
+      const file = {
+        originalname: 'resume.pdf',
+        mimetype: 'application/pdf',
+        buffer: Buffer.from('pdf-content'),
+      } as Express.Multer.File;
+
+      const dto = {
+        jobId: 'job-1',
+        candidateEmail: 'candidate@test.com',
+        candidateName: 'Test Candidate',
+      };
+
+      await expect(
+        controller.ingest(undefined as unknown as string, file, dto),
+      ).rejects.toThrow('Missing x-workspace-id header');
     });
   });
 
@@ -138,7 +210,7 @@ describe('ApplicationsController', () => {
       const result = await controller.findAll(mockUser, query);
 
       expect(result).toEqual(expectedResult);
-      expect(service.findAll).toHaveBeenCalledWith(
+      expect(jest.mocked(service.findAll)).toHaveBeenCalledWith(
         mockUser.id,
         mockUser.role,
         query,
@@ -161,7 +233,7 @@ describe('ApplicationsController', () => {
 
       await controller.findAll(mockRecruiterUser, query);
 
-      expect(service.findAll).toHaveBeenCalledWith(
+      expect(jest.mocked(service.findAll)).toHaveBeenCalledWith(
         mockRecruiterUser.id,
         mockRecruiterUser.role,
         query,
@@ -176,7 +248,7 @@ describe('ApplicationsController', () => {
       const result = await controller.findOne('app-1', mockUser);
 
       expect(result).toEqual(mockApplication);
-      expect(service.findOne).toHaveBeenCalledWith(
+      expect(jest.mocked(service.findOne)).toHaveBeenCalledWith(
         'app-1',
         mockUser.id,
         mockUser.role,
@@ -204,7 +276,7 @@ describe('ApplicationsController', () => {
       );
 
       expect(result).toEqual(updatedApplication);
-      expect(service.update).toHaveBeenCalledWith(
+      expect(jest.mocked(service.update)).toHaveBeenCalledWith(
         'app-1',
         mockRecruiterUser.id,
         mockRecruiterUser.role,
@@ -219,7 +291,7 @@ describe('ApplicationsController', () => {
 
       await controller.remove('app-1', mockUser);
 
-      expect(service.remove).toHaveBeenCalledWith(
+      expect(jest.mocked(service.remove)).toHaveBeenCalledWith(
         'app-1',
         mockUser.id,
         mockUser.role,

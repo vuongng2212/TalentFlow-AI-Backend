@@ -15,6 +15,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { CandidatesService } from './candidates.service';
 import { QueryCandidatesDto } from './dto/query-candidates.dto';
@@ -25,6 +26,11 @@ import { Role } from '@prisma/client';
 
 @ApiTags('candidates')
 @ApiBearerAuth('access-token')
+@ApiHeader({
+  name: 'x-workspace-id',
+  required: false,
+  description: 'Active workspace ID for resource isolation',
+})
 @Controller('candidates')
 export class CandidatesController {
   constructor(private readonly candidatesService: CandidatesService) {}

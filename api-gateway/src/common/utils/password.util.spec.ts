@@ -7,7 +7,7 @@ describe('PasswordUtil', () => {
       const hash = await hashPassword(password);
       expect(hash).toBeDefined();
       expect(hash).not.toBe(password);
-      expect(hash.length).toBeGreaterThan(0);
+      expect(jest.mocked(hash.length)).toBeGreaterThan(0);
     });
   });
 

@@ -1,4 +1,5 @@
 import { WsJwtGuard } from './ws-jwt.guard';
+import { extractSocketToken } from './ws-token.util';
 
 type MockSocket = {
   handshake: {
@@ -21,6 +22,14 @@ describe('WsJwtGuard', () => {
     guard = new WsJwtGuard();
   });
 
+  function createExecutionContext(client: MockSocket) {
+    return {
+      switchToWs: () => ({
+        getClient: () => client,
+      }),
+    };
+  }
+
   it('should extract the token from handshake auth first', () => {
     const client: MockSocket = {
       handshake: {
@@ -33,11 +42,7 @@ describe('WsJwtGuard', () => {
       },
     };
 
-    const token = (
-      guard as unknown as {
-        extractToken: (socket: MockSocket) => string | null;
-      }
-    ).extractToken(client);
+    const token = extractSocketToken(client);
 
     expect(token).toBe('auth-token');
   });
@@ -51,11 +56,7 @@ describe('WsJwtGuard', () => {
       },
     };
 
-    const token = (
-      guard as unknown as {
-        extractToken: (socket: MockSocket) => string | null;
-      }
-    ).extractToken(client);
+    const token = extractSocketToken(client);
 
     expect(token).toBe('header-token');
   });
@@ -69,12 +70,22 @@ describe('WsJwtGuard', () => {
       },
     };
 
-    const token = (
-      guard as unknown as {
-        extractToken: (socket: MockSocket) => string | null;
-      }
-    ).extractToken(client);
+    const token = extractSocketToken(client);
 
     expect(token).toBeNull();
+  });
+
+  it('should create a bearer authorization header for websocket passport auth', () => {
+    const request = guard.getRequest(
+      createExecutionContext({
+        handshake: {
+          auth: {
+            token: 'auth-token',
+          },
+        },
+      }) as never,
+    ) as { headers: { authorization: string } };
+
+    expect(request.headers.authorization).toBe('Bearer auth-token');
   });
 });

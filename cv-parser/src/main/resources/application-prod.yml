@@ -41,6 +41,9 @@ llm:
   api-key: ${GEMINI_API_KEY}
   model: ${LLM_MODEL:gemini-2.5-flash}
   timeout-seconds: 30
+  # Must cover full retry budget: maxAttempts(2) × (timeout-seconds(30) + waitDuration(2)) = 64s.
+  # Without this, the base-config default (20s) fires before the first 30s call completes.
+  extraction-timeout-seconds: ${LLM_EXTRACTION_TIMEOUT_SECONDS:70}
 
 # Tesseract (Docker path)
 tesseract:

@@ -12,6 +12,7 @@ describe('AuthController', () => {
     login: jest.fn(),
     refresh: jest.fn(),
     logout: jest.fn(),
+    getProfile: jest.fn(),
   };
 
   const createMockResponse = (): Pick<Response, 'cookie' | 'clearCookie'> => ({
@@ -86,12 +87,12 @@ describe('AuthController', () => {
         response as Response,
       );
 
-      expect(response.cookie).toHaveBeenCalledTimes(2);
+      expect(jest.mocked(response.cookie)).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
         message: 'Login successful',
         user: authResult.user,
       });
-      expect(mockAuthService.login).toHaveBeenCalledWith(
+      expect(jest.mocked(mockAuthService.login)).toHaveBeenCalledWith(
         dto.email,
         dto.password,
         expect.objectContaining({
@@ -125,11 +126,11 @@ describe('AuthController', () => {
         response as Response,
       );
 
-      expect(response.cookie).toHaveBeenCalledTimes(2);
+      expect(jest.mocked(response.cookie)).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
         message: 'Token refreshed successfully',
       });
-      expect(mockAuthService.refresh).toHaveBeenCalledWith(
+      expect(jest.mocked(mockAuthService.refresh)).toHaveBeenCalledWith(
         user.id,
         expect.objectContaining({
           ip: '127.0.0.1',
@@ -139,7 +140,7 @@ describe('AuthController', () => {
   });
 
   describe('getProfile', () => {
-    it('should return user profile', () => {
+    it('should return user profile', async () => {
       const user = {
         id: 'uuid',
         email: 'test@example.com',
@@ -147,16 +148,24 @@ describe('AuthController', () => {
         fullName: 'Test User',
       };
 
-      const result = controller.getProfile(user);
+      const mockProfile = {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        activeWorkspaceId: 'ws-123',
+      };
+
+      mockAuthService.getProfile.mockResolvedValue(mockProfile);
+
+      const result = await controller.getProfile(user);
 
       expect(result).toEqual({
-        user: {
-          id: user.id,
-          email: user.email,
-          fullName: user.fullName,
-          role: user.role,
-        },
+        user: mockProfile,
       });
+      expect(jest.mocked(mockAuthService.getProfile)).toHaveBeenCalledWith(
+        user.id,
+      );
     });
   });
 
@@ -175,14 +184,14 @@ describe('AuthController', () => {
 
       await controller.logout(user, request as Request, response as Response);
 
-      expect(mockAuthService.logout).toHaveBeenCalledWith(
+      expect(jest.mocked(mockAuthService.logout)).toHaveBeenCalledWith(
         user.id,
         user.tokenId,
         expect.objectContaining({
           ip: '127.0.0.1',
         }),
       );
-      expect(response.clearCookie).toHaveBeenCalledTimes(2);
+      expect(jest.mocked(response.clearCookie)).toHaveBeenCalledTimes(2);
     });
 
     it('should handle logout without tokenId', async () => {
@@ -198,7 +207,7 @@ describe('AuthController', () => {
 
       await controller.logout(user, request as Request, response as Response);
 
-      expect(mockAuthService.logout).toHaveBeenCalledWith(
+      expect(jest.mocked(mockAuthService.logout)).toHaveBeenCalledWith(
         user.id,
         '',
         expect.any(Object),

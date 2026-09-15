@@ -2,15 +2,17 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import {
+  INVALID_JWT_PAYLOAD_MESSAGE,
+  toAuthenticatedUser,
+} from './jwt-user.util';
 
 export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
   iat?: number;
-  exp?: number;
-  iss?: string;
-  aud?: string | string[];
+  exp: number;
 }
 
 export interface AuthenticatedUser {
@@ -22,12 +24,10 @@ export interface AuthenticatedUser {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(configService: ConfigService) {
-    const secret = configService.get<string>('jwt.secret');
-    const issuer = configService.get<string>('jwt.issuer');
-    const audience = configService.get<string>('jwt.audience');
+    const secret = configService.get<string>('jwt.accessSecret');
     const algorithms = ['HS256'];
 
-    if (!secret || !issuer || !audience) {
+    if (!secret) {
       throw new Error('JWT auth configuration is incomplete');
     }
 
@@ -35,21 +35,15 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: secret,
-      issuer,
-      audience,
       algorithms,
     });
   }
 
   validate(payload: JwtPayload): AuthenticatedUser {
-    if (!payload.sub || !payload.email || !payload.role) {
-      throw new UnauthorizedException('Invalid JWT payload');
+    try {
+      return toAuthenticatedUser(payload);
+    } catch {
+      throw new UnauthorizedException(INVALID_JWT_PAYLOAD_MESSAGE);
     }
-
-    return {
-      userId: payload.sub,
-      email: payload.email,
-      role: payload.role,
-    };
   }
 }

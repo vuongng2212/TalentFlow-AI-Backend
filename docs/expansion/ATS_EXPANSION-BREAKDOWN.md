@@ -251,6 +251,8 @@ Tài liệu này dùng để:
 
 ## Phase 3 — Automation / Ingestion
 
+*Tài liệu kiến trúc và lộ trình thực tế:* [email-ingestion-automation.md](docs/expansion/email-ingestion-automation.md)
+
 ### Task 3.1 — Draft ingestion schema
 
 - [ ] Draft `JobIngestionRule`

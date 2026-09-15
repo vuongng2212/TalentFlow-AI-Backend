@@ -55,10 +55,10 @@ describe('RolesGuard', () => {
       const result = guard.canActivate(mockContext);
 
       expect(result).toBe(true);
-      expect(mockReflector.getAllAndOverride).toHaveBeenCalledWith(ROLES_KEY, [
-        mockContext.getHandler(),
-        mockContext.getClass(),
-      ]);
+      expect(jest.mocked(mockReflector.getAllAndOverride)).toHaveBeenCalledWith(
+        ROLES_KEY,
+        [mockContext.getHandler(), mockContext.getClass()],
+      );
     });
 
     it('should return true when user has one of multiple required roles', () => {

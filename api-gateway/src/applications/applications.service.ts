@@ -1,33 +1,52 @@
 import {
   Injectable,
+  Inject,
+  forwardRef,
   Logger,
   NotFoundException,
   ForbiddenException,
   ConflictException,
-  InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { QueryApplicationsDto } from './dto/query-applications.dto';
-import { Prisma, ApplicationStatus, ApplicationStage } from '@prisma/client';
+import {
+  Prisma,
+  ApplicationStatus,
+  ApplicationStage,
+  CvParsingStatus,
+} from '@prisma/client';
 import { StorageService } from '../storage/storage.service';
 import { QueueService } from '../queue/queue.service';
 import { UploadCvDto } from './dto/upload-cv.dto';
+import {
+  RawCvParsedEvent,
+  RawCvFailedEvent,
+} from '../queue/interfaces/cv-events.interface';
 import { UploadCvResponseDto } from './dto/upload-cv-response.dto';
-import { generateCvFileKey } from '../common/utils/file-key.util';
+import { IngestionResponseDto } from './dto/ingestion-response.dto';
 import { sanitizeError } from '../common/utils/sanitize.util';
+import { WorkspaceContextService } from '../common/services/workspace-context.service';
+import { IngestionDto } from './dto/ingestion.dto';
+import { CvOrchestrationService } from './cv-orchestration.service';
+import { CvUploadService } from './cv-upload.service';
 
 interface ApplicationWithRelations {
   id: string;
   jobId: string;
   candidateId: string;
+  workspaceId: string;
   stage: ApplicationStage;
   status: ApplicationStatus;
   cvFileKey: string | null;
   cvFileUrl: string | null;
   coverLetter: string | null;
   notes: string | null;
+  cvParsingStatus: CvParsingStatus;
+  aiScore: number | null;
+  scoringReasoning: string | null;
+  parsedData: Prisma.JsonValue | null;
   appliedAt: Date;
   reviewedAt: Date | null;
   createdAt: Date;
@@ -60,7 +79,11 @@ export class ApplicationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
+    @Inject(forwardRef(() => QueueService))
     private readonly queueService: QueueService,
+    private readonly workspaceContext: WorkspaceContextService,
+    private readonly cvOrchestrationService: CvOrchestrationService,
+    private readonly cvUploadService: CvUploadService,
   ) {}
 
   async create(
@@ -69,9 +92,9 @@ export class ApplicationsService {
   ): Promise<ApplicationWithRelations> {
     const { jobId, ...data } = createApplicationDto;
 
-    // Check if job exists and is open
-    const job = await this.prisma.job.findUnique({
-      where: { id: jobId },
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const job = await this.prisma.job.findFirst({
+      where: { id: jobId, workspaceId },
     });
 
     if (!job || job.deletedAt) {
@@ -82,7 +105,6 @@ export class ApplicationsService {
       throw new ForbiddenException('Cannot apply to a job that is not open');
     }
 
-    // Get user to find/create candidate
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -91,22 +113,22 @@ export class ApplicationsService {
       throw new NotFoundException('User not found');
     }
 
-    // Find or create candidate by email
     let candidate = await this.prisma.candidate.findUnique({
-      where: { email: user.email },
+      where: {
+        workspaceId_email: { workspaceId, email: user.email },
+      },
     });
 
     if (!candidate) {
-      // Auto-create candidate from user data
       candidate = await this.prisma.candidate.create({
         data: {
           email: user.email,
           fullName: user.fullName,
+          workspaceId,
         },
       });
     }
 
-    // Check if already applied
     const existingApplication = await this.prisma.application.findFirst({
       where: {
         jobId,
@@ -119,11 +141,12 @@ export class ApplicationsService {
       throw new ConflictException('You have already applied to this job');
     }
 
-    return this.prisma.application.create({
+    const application = await this.prisma.application.create({
       data: {
         ...data,
         jobId,
         candidateId: candidate.id,
+        workspaceId,
       },
       include: {
         job: {
@@ -143,6 +166,25 @@ export class ApplicationsService {
         },
       },
     });
+
+    try {
+      await this.queueService.publishApplicationCreated({
+        applicationId: application.id,
+        jobId: application.jobId,
+        jobTitle: application.job.title,
+        applicantId: application.candidateId,
+        applicantEmail: application.candidate.email,
+        applicantName: application.candidate.fullName,
+        appliedAt: application.appliedAt.toISOString(),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to publish application.created event for application ${application.id}`,
+        sanitizeError(error),
+      );
+    }
+
+    return application;
   }
 
   async createWithCv(
@@ -150,189 +192,27 @@ export class ApplicationsService {
     file: Express.Multer.File,
     dto: UploadCvDto,
   ): Promise<UploadCvResponseDto> {
-    const { jobId, coverLetter } = dto;
-
-    await this.findOpenJobOrThrow(jobId);
-    const candidate = await this.findOrCreateCandidateOrThrow(userId);
-    await this.ensureNoDuplicateApplication(jobId, candidate.id);
-
-    const { fileKey, uploadUrl } = await this.uploadCvOrThrow(file);
-
-    let applicationId: string | null = null;
-
-    try {
-      const application = await this.prisma.application.create({
-        data: {
-          jobId,
-          candidateId: candidate.id,
-          coverLetter,
-          cvFileKey: fileKey,
-          cvFileUrl: uploadUrl,
-        },
-      });
-
-      applicationId = application.id;
-
-      await this.queueService.publishCvUploaded({
-        candidateId: candidate.id,
-        applicationId: application.id,
-        jobId,
-        bucket: this.storageService.getBucketName(),
-        fileKey,
-        mimeType: file.mimetype,
-        uploadedAt: new Date().toISOString(),
-      });
-
-      return this.buildUploadResponse(application.id, fileKey, uploadUrl);
-    } catch (error) {
-      this.logger.error(
-        `Failed to process CV upload for job ${jobId}, candidate ${candidate.id}, file ${fileKey}`,
-        sanitizeError(error),
-      );
-      await this.rollbackCreateWithCv(applicationId, fileKey);
-      throw new InternalServerErrorException('Failed to process CV upload');
-    }
+    return this.cvUploadService.createWithCv(userId, file, dto);
   }
 
-  private async findOpenJobOrThrow(jobId: string) {
-    const job = await this.prisma.job.findUnique({
-      where: { id: jobId },
-    });
-
-    if (!job || job.deletedAt) {
-      throw new NotFoundException(`Job with ID ${jobId} not found`);
-    }
-
-    if (job.status !== 'OPEN') {
-      throw new ForbiddenException('Cannot apply to a job that is not open');
-    }
-
-    return job;
-  }
-
-  private async findOrCreateCandidateOrThrow(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    const candidate = await this.prisma.candidate.findUnique({
-      where: { email: user.email },
-    });
-
-    if (candidate) {
-      return candidate;
-    }
-
-    return this.prisma.candidate.create({
-      data: {
-        email: user.email,
-        fullName: user.fullName,
-      },
-    });
-  }
-
-  private async ensureNoDuplicateApplication(
-    jobId: string,
-    candidateId: string,
-  ): Promise<void> {
-    const existingApplication = await this.prisma.application.findFirst({
-      where: {
-        jobId,
-        candidateId,
-        deletedAt: null,
-      },
-    });
-
-    if (existingApplication) {
-      throw new ConflictException('You have already applied to this job');
-    }
-  }
-
-  private async uploadCvOrThrow(
+  async ingestApplication(
+    workspaceId: string,
     file: Express.Multer.File,
-  ): Promise<{ fileKey: string; uploadUrl: string }> {
-    const originalname = file.originalname;
-    const fileKey = generateCvFileKey(originalname);
-
-    try {
-      const uploadResult = await this.storageService.upload(
-        file.buffer,
-        fileKey,
-        file.mimetype,
-      );
-
-      return {
-        fileKey,
-        uploadUrl: uploadResult.url,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Failed to upload CV file ${fileKey}`,
-        sanitizeError(error),
-      );
-      throw new InternalServerErrorException('Failed to upload CV file');
-    }
+    dto: IngestionDto,
+  ): Promise<IngestionResponseDto> {
+    return this.cvUploadService.ingestApplication(workspaceId, file, dto);
   }
 
-  private async buildUploadResponse(
-    applicationId: string,
-    fileKey: string,
-    uploadUrl: string,
-  ): Promise<UploadCvResponseDto> {
-    let presignedUrl: string | undefined;
-
-    try {
-      presignedUrl = await this.storageService.getSignedUrl(fileKey);
-    } catch (error) {
-      this.logger.warn(
-        `Failed to generate presigned URL for file ${fileKey}`,
-        sanitizeError(error),
-      );
-      presignedUrl = undefined;
-    }
-
-    return {
-      applicationId,
-      fileKey,
-      fileUrl: uploadUrl,
-      presignedUrl,
-      status: 'processing',
-      message: 'CV uploaded successfully. Processing started.',
-    };
+  async handleCvParsedEvent(event: RawCvParsedEvent): Promise<void> {
+    return this.cvOrchestrationService.handleCvParsedEvent(event);
   }
 
-  private async rollbackCreateWithCv(
-    applicationId: string | null,
-    fileKey: string,
-  ): Promise<void> {
-    if (applicationId) {
-      try {
-        await this.prisma.application.delete({
-          where: { id: applicationId },
-        });
-      } catch (error) {
-        this.logger.error(
-          `Failed to rollback application ${applicationId}`,
-          sanitizeError(error),
-        );
-      }
-    }
-
-    try {
-      await this.storageService.delete(fileKey);
-    } catch (error) {
-      this.logger.error(
-        `Failed to rollback uploaded file ${fileKey}`,
-        sanitizeError(error),
-      );
-    }
+  async handleCvFailedEvent(event: RawCvFailedEvent): Promise<void> {
+    return this.cvOrchestrationService.handleCvFailedEvent(event);
   }
 
   async findAll(userId: string, userRole: string, query: QueryApplicationsDto) {
+    const workspaceId = this.workspaceContext.getWorkspaceId();
     const {
       page = 1,
       limit = 10,
@@ -346,41 +226,24 @@ export class ApplicationsService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.ApplicationWhereInput = {
+      workspaceId,
       deletedAt: null,
     };
 
-    // Role-based filtering
     if (userRole === 'RECRUITER') {
-      // Recruiters see applications for their jobs
       where.job = {
+        workspaceId,
         createdById: userId,
       };
-    } else if (userRole === 'INTERVIEWER') {
-      // Interviewers see applications they're assigned to (future feature)
-      // For now, find candidate by user email and show their applications
-      const user = await this.prisma.user.findUnique({ where: { id: userId } });
-      if (user) {
-        const candidate = await this.prisma.candidate.findUnique({
-          where: { email: user.email },
-        });
-        if (candidate) {
-          where.candidateId = candidate.id;
-        }
-      }
     } else if (userRole !== 'ADMIN') {
-      // Regular users see only their applications (via candidate lookup)
-      const user = await this.prisma.user.findUnique({ where: { id: userId } });
-      if (user) {
-        const candidate = await this.prisma.candidate.findUnique({
-          where: { email: user.email },
-        });
-        if (candidate) {
-          where.candidateId = candidate.id;
-        }
+      const candidateIdForViewer = await this.resolveCandidateIdForViewer(
+        userId,
+        workspaceId,
+      );
+      if (candidateIdForViewer) {
+        where.candidateId = candidateIdForViewer;
       }
     }
-
-    // Admin can see all, so no filter for ADMIN role
 
     if (jobId) {
       where.jobId = jobId;
@@ -439,13 +302,31 @@ export class ApplicationsService {
     };
   }
 
+  private async resolveCandidateIdForViewer(
+    userId: string,
+    workspaceId: string,
+  ): Promise<string | undefined> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return undefined;
+    }
+    const candidate = await this.prisma.candidate.findUnique({
+      where: {
+        workspaceId_email: { workspaceId, email: user.email },
+      },
+    });
+    return candidate?.id;
+  }
+
   async findOne(
     id: string,
     userId: string,
     userRole: string,
   ): Promise<ApplicationWithRelations> {
-    const application = await this.prisma.application.findUnique({
-      where: { id },
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+
+    const application = await this.prisma.application.findFirst({
+      where: { id, workspaceId },
       include: {
         job: {
           include: {
@@ -472,10 +353,13 @@ export class ApplicationsService {
       throw new NotFoundException(`Application with ID ${id} not found`);
     }
 
-    // Check access - need to find user's candidate to check if they're the applicant
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const candidate = user
-      ? await this.prisma.candidate.findUnique({ where: { email: user.email } })
+      ? await this.prisma.candidate.findUnique({
+          where: {
+            workspaceId_email: { workspaceId, email: user.email },
+          },
+        })
       : null;
 
     const isApplicant = candidate && application.candidateId === candidate.id;
@@ -498,14 +382,17 @@ export class ApplicationsService {
     updateApplicationDto: UpdateApplicationDto,
   ): Promise<ApplicationWithRelations> {
     const application = await this.findOne(id, userId, userRole);
+    const workspaceId = this.workspaceContext.getWorkspaceId();
 
-    // Check user's candidate status
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const candidate = user
-      ? await this.prisma.candidate.findUnique({ where: { email: user.email } })
+      ? await this.prisma.candidate.findUnique({
+          where: {
+            workspaceId_email: { workspaceId, email: user.email },
+          },
+        })
       : null;
 
-    // Only recruiter (job owner) or admin can update stage/status/notes
     const isRecruiter = application.job.createdById === userId;
     const isApplicant = candidate && application.candidateId === candidate.id;
     const isAdmin = userRole === 'ADMIN';
@@ -522,7 +409,6 @@ export class ApplicationsService {
       }
     }
 
-    // Applicants can only update cover letter
     if (!isRecruiter && !isAdmin && !isApplicant) {
       throw new ForbiddenException(
         'You do not have permission to update this application',
@@ -533,7 +419,6 @@ export class ApplicationsService {
       ...updateApplicationDto,
     };
 
-    // Set reviewedAt when status changes
     if (
       updateApplicationDto.status &&
       application.status !== updateApplicationDto.status
@@ -567,13 +452,16 @@ export class ApplicationsService {
   async remove(id: string, userId: string, userRole: string): Promise<void> {
     const application = await this.findOne(id, userId, userRole);
 
-    // Check user's candidate status
+    const workspaceId = this.workspaceContext.getWorkspaceId();
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const candidate = user
-      ? await this.prisma.candidate.findUnique({ where: { email: user.email } })
+      ? await this.prisma.candidate.findUnique({
+          where: {
+            workspaceId_email: { workspaceId, email: user.email },
+          },
+        })
       : null;
 
-    // Only applicant or admin can delete
     const isApplicant = candidate && application.candidateId === candidate.id;
     const isAdmin = userRole === 'ADMIN';
 

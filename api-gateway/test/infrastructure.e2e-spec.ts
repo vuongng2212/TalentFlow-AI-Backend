@@ -67,27 +67,27 @@ describe('Infrastructure (e2e)', () => {
     it('GET /health should return 200 with memory checks', async () => {
       const res = await request(app.getHttpServer()).get('/health').expect(200);
 
-      expect(res.body).toHaveProperty('status', 'ok');
-      expect(res.body).toHaveProperty('info');
-      expect(res.body).toHaveProperty('details');
+      expect(res.body.data).toHaveProperty('status', 'ok');
+      expect(res.body.data).toHaveProperty('info');
+      expect(res.body.data).toHaveProperty('details');
 
       // Verify memory health indicators
-      expect(res.body.details).toHaveProperty('memory_heap');
-      expect(res.body.details).toHaveProperty('memory_rss');
+      expect(res.body.data.details).toHaveProperty('memory_heap');
+      expect(res.body.data.details).toHaveProperty('memory_rss');
 
-      expect(res.body.details.memory_heap).toHaveProperty('status', 'up');
-      expect(res.body.details.memory_rss).toHaveProperty('status', 'up');
+      expect(res.body.data.details.memory_heap).toHaveProperty('status', 'up');
+      expect(res.body.data.details.memory_rss).toHaveProperty('status', 'up');
     });
 
     it('GET /ready should return 200 with memory checks', async () => {
       const res = await request(app.getHttpServer()).get('/ready').expect(200);
 
-      expect(res.body).toHaveProperty('status', 'ok');
-      expect(res.body).toHaveProperty('info');
+      expect(res.body.data).toHaveProperty('status', 'ok');
+      expect(res.body.data).toHaveProperty('info');
 
       // Verify readiness checks include memory
-      expect(res.body.details).toHaveProperty('memory_heap');
-      expect(res.body.details).toHaveProperty('memory_rss');
+      expect(res.body.data.details).toHaveProperty('memory_heap');
+      expect(res.body.data.details).toHaveProperty('memory_rss');
     });
   });
 
@@ -235,7 +235,7 @@ describe('Infrastructure (e2e)', () => {
         .expect(200);
 
       // Should still succeed (HPP just protects against pollution)
-      expect(res.body.status).toBe('ok');
+      expect(res.body.data.status).toBe('ok');
     });
   });
 

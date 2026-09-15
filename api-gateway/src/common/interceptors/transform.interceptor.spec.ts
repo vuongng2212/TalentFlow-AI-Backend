@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/unbound-method */
 import { CallHandler, ExecutionContext } from '@nestjs/common';
 import { of } from 'rxjs';
 import { TransformInterceptor } from './transform.interceptor';

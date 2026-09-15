@@ -1,3 +1,5 @@
+// ⚠️  Must be the very first import — initialises OpenTelemetry before any other module
+import './tracing';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';

@@ -127,6 +127,8 @@ public class GeminiResponseValidator {
                 .skills(r.skills() != null ? r.skills() : List.of())
                 .experience(mapExperience(r.experience()))
                 .education(mapEducation(r.education()))
+                .aiScore(r.aiScore())
+                .scoringReasoning(r.scoringReasoning())
                 .extractionStatus(deriveStatus(r))
                 .build();
     }
@@ -175,7 +177,9 @@ public class GeminiResponseValidator {
             Integer yearsOfExperience,
             List<String> skills,
             List<ExperienceEntry> experience,
-            List<EducationEntry> education
+            List<EducationEntry> education,
+            Integer aiScore,
+            String scoringReasoning
     ) {
         record ExperienceEntry(
                 String title,

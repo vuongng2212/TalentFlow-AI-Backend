@@ -1,5 +1,6 @@
 package com.talentflow.cvparser.shared.dto;
 
+import com.talentflow.cvparser.shared.validation.ValidationPatterns;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -25,27 +26,25 @@ import java.time.Instant;
 @AllArgsConstructor
 public class CvUploadedEvent {
 
-    private static final String UUID_PATTERN = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
-
     /**
      * UUID of the candidate who uploaded the CV.
      */
     @NotBlank(message = "candidateId is required")
-    @Pattern(regexp = UUID_PATTERN, message = "candidateId must be a valid UUID")
+    @Pattern(regexp = ValidationPatterns.UUID_PATTERN, message = "candidateId must be a valid UUID")
     private String candidateId;
 
     /**
      * UUID of the job application.
      */
     @NotBlank(message = "applicationId is required")
-    @Pattern(regexp = UUID_PATTERN, message = "applicationId must be a valid UUID")
+    @Pattern(regexp = ValidationPatterns.UUID_PATTERN, message = "applicationId must be a valid UUID")
     private String applicationId;
 
     /**
      * UUID of the job being applied to.
      */
     @NotBlank(message = "jobId is required")
-    @Pattern(regexp = UUID_PATTERN, message = "jobId must be a valid UUID")
+    @Pattern(regexp = ValidationPatterns.UUID_PATTERN, message = "jobId must be a valid UUID")
     private String jobId;
 
     /**
@@ -75,4 +74,10 @@ public class CvUploadedEvent {
      */
     @NotNull(message = "uploadedAt is required")
     private Instant uploadedAt;
+
+    /**
+     * Job description text for AI scoring (nullable).
+     * If absent or empty, AI scoring will be SKIPPED with aiScore=0.
+     */
+    private String jobDescription;
 }

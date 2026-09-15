@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { WorkspaceContextService } from '../common/services/workspace-context.service';
 import type {
   OverviewDto,
   PipelineStageDto,
@@ -11,9 +12,14 @@ import type {
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly workspaceContext: WorkspaceContextService,
+  ) {}
 
   async getOverview(): Promise<OverviewDto> {
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+
     const [
       totalJobs,
       openJobs,
@@ -21,12 +27,16 @@ export class AnalyticsService {
       totalApplications,
       hiredCount,
     ] = await Promise.all([
-      this.prisma.job.count({ where: { deletedAt: null } }),
-      this.prisma.job.count({ where: { status: 'OPEN', deletedAt: null } }),
-      this.prisma.candidate.count(),
-      this.prisma.application.count({ where: { deletedAt: null } }),
+      this.prisma.job.count({ where: { workspaceId, deletedAt: null } }),
+      this.prisma.job.count({
+        where: { workspaceId, status: 'OPEN', deletedAt: null },
+      }),
+      this.prisma.candidate.count({ where: { workspaceId } }),
       this.prisma.application.count({
-        where: { stage: 'HIRED', deletedAt: null },
+        where: { workspaceId, deletedAt: null },
+      }),
+      this.prisma.application.count({
+        where: { workspaceId, stage: 'HIRED', deletedAt: null },
       }),
     ]);
 
@@ -46,13 +56,14 @@ export class AnalyticsService {
   }
 
   async getPipeline(): Promise<PipelineStageDto[]> {
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+
     const stages = await this.prisma.application.groupBy({
       by: ['stage'],
-      where: { deletedAt: null },
+      where: { workspaceId, deletedAt: null },
       _count: { id: true },
     });
 
-    // Ensure all stages are present even if count is 0
     const allStages = [
       'APPLIED',
       'SCREENING',
@@ -72,12 +83,15 @@ export class AnalyticsService {
   }
 
   async getTrends(days: number): Promise<TrendPointDto[]> {
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
     startDate.setHours(0, 0, 0, 0);
 
     const applications = await this.prisma.application.findMany({
       where: {
+        workspaceId,
         appliedAt: { gte: startDate },
         deletedAt: null,
       },
@@ -85,10 +99,8 @@ export class AnalyticsService {
       orderBy: { appliedAt: 'asc' },
     });
 
-    // Group by date
     const dateMap = new Map<string, number>();
 
-    // Initialize all dates with 0
     for (let i = 0; i <= days; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
@@ -96,7 +108,6 @@ export class AnalyticsService {
       dateMap.set(key, 0);
     }
 
-    // Count applications per date
     for (const app of applications) {
       const key = app.appliedAt.toISOString().split('T')[0];
       dateMap.set(key, (dateMap.get(key) ?? 0) + 1);
@@ -109,8 +120,10 @@ export class AnalyticsService {
   }
 
   async getTopJobs(limit: number): Promise<TopJobDto[]> {
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+
     const jobs = await this.prisma.job.findMany({
-      where: { deletedAt: null },
+      where: { workspaceId, deletedAt: null },
       select: {
         id: true,
         title: true,

@@ -20,6 +20,13 @@
     "noImplicitAny": true,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
-    "types": ["jest", "node", "express", "multer"]
+    "types": [
+      "jest",
+      "node",
+      "express",
+      "multer"
+    ],
+    "strictPropertyInitialization": false,
+    "rootDir": "./"
   }
 }
