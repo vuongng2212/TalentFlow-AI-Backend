@@ -1,4 +1,12 @@
-import { IsOptional, IsInt, Min, Max, IsEnum, IsUUID } from 'class-validator';
+import {
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+  IsEnum,
+  IsUUID,
+  IsString,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ApplicationStatus, ApplicationStage } from '@prisma/client';
@@ -18,6 +26,37 @@ export class QueryApplicationsDto {
   @Max(100)
   @Type(() => Number)
   limit?: number = 10;
+
+  @ApiPropertyOptional({
+    description: 'Search by candidate name, candidate email, or job title',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by minimum AI score',
+    minimum: 0,
+    maximum: 100,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  @Type(() => Number)
+  minScore?: number;
+
+  @ApiPropertyOptional({
+    description: 'Filter by maximum AI score',
+    minimum: 0,
+    maximum: 100,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  @Type(() => Number)
+  maxScore?: number;
 
   @ApiPropertyOptional({ description: 'Filter by job ID' })
   @IsOptional()
