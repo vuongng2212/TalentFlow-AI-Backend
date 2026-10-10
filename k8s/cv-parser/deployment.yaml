@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: cv-parser
-          image: your-registry.com/talentflow/cv-parser:latest
+          image: talentflow/cv-parser:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8081

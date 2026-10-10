@@ -13,7 +13,7 @@ data:
   RABBITMQ_PORT: "5672"
   RABBITMQ_USER: "rabbitmq"
   # Database (service DNS from k8s/middleware/postgres.yaml)
-  DATABASE_URL: "jdbc:postgresql://postgres-service.talentflow.svc.cluster.local:5432/talentflow_cv"
+  DATABASE_URL: "jdbc:postgresql://postgres-service.talentflow.svc.cluster.local:5432/talentflow_dev"
   DB_USER: "postgres"
   # Storage (MinIO — service DNS from k8s/middleware/minio.yaml)
   R2_ENDPOINT: "http://minio-service.talentflow.svc.cluster.local:9000"

@@ -24,7 +24,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: notification
-          image: your-registry.com/talentflow/notification:latest
+          image: talentflow/notification:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
