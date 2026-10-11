@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  # Middleware Stateful Services
+  - middleware/postgres-secret.yaml
+  - middleware/postgres.yaml
+  - middleware/redis.yaml
+  - middleware/rabbitmq.yaml
+  - middleware/minio.yaml
+  # Core Polyglot Services
+  - api-gateway/configmap.yaml
+  - api-gateway/secret.yaml
+  - api-gateway/service.yaml
+  - api-gateway/deployment.yaml
+  - api-gateway/hpa.yaml
+  - api-gateway/ingress.yaml
+  - cv-parser/configmap.yaml
+  - cv-parser/secret.yaml
+  - cv-parser/service.yaml
+  - cv-parser/deployment.yaml
+  - notification/configmap.yaml
+  - notification/secret.yaml
+  - notification/service.yaml
+  - notification/deployment.yaml
+  - notification/hpa.yaml
+  - notification/ingress.yaml
+  # Web Frontend
+  - frontend/configmap.yaml
+  - frontend/service.yaml
+  - frontend/deployment.yaml
+  - frontend/ingress.yaml

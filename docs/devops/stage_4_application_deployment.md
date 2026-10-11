@@ -1,140 +1,155 @@
-# Giai Đoạn 4: Triển Khai Các Dịch Vụ Ứng Dụng (Application Services)
+# Giai Đoạn 4: Triển Khai Các Dịch Vụ Ứng Dụng (Application Services & Web Frontend)
 
-Giai đoạn này hướng dẫn cách build docker image cho các Service (`api-gateway` và `notification`), đẩy lên cụm, thiết lập các file config và deploy các App Service vào các node stateless `tf-worker-1` và `tf-worker-2`.
+Tài liệu này hướng dẫn quy trình chuẩn hóa đóng gói (Docker build) và triển khai toàn bộ 4 tầng microservices của TalentFlow ATS vào Kubernetes thông qua Kustomize hoặc từng manifest độc lập:
+1. **API Gateway** (NestJS 11 + Prisma ORM)
+2. **Notification Service** (NestJS 10 + Prisma + Socket.IO)
+3. **CV Parser Worker** (Java 21 + Spring Boot 3.3 + AMQP)
+4. **Web Frontend** (Next.js 16 App Router + Tailwind 4 Standalone)
 
 ---
 
-## 1. Build Docker Images Cho Các Service
+## 1. Đóng Gói Docker Images (Containerization)
 
-Chúng ta cần đóng gói code NodeJS của các Service thành Docker image. 
-
-Chạy lệnh build docker trên máy thật (Host) hoặc trên một node ảo đã cài sẵn Docker:
+Tất cả các dịch vụ đều được tối ưu hóa multi-stage build để đạt kích thước ảnh đĩa tối thiểu và bảo mật cao:
 
 ### 1.1 Build API Gateway Image
-Di chuyển vào thư mục dự án và build image:
 ```bash
 docker build -t talentflow/api-gateway:latest ./api-gateway
 ```
+*Port:* `8080` | *Health check:* `GET /health` | *Readiness:* `GET /ready`
 
 ### 1.2 Build Notification Service Image
 ```bash
 docker build -t talentflow/notification:latest ./notification
 ```
+*Port:* `5000` | *Health check:* `GET /health` | *Readiness:* `GET /health/ready`
 
-### 1.3 Đẩy Image Vào Cụm K3s (Local Registry Import)
-K3s chạy container runtime bằng containerd nội bộ thay vì Docker. Nếu không sử dụng Docker Hub/Private Registry, bạn có thể "import" trực tiếp các file ảnh đĩa (`.tar`) vào cụm K3s:
-
+### 1.3 Build CV Parser Worker Image (Spring Boot 3.3)
+Build fat JAR cục bộ để tận dụng cache Maven, sau đó đóng gói runtime `eclipse-temurin:21-jre-alpine`:
 ```bash
-# 1. Export docker image ra file tar trên máy thật
-docker save talentflow/api-gateway:latest -o api-gateway.tar
-docker save talentflow/notification:latest -o notification.tar
+cd cv-parser
+./mvnw clean package -DskipTests
+docker build -t talentflow/cv-parser:latest .
+```
+*Port:* `8081` | *Health check:* `GET /actuator/health`
 
-# 2. Copy file tar sang node master (hoặc các node worker cần chạy app)
-scp api-gateway.tar notification.tar devops@192.168.56.10:/tmp/
+### 1.4 Build Web Frontend Image (Next.js 16 Standalone)
+Trong `TalentFlow-AI-Frontend/next.config.ts`, cấu hình `output: "standalone"`.
+```bash
+cd /home/vuongnguyen/Projects/TalentFlow/TalentFlow-AI-Frontend
+corepack pnpm build
+docker build -t talentflow/frontend:latest .
+```
+*Port:* `3000` | *Health check:* `GET /`
 
-# 3. Trên tf-master (và tf-worker-1, tf-worker-2), import file tar vào containerd
-sudo k3s ctr images import /tmp/api-gateway.tar
-sudo k3s ctr images import /tmp/notification.tar
+---
+
+## 2. Nạp Image Vào Cụm Kubernetes
+
+### 2.1 Cụm Kind (Local Development)
+```bash
+kind load docker-image talentflow/api-gateway:latest --name talentflow
+kind load docker-image talentflow/notification:latest --name talentflow
+kind load docker-image talentflow/cv-parser:latest --name talentflow
+kind load docker-image talentflow/frontend:latest --name talentflow
+```
+
+### 2.2 Cụm K3s / Khác (Containerd Local Import)
+```bash
+docker save --platform linux/amd64 talentflow/api-gateway:latest | ctr -n k8s.io images import -
+docker save --platform linux/amd64 talentflow/notification:latest | ctr -n k8s.io images import -
+docker save --platform linux/amd64 talentflow/cv-parser:latest | ctr -n k8s.io images import -
+docker save --platform linux/amd64 talentflow/frontend:latest | ctr -n k8s.io images import -
 ```
 
 ---
 
-## 2. Triển Khai Nginx Ingress Controller
+## 3. Triển Khai Toàn Diện Bằng Kustomize
 
-K3s cài sẵn Traefik làm Ingress Controller mặc định. Vì ở Giai đoạn 2 chúng ta đã cài tham số tắt Traefik (`--disable=traefik`), bây giờ chúng ta sẽ cài **Nginx Ingress Controller** chuẩn hóa để điều hướng HTTP & WebSocket (Socket.IO):
-
+Tại thư mục `k8s/`:
 ```bash
-# Cài đặt Nginx Ingress Controller thông qua Helm hoặc file manifest chính thức
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
+# 1. Tạo namespace
+kubectl apply -f k8s/namespace.yaml
+
+# 2. Triển khai toàn bộ Middleware + Ứng dụng
+kubectl apply -k k8s/
 ```
 
-Kiểm tra trạng thái Nginx Ingress Controller chạy thành công:
+Hoặc deploy từng thành phần theo thứ tự phụ thuộc:
 ```bash
-kubectl get pods -n ingress-nginx
+# Middleware Stateful Services
+kubectl apply -f k8s/middleware/postgres-secret.yaml
+kubectl apply -f k8s/middleware/postgres.yaml
+kubectl apply -f k8s/middleware/redis.yaml
+kubectl apply -f k8s/middleware/rabbitmq.yaml
+kubectl apply -f k8s/middleware/minio.yaml
+
+# Cấu hình & Core Backend
+kubectl apply -f k8s/api-gateway/configmap.yaml
+kubectl apply -f k8s/api-gateway/secret.yaml
+kubectl apply -f k8s/api-gateway/service.yaml
+kubectl apply -f k8s/api-gateway/deployment.yaml
+
+kubectl apply -f k8s/cv-parser/configmap.yaml
+kubectl apply -f k8s/cv-parser/secret.yaml
+kubectl apply -f k8s/cv-parser/service.yaml
+kubectl apply -f k8s/cv-parser/deployment.yaml
+
+kubectl apply -f k8s/notification/configmap.yaml
+kubectl apply -f k8s/notification/secret.yaml
+kubectl apply -f k8s/notification/service.yaml
+kubectl apply -f k8s/notification/deployment.yaml
+
+# Web Frontend
+kubectl apply -f k8s/frontend/configmap.yaml
+kubectl apply -f k8s/frontend/service.yaml
+kubectl apply -f k8s/frontend/deployment.yaml
+
+# Ingress Routing
+kubectl apply -f k8s/api-gateway/ingress.yaml
+kubectl apply -f k8s/notification/ingress.yaml
+kubectl apply -f k8s/frontend/ingress.yaml
 ```
 
 ---
 
-## 3. Cấu Hình Biến Môi Trường (ConfigMap & Secret)
+## 4. Khởi Tạo Bucket MinIO & Migration Database
 
-Các ứng dụng cần kết nối đến PostgreSQL, Redis, RabbitMQ và MinIO. Chúng ta khai báo thông tin kết nối thông qua Kubernetes ConfigMap và Secret.
-
-### 3.1 Cấu hình [configmap.yaml](file:///home/vuongnguyen/Projects/TalentFlow/TalentFlow-AI-Backend/k8s/notification/configmap.yaml)
-Cấu hình địa chỉ của các middleware. Vì tất cả chạy trong cùng 1 cụm Kubernetes, các service có thể kết nối nội bộ bằng DNS ảo của Kubernetes (ví dụ: `postgres-service.talentflow.svc.cluster.local`).
-
-Apply cấu hình ConfigMap:
+### 4.1 Khởi tạo Bucket MinIO `talentflow-cvs`
 ```bash
-kubectl apply -f k8s/notification/configmap.yaml -n talentflow
+kubectl exec -n talentflow deploy/minio -- sh -c '
+mc alias set local http://localhost:9000 minioadmin minioadmin
+mc mb local/talentflow-cvs || true
+mc anonymous set public local/talentflow-cvs || true
+'
 ```
 
-### 3.2 Cấu hình [secret.yaml](file:///home/vuongnguyen/Projects/TalentFlow/TalentFlow-AI-Backend/k8s/notification/secret.yaml)
-Chứa các thông tin bảo mật nhạy cảm (Username, Password, Secret Key).
-
-Apply cấu hình Secret:
+### 4.2 Migration Database
+PostgreSQL trong cụm chạy cơ sở dữ liệu `talentflow_dev`.
+* **Prisma (API Gateway & Notification)**: Có thể sync nhanh schema và seed data từ backup hoặc port-forward:
 ```bash
-kubectl apply -f k8s/notification/secret.yaml -n talentflow
+kubectl port-forward -n talentflow svc/postgres-service 15432:5432 &
+PG_PID=$!
+cd api-gateway && DATABASE_URL="postgresql://postgres:your-strong-postgres-password@localhost:15432/talentflow_dev" npx prisma migrate deploy
+cd ../notification && DATABASE_URL="postgresql://postgres:your-strong-postgres-password@localhost:15432/talentflow_dev" npx prisma migrate deploy
+cd ../api-gateway && DATABASE_URL="postgresql://postgres:your-strong-postgres-password@localhost:15432/talentflow_dev" SEED_DEFAULT_PASSWORD="Password123!" npm run db:seed
+kill $PG_PID
 ```
+* **Flyway (CV Parser)**: Tự động chạy tạo schema `cv_parser` khi pod `cv-parser` khởi động.
 
 ---
 
-## 4. Triển Khai Notification Service Pods
+## 5. Xác Minh Tình Trạng Vận Hành (Health & Diagnostics)
 
-Notification Service sẽ được deploy lên cụm và tự động scale từ 2 đến 6 bản sao (Pods) nhờ vào Horizontal Pod Autoscaler (HPA) dựa theo tải lượng CPU/Memory.
-
-Triển khai các manifest của Notification Service:
 ```bash
-# 1. Triển khai deployment (Quản lý các Pods chạy code NodeJS)
-kubectl apply -f k8s/notification/deployment.yaml -n talentflow
+# Kiểm tra toàn bộ Pods
+kubectl get pods -n talentflow -o wide
 
-# 2. Triển khai service (Tạo đầu mối IP/DNS nội bộ cho Service)
-kubectl apply -f k8s/notification/service.yaml -n talentflow
+# Kiểm tra Ingress routes
+kubectl get ingress -n talentflow
 
-# 3. Triển khai HPA (Tự động co giãn Pod)
-kubectl apply -f k8s/notification/hpa.yaml -n talentflow
+# Kiểm thử endpoint qua Ingress (Host port 8088 hoặc 80)
+curl -s -H "Host: api.talentflow.local" http://localhost:8088/ready
+curl -s -H "Host: notification.talentflow.local" http://localhost:8088/health/ready
+curl -s -H "Host: app.talentflow.local" http://localhost:8088/
 ```
-
----
-
-## 5. Thiết Lập Đường Truy Cập Bằng Ingress (HTTP & WebSockets)
-
-Do dịch vụ Notification có chứa tính năng thông báo Real-time bằng WebSocket (Socket.IO), Ingress cần cấu hình thêm các tham số `Upgrade` Header để Nginx chuyển tiếp kết nối TCP bền vững (Persistent Connection) thay vì ngắt kết nối.
-
-Tệp tin [ingress.yaml](file:///home/vuongnguyen/Projects/TalentFlow/TalentFlow-AI-Backend/k8s/notification/ingress.yaml) đã được thiết lập sẵn các annotations tối ưu này:
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: notification-ingress
-  namespace: talentflow
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection "upgrade";
-...
-```
-
-Triển khai Ingress:
-```bash
-kubectl apply -f k8s/notification/ingress.yaml -n talentflow
-```
-
----
-
-## 6. Kiểm Tra Và Xác Minh Ứng Dụng
-
-Xem danh sách Pods để đảm bảo các service của ứng dụng đang chạy ổn định:
-```bash
-kubectl get pods -n talentflow -l app=notification
-```
-*Kết quả mẫu:*
-```text
-NAME                            READY   STATUS    RESTARTS   AGE   NODE
-notification-84bf48d888-abcd1   1/1     Running   0          5m    tf-worker-1
-notification-84bf48d888-efgh2   1/1     Running   0          5m    tf-worker-2
-```
-
-Dịch vụ chạy thành công và tự động chia đều tải trên 2 node `tf-worker-1` và `tf-worker-2`! Bây giờ hãy chuyển sang Giai đoạn 5 để cấu hình hạ tầng Observability giám sát hệ thống.
