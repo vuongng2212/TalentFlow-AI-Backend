@@ -6,7 +6,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { createHmac } from 'node:crypto';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
-import { AppModule } from '../src/app.module';
 import { InvoiceRendererService } from '../src/payments/invoice/invoice-renderer.service';
 import { InvoiceStorageService } from '../src/payments/invoice/invoice-storage.service';
 import { MomoClient } from '../src/payments/momo/momo.client';
@@ -200,6 +199,12 @@ describe('MoMo payments (e2e)', () => {
         enabled: true,
       },
     ]);
+    // ConfigModule.forRoot() validates and caches env at import time, so the
+    // app module is loaded only after the e2e overrides above are in place.
+    const { AppModule } =
+      jest.requireActual<typeof import('../src/app.module')>(
+        '../src/app.module',
+      );
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
