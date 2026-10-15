@@ -18,6 +18,19 @@ data:
   R2_ENDPOINT: "http://minio-service.talentflow.svc.cluster.local:9000"
   R2_BUCKET: "talentflow-cvs"
   R2_PUBLIC_URL: "https://storage.talentflow.ai/talentflow-cvs"
+  # MoMo payment policy (credentials remain in the Secret)
+  MOMO_API_BASE_URL: "https://payment.momo.vn"
+  MOMO_IPN_URL: "https://api.talentflow.ai/api/v1/payments/momo/ipn"
+  MOMO_REDIRECT_URL: "https://app.talentflow.ai/payment/return"
+  MOMO_REQUEST_TIMEOUT_MS: "30000"
+  PAYMENT_CATALOG_JSON: '[{"code":"DEMO_SERVICE","description":"Demo service","amountVnd":10000,"taxVnd":0,"termsVersion":"2026-09-approved","enabled":true}]'
+  PAYMENT_RECOVERY_INTERVAL_SECONDS: "30"
+  PAYMENT_RECOVERY_LEASE_SECONDS: "60"
+  PAYMENT_RECOVERY_MAX_ATTEMPTS: "10"
+  PAYMENT_INVOICE_BUCKET: "talentflow-payment-invoices"
+  PAYMENT_INVOICE_URL_TTL_SEC: "300"
+  PAYMENT_RECEIPT_ISSUER_NAME: "TalentFlow AI"
+  PAYMENT_RECEIPT_ISSUER_ADDRESS: "Configured by finance operations"
   # Logging & Metrics
   LOG_LEVEL: "info"
   ELK_HOST: "http://elasticsearch.logging.svc.cluster.local:9200"

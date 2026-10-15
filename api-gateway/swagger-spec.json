@@ -365,6 +365,558 @@
         ]
       }
     },
+    "/api/v1/applications": {
+      "post": {
+        "operationId": "ApplicationsController_create",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApplicationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Application submitted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Job not found"
+          },
+          "409": {
+            "description": "Already applied to this job"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Apply to a job",
+        "tags": [
+          "Applications"
+        ]
+      },
+      "get": {
+        "operationId": "ApplicationsController_findAll",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "jobId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by job ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "candidateId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by candidate ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "APPLIED",
+                "SCREENING",
+                "INTERVIEW",
+                "OFFER",
+                "HIRED",
+                "REJECTED"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SUBMITTED",
+                "REVIEWING",
+                "SHORTLISTED",
+                "INTERVIEW_SCHEDULED",
+                "INTERVIEWED",
+                "OFFERED",
+                "ACCEPTED",
+                "REJECTED",
+                "WITHDRAWN"
+              ]
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "appliedAt",
+              "type": "string",
+              "enum": [
+                "appliedAt",
+                "status"
+              ]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Return paginated list of applications",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApplicationResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get applications (filtered by role)",
+        "tags": [
+          "Applications"
+        ]
+      }
+    },
+    "/api/v1/applications/upload": {
+      "post": {
+        "operationId": "ApplicationsController_uploadCv",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "jobId"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "CV file (PDF, DOC, DOCX up to 10MB)"
+                  },
+                  "jobId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "The ID of the job"
+                  },
+                  "coverLetter": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "Optional cover letter text"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Application with CV submitted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadCvResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid file type or file too large"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Job not found"
+          },
+          "409": {
+            "description": "Already applied to this job"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Apply to a job with CV upload",
+        "tags": [
+          "Applications"
+        ]
+      }
+    },
+    "/api/v1/applications/ingestion": {
+      "post": {
+        "operationId": "ApplicationsController_ingest",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-workspace-id",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "jobId",
+                  "candidateEmail",
+                  "candidateName"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "CV file (PDF, DOCX up to 10MB)"
+                  },
+                  "jobId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Job ID"
+                  },
+                  "candidateEmail": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Candidate's email"
+                  },
+                  "candidateName": {
+                    "type": "string",
+                    "description": "Candidate's full name"
+                  },
+                  "coverLetter": {
+                    "type": "string",
+                    "description": "Optional cover letter text"
+                  },
+                  "externalMessageId": {
+                    "type": "string",
+                    "description": "External email message ID"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Application ingested successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Missing or invalid API key"
+          },
+          "404": {
+            "description": "Job not found"
+          },
+          "409": {
+            "description": "Already applied to this job"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Ingest an application from n8n email ingestion webhook",
+        "tags": [
+          "Applications"
+        ]
+      }
+    },
+    "/api/v1/applications/{id}": {
+      "get": {
+        "operationId": "ApplicationsController_findOne",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Application ID (UUID)",
+            "schema": {
+              "example": "123e4567-e89b-12d3-a456-426614174000",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Return the application details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - not authorized to view this application"
+          },
+          "404": {
+            "description": "Application not found"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get an application by ID",
+        "tags": [
+          "Applications"
+        ]
+      },
+      "put": {
+        "operationId": "ApplicationsController_update",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Application ID (UUID)",
+            "schema": {
+              "example": "123e4567-e89b-12d3-a456-426614174000",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateApplicationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Application updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - not authorized to update this application"
+          },
+          "404": {
+            "description": "Application not found"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update an application (stage/status/notes by recruiter, cover letter by candidate)",
+        "tags": [
+          "Applications"
+        ]
+      },
+      "delete": {
+        "operationId": "ApplicationsController_remove",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Application ID (UUID)",
+            "schema": {
+              "example": "123e4567-e89b-12d3-a456-426614174000",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Application withdrawn successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - not authorized to withdraw this application"
+          },
+          "404": {
+            "description": "Application not found"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Withdraw an application (candidates only)",
+        "tags": [
+          "Applications"
+        ]
+      }
+    },
     "/api/v1/auth/signup": {
       "post": {
         "operationId": "AuthController_signup",
@@ -866,6 +1418,122 @@
         ]
       }
     },
+    "/api/v1/subscriptions/plans": {
+      "get": {
+        "operationId": "SubscriptionsController_listPlans",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Optional active workspace ID for current subscription routes",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plan catalogue returned"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List active subscription plans",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/api/v1/subscriptions/current": {
+      "get": {
+        "operationId": "SubscriptionsController_getCurrentSubscription",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Optional active workspace ID for current subscription routes",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current subscription returned"
+          },
+          "400": {
+            "description": "No accessible workspace"
+          },
+          "403": {
+            "description": "Workspace membership required"
+          },
+          "404": {
+            "description": "Current subscription missing"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get the current workspace subscription",
+        "tags": [
+          "Subscriptions"
+        ]
+      },
+      "put": {
+        "operationId": "SubscriptionsController_changeCurrentSubscription",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Optional active workspace ID for current subscription routes",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeSubscriptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current subscription updated"
+          },
+          "400": {
+            "description": "Invalid request body"
+          },
+          "403": {
+            "description": "Owner or administrator required"
+          },
+          "404": {
+            "description": "Plan unavailable or subscription missing"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Select an active plan for the current workspace",
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
     "/api/v1/jobs": {
       "post": {
         "operationId": "JobsController_create",
@@ -1235,456 +1903,6 @@
         "summary": "Delete a job (soft delete)",
         "tags": [
           "Jobs"
-        ]
-      }
-    },
-    "/api/v1/applications": {
-      "post": {
-        "operationId": "ApplicationsController_create",
-        "parameters": [
-          {
-            "name": "x-workspace-id",
-            "in": "header",
-            "description": "Active workspace ID for resource isolation",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateApplicationDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Application submitted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApplicationResponseDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Job not found"
-          },
-          "409": {
-            "description": "Already applied to this job"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Apply to a job",
-        "tags": [
-          "Applications"
-        ]
-      },
-      "get": {
-        "operationId": "ApplicationsController_findAll",
-        "parameters": [
-          {
-            "name": "x-workspace-id",
-            "in": "header",
-            "description": "Active workspace ID for resource isolation",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 1,
-              "default": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 10,
-              "type": "number"
-            }
-          },
-          {
-            "name": "jobId",
-            "required": false,
-            "in": "query",
-            "description": "Filter by job ID",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "candidateId",
-            "required": false,
-            "in": "query",
-            "description": "Filter by candidate ID",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "stage",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "APPLIED",
-                "SCREENING",
-                "INTERVIEW",
-                "OFFER",
-                "HIRED",
-                "REJECTED"
-              ]
-            }
-          },
-          {
-            "name": "status",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "SUBMITTED",
-                "REVIEWING",
-                "SHORTLISTED",
-                "INTERVIEW_SCHEDULED",
-                "INTERVIEWED",
-                "OFFERED",
-                "ACCEPTED",
-                "REJECTED",
-                "WITHDRAWN"
-              ]
-            }
-          },
-          {
-            "name": "sortBy",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "appliedAt",
-              "type": "string",
-              "enum": [
-                "appliedAt",
-                "status"
-              ]
-            }
-          },
-          {
-            "name": "sortOrder",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "desc",
-              "type": "string",
-              "enum": [
-                "asc",
-                "desc"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Return paginated list of applications",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ApplicationResponseDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Get applications (filtered by role)",
-        "tags": [
-          "Applications"
-        ]
-      }
-    },
-    "/api/v1/applications/upload": {
-      "post": {
-        "operationId": "ApplicationsController_uploadCv",
-        "parameters": [
-          {
-            "name": "x-workspace-id",
-            "in": "header",
-            "description": "Active workspace ID for resource isolation",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "file",
-                  "jobId"
-                ],
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "CV file (PDF, DOC, DOCX up to 10MB)"
-                  },
-                  "jobId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "description": "The ID of the job"
-                  },
-                  "coverLetter": {
-                    "type": "string",
-                    "maxLength": 2000,
-                    "description": "Optional cover letter text"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Application with CV submitted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UploadCvResponseDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid file type or file too large"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Job not found"
-          },
-          "409": {
-            "description": "Already applied to this job"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Apply to a job with CV upload",
-        "tags": [
-          "Applications"
-        ]
-      }
-    },
-    "/api/v1/applications/{id}": {
-      "get": {
-        "operationId": "ApplicationsController_findOne",
-        "parameters": [
-          {
-            "name": "x-workspace-id",
-            "in": "header",
-            "description": "Active workspace ID for resource isolation",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Application ID (UUID)",
-            "schema": {
-              "example": "123e4567-e89b-12d3-a456-426614174000",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Return the application details",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApplicationResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden - not authorized to view this application"
-          },
-          "404": {
-            "description": "Application not found"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Get an application by ID",
-        "tags": [
-          "Applications"
-        ]
-      },
-      "put": {
-        "operationId": "ApplicationsController_update",
-        "parameters": [
-          {
-            "name": "x-workspace-id",
-            "in": "header",
-            "description": "Active workspace ID for resource isolation",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Application ID (UUID)",
-            "schema": {
-              "example": "123e4567-e89b-12d3-a456-426614174000",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateApplicationDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Application updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApplicationResponseDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden - not authorized to update this application"
-          },
-          "404": {
-            "description": "Application not found"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Update an application (stage/status/notes by recruiter, cover letter by candidate)",
-        "tags": [
-          "Applications"
-        ]
-      },
-      "delete": {
-        "operationId": "ApplicationsController_remove",
-        "parameters": [
-          {
-            "name": "x-workspace-id",
-            "in": "header",
-            "description": "Active workspace ID for resource isolation",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Application ID (UUID)",
-            "schema": {
-              "example": "123e4567-e89b-12d3-a456-426614174000",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Application withdrawn successfully"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden - not authorized to withdraw this application"
-          },
-          "404": {
-            "description": "Application not found"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Withdraw an application (candidates only)",
-        "tags": [
-          "Applications"
         ]
       }
     },
@@ -2425,6 +2643,130 @@
         "tags": [
           "Workspaces"
         ]
+      },
+      "get": {
+        "operationId": "WorkspacesController_listMyWorkspaces",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace list returned"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List all workspaces the current user belongs to",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{id}": {
+      "get": {
+        "operationId": "WorkspacesController_getOne",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace detail returned"
+          },
+          "403": {
+            "description": "Forbidden – not a member"
+          },
+          "404": {
+            "description": "Workspace not found"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get a single workspace by ID",
+        "tags": [
+          "Workspaces"
+        ]
+      },
+      "patch": {
+        "operationId": "WorkspacesController_updateWorkspace",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Active workspace ID for resource isolation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkspaceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Workspace updated successfully"
+          },
+          "403": {
+            "description": "Forbidden – not owner/admin"
+          },
+          "404": {
+            "description": "Workspace not found"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update workspace name (owner/admin only)",
+        "tags": [
+          "Workspaces"
+        ]
       }
     },
     "/api/v1/workspaces/{id}/members": {
@@ -2666,6 +3008,269 @@
         ]
       }
     },
+    "/api/v1/payments": {
+      "post": {
+        "operationId": "PaymentsController_create",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Optional active workspace ID validated by the existing context guard.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Opaque 8–255 character key; it is hashed and never returned.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Durable payment with ready checkout"
+          },
+          "202": {
+            "description": "Durable payment with checkout recovery pending"
+          },
+          "409": {
+            "description": "Idempotency key is bound to another intent"
+          }
+        },
+        "security": [
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "summary": "Create or safely replay a MoMo checkout",
+        "tags": [
+          "Payments"
+        ]
+      },
+      "get": {
+        "operationId": "PaymentsController_list",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Optional active workspace ID validated by the existing context guard.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "summary": "List payments in the active workspace",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/{paymentReference}": {
+      "get": {
+        "operationId": "PaymentsController_get",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Optional active workspace ID validated by the existing context guard.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "paymentReference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "summary": "Read one payment and non-sensitive audit history",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/{paymentReference}/invoice": {
+      "get": {
+        "operationId": "PaymentsController_getInvoice",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Optional active workspace ID validated by the existing context guard.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "paymentReference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "409": {
+            "description": "Payment is not a confirmed success"
+          }
+        },
+        "security": [
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "summary": "Read the immutable commercial receipt",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/{paymentReference}/invoice/download": {
+      "get": {
+        "operationId": "PaymentsController_downloadInvoice",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Optional active workspace ID validated by the existing context guard.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "paymentReference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A short-lived private receipt download URL"
+          },
+          "202": {
+            "description": "Receipt exists but deterministic rendering is still retrying"
+          }
+        },
+        "security": [
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "summary": "Obtain a short-lived private receipt download URL",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/{paymentReference}/reconcile": {
+      "post": {
+        "operationId": "PaymentsController_reconcile",
+        "parameters": [
+          {
+            "name": "x-workspace-id",
+            "in": "header",
+            "description": "Optional active workspace ID validated by the existing context guard.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "paymentReference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "summary": "Queue safe reconciliation of an uncertain payment",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/momo/ipn": {
+      "post": {
+        "operationId": "MomoIpnController_receive",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MomoIpnDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Delivery was safely handled"
+          }
+        },
+        "summary": "Receive a signed MoMo payment notification",
+        "tags": [
+          "MoMo IPN"
+        ]
+      }
+    },
     "/api/v1/email-templates": {
       "post": {
         "operationId": "EmailTemplatesController_create",
@@ -2894,9 +3499,246 @@
         "bearerFormat": "JWT",
         "type": "http",
         "description": "Enter your access token"
+      },
+      "accessTokenCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "access_token"
       }
     },
     "schemas": {
+      "CreateApplicationDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Job ID to apply for"
+          },
+          "coverLetter": {
+            "type": "string",
+            "description": "Cover letter text",
+            "maxLength": 2000
+          },
+          "cvFileKey": {
+            "type": "string",
+            "description": "CV file key (from R2 storage)"
+          },
+          "cvFileUrl": {
+            "type": "string",
+            "description": "CV file URL"
+          }
+        },
+        "required": [
+          "jobId"
+        ]
+      },
+      "CvParsingStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "PROCESSING",
+          "COMPLETED",
+          "FAILED"
+        ],
+        "description": "Trạng thái xử lý parsing CV của hệ thống AI"
+      },
+      "ApplicationResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "candidateId": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "APPLIED",
+              "SCREENING",
+              "INTERVIEW",
+              "OFFER",
+              "HIRED",
+              "REJECTED"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "SUBMITTED",
+              "REVIEWING",
+              "SHORTLISTED",
+              "INTERVIEW_SCHEDULED",
+              "INTERVIEWED",
+              "OFFERED",
+              "ACCEPTED",
+              "REJECTED",
+              "WITHDRAWN"
+            ]
+          },
+          "cvFileKey": {
+            "type": "object",
+            "nullable": true
+          },
+          "cvFileUrl": {
+            "type": "object",
+            "nullable": true
+          },
+          "coverLetter": {
+            "type": "object",
+            "nullable": true
+          },
+          "notes": {
+            "type": "object",
+            "nullable": true
+          },
+          "cvParsingStatus": {
+            "description": "Trạng thái xử lý parsing CV của hệ thống AI",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CvParsingStatus"
+              }
+            ]
+          },
+          "aiScore": {
+            "type": "object",
+            "nullable": true
+          },
+          "scoringReasoning": {
+            "type": "object",
+            "nullable": true
+          },
+          "parsedData": {
+            "type": "object",
+            "nullable": true
+          },
+          "appliedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reviewedAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "jobId",
+          "candidateId",
+          "stage",
+          "status",
+          "cvFileKey",
+          "cvFileUrl",
+          "coverLetter",
+          "notes",
+          "cvParsingStatus",
+          "aiScore",
+          "scoringReasoning",
+          "parsedData",
+          "appliedAt",
+          "reviewedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "UploadCvResponseDto": {
+        "type": "object",
+        "properties": {
+          "applicationId": {
+            "type": "string"
+          },
+          "fileKey": {
+            "type": "string"
+          },
+          "fileUrl": {
+            "type": "string"
+          },
+          "presignedUrl": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "applicationId",
+          "fileKey",
+          "fileUrl",
+          "status",
+          "message"
+        ]
+      },
+      "IngestionResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the ingestion was accepted"
+          },
+          "data": {
+            "type": "object",
+            "description": "Ingestion result data"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "UpdateApplicationDto": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "APPLIED",
+              "SCREENING",
+              "INTERVIEW",
+              "OFFER",
+              "HIRED",
+              "REJECTED"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "SUBMITTED",
+              "REVIEWING",
+              "SHORTLISTED",
+              "INTERVIEW_SCHEDULED",
+              "INTERVIEWED",
+              "OFFERED",
+              "ACCEPTED",
+              "REJECTED",
+              "WITHDRAWN"
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "description": "Recruiter notes",
+            "maxLength": 2000
+          },
+          "coverLetter": {
+            "type": "string",
+            "description": "Cover letter update",
+            "maxLength": 2000
+          }
+        }
+      },
       "SignupDto": {
         "type": "object",
         "properties": {
@@ -3102,6 +3944,24 @@
         },
         "required": [
           "role"
+        ]
+      },
+      "ChangeSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "planCode": {
+            "type": "string",
+            "enum": [
+              "FREE",
+              "PLUS",
+              "BUSINESS"
+            ],
+            "example": "BUSINESS",
+            "description": "The active catalogue plan to select for the current workspace"
+          }
+        },
+        "required": [
+          "planCode"
         ]
       },
       "JobRequirementsDto": {
@@ -3344,187 +4204,6 @@
                 "$ref": "#/components/schemas/JobRequirementsDto"
               }
             ]
-          }
-        }
-      },
-      "CreateApplicationDto": {
-        "type": "object",
-        "properties": {
-          "jobId": {
-            "type": "string",
-            "description": "Job ID to apply for"
-          },
-          "coverLetter": {
-            "type": "string",
-            "description": "Cover letter text",
-            "maxLength": 2000
-          },
-          "cvFileKey": {
-            "type": "string",
-            "description": "CV file key (from R2 storage)"
-          },
-          "cvFileUrl": {
-            "type": "string",
-            "description": "CV file URL"
-          }
-        },
-        "required": [
-          "jobId"
-        ]
-      },
-      "ApplicationResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "jobId": {
-            "type": "string"
-          },
-          "candidateId": {
-            "type": "string"
-          },
-          "stage": {
-            "type": "string",
-            "enum": [
-              "APPLIED",
-              "SCREENING",
-              "INTERVIEW",
-              "OFFER",
-              "HIRED",
-              "REJECTED"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "SUBMITTED",
-              "REVIEWING",
-              "SHORTLISTED",
-              "INTERVIEW_SCHEDULED",
-              "INTERVIEWED",
-              "OFFERED",
-              "ACCEPTED",
-              "REJECTED",
-              "WITHDRAWN"
-            ]
-          },
-          "cvFileKey": {
-            "type": "object",
-            "nullable": true
-          },
-          "cvFileUrl": {
-            "type": "object",
-            "nullable": true
-          },
-          "coverLetter": {
-            "type": "object",
-            "nullable": true
-          },
-          "notes": {
-            "type": "object",
-            "nullable": true
-          },
-          "appliedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "reviewedAt": {
-            "type": "object",
-            "nullable": true
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "updatedAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "jobId",
-          "candidateId",
-          "stage",
-          "status",
-          "cvFileKey",
-          "cvFileUrl",
-          "coverLetter",
-          "notes",
-          "appliedAt",
-          "reviewedAt",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
-      "UploadCvResponseDto": {
-        "type": "object",
-        "properties": {
-          "applicationId": {
-            "type": "string"
-          },
-          "fileKey": {
-            "type": "string"
-          },
-          "fileUrl": {
-            "type": "string"
-          },
-          "presignedUrl": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "applicationId",
-          "fileKey",
-          "fileUrl",
-          "status",
-          "message"
-        ]
-      },
-      "UpdateApplicationDto": {
-        "type": "object",
-        "properties": {
-          "stage": {
-            "type": "string",
-            "enum": [
-              "APPLIED",
-              "SCREENING",
-              "INTERVIEW",
-              "OFFER",
-              "HIRED",
-              "REJECTED"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "SUBMITTED",
-              "REVIEWING",
-              "SHORTLISTED",
-              "INTERVIEW_SCHEDULED",
-              "INTERVIEWED",
-              "OFFERED",
-              "ACCEPTED",
-              "REJECTED",
-              "WITHDRAWN"
-            ]
-          },
-          "notes": {
-            "type": "string",
-            "description": "Recruiter notes",
-            "maxLength": 2000
-          },
-          "coverLetter": {
-            "type": "string",
-            "description": "Cover letter update",
-            "maxLength": 2000
           }
         }
       },
@@ -3872,17 +4551,21 @@
             "type": "string",
             "example": "TalentFlow Hiring Team",
             "maxLength": 150
-          },
-          "isBusiness": {
-            "type": "boolean",
-            "example": true,
-            "description": "Enable Business capabilities for workspace",
-            "default": false
           }
         },
         "required": [
           "name"
         ]
+      },
+      "UpdateWorkspaceDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Acme Hiring Team",
+            "maxLength": 150
+          }
+        }
       },
       "WorkspaceMemberRole": {
         "type": "string",
@@ -3952,6 +4635,23 @@
         "required": [
           "token"
         ]
+      },
+      "CreatePaymentDto": {
+        "type": "object",
+        "properties": {
+          "payableItemCode": {
+            "type": "string",
+            "example": "DEMO_SERVICE",
+            "description": "Server-owned payable item code; money values are never accepted."
+          }
+        },
+        "required": [
+          "payableItemCode"
+        ]
+      },
+      "MomoIpnDto": {
+        "type": "object",
+        "properties": {}
       },
       "CreateEmailTemplateDto": {
         "type": "object",

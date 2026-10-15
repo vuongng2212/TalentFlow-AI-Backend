@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -23,6 +22,7 @@ model User {
   invitedWorkspaceMembers     WorkspaceMember[]     @relation("WorkspaceInvitation")
   createdWorkspaces           Workspace[]           @relation("WorkspaceCreator")
   workspaceInvitationsCreated WorkspaceInvitation[] @relation("WorkspaceInvitationCreator")
+  requestedPayments           Payment[]             @relation("PaymentRequester")
   createdAt                   DateTime              @default(now()) @map("created_at")
   updatedAt                   DateTime              @updatedAt @map("updated_at")
   deletedAt                   DateTime?             @map("deleted_at")
@@ -72,6 +72,7 @@ model Workspace {
   emailTemplates EmailTemplate[]
   invitations    WorkspaceInvitation[]
   subscription   Subscription?
+  payments       Payment[]
   createdAt      DateTime              @default(now()) @map("created_at")
   updatedAt      DateTime              @updatedAt @map("updated_at")
 
@@ -106,6 +107,138 @@ model Subscription {
   @@index([planId])
   @@index([status])
   @@map("subscriptions")
+}
+
+model Payment {
+  id                            String                      @id @default(uuid())
+  reference                     String                      @unique
+  workspaceId                   String                      @map("workspace_id")
+  workspace                     Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  requesterId                   String                      @map("requester_id")
+  requester                     User                        @relation("PaymentRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+  idempotencyOperation          PaymentIdempotencyOperation @map("idempotency_operation")
+  idempotencyKeyDigest          String                      @map("idempotency_key_digest")
+  idempotencyRequestFingerprint String                      @map("idempotency_request_fingerprint")
+  provider                      PaymentProvider             @default(MOMO)
+  momoOrderId                   String                      @unique @map("momo_order_id")
+  momoRequestId                 String                      @unique @map("momo_request_id")
+  amountVnd                     Int                         @map("amount_vnd")
+  currency                      String                      @default("VND")
+  chargeSnapshot                Json                        @map("charge_snapshot")
+  status                        PaymentStatus               @default(PENDING)
+  checkoutStatus                PaymentCheckoutStatus       @default(NOT_REQUESTED) @map("checkout_status")
+  checkoutUrl                   String?                     @map("checkout_url")
+  momoTransactionId             BigInt?                     @map("momo_transaction_id")
+  providerResultCode            Int?                        @map("provider_result_code")
+  expiresAt                     DateTime?                   @map("expires_at")
+  succeededAt                   DateTime?                   @map("succeeded_at")
+  failedAt                      DateTime?                   @map("failed_at")
+  cancelledAt                   DateTime?                   @map("cancelled_at")
+  outcomeRecordedAt             DateTime?                   @map("outcome_recorded_at")
+  createdAt                     DateTime                    @default(now()) @map("created_at")
+  updatedAt                     DateTime                    @updatedAt @map("updated_at")
+  providerResults               PaymentProviderResult[]
+  processingRecords             PaymentProcessingRecord[]
+  invoice                       Invoice?
+  auditEvents                   PaymentAuditEvent[]
+
+  @@unique([requesterId, workspaceId, idempotencyOperation, idempotencyKeyDigest], map: "payments_idempotency_key")
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, status, updatedAt])
+  @@index([status, checkoutStatus, expiresAt])
+  @@index([momoTransactionId])
+  @@map("payments")
+}
+
+model PaymentProviderResult {
+  id                String                   @id @default(uuid())
+  semanticKey       String                   @unique @map("semantic_key")
+  paymentId         String?                  @map("payment_id")
+  payment           Payment?                 @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  provider          PaymentProvider          @default(MOMO)
+  partnerCode       String                   @map("partner_code")
+  orderId           String                   @map("order_id")
+  requestId         String                   @map("request_id")
+  momoTransactionId BigInt?                  @map("momo_transaction_id")
+  resultCode        Int                      @map("result_code")
+  claimedOutcome    String                   @map("claimed_outcome")
+  disposition       PaymentResultDisposition
+  reasonCode        String?                  @map("reason_code")
+  responseTime      DateTime?                @map("response_time")
+  receivedAt        DateTime                 @default(now()) @map("received_at")
+  lastReceivedAt    DateTime                 @default(now()) @map("last_received_at")
+  duplicateCount    Int                      @default(0) @map("duplicate_count")
+  safePayload       Json?                    @map("safe_payload")
+
+  @@index([paymentId])
+  @@index([partnerCode, orderId, requestId])
+  @@index([momoTransactionId])
+  @@map("payment_provider_results")
+}
+
+model PaymentProcessingRecord {
+  id              String            @id @default(uuid())
+  paymentId       String            @map("payment_id")
+  payment         Payment           @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  workKey         String            @unique @map("work_key")
+  kind            PaymentWorkKind
+  status          PaymentWorkStatus @default(PENDING)
+  attemptCount    Int               @default(0) @map("attempt_count")
+  availableAt     DateTime          @default(now()) @map("available_at")
+  leaseOwner      String?           @map("lease_owner")
+  leaseExpiresAt  DateTime?         @map("lease_expires_at")
+  lastAttemptAt   DateTime?         @map("last_attempt_at")
+  completedAt     DateTime?         @map("completed_at")
+  safeFailureCode String?           @map("safe_failure_code")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  @@index([status, availableAt, leaseExpiresAt])
+  @@index([paymentId])
+  @@map("payment_processing_records")
+}
+
+model Invoice {
+  id                String                @id @default(uuid())
+  invoiceReference  String                @unique @map("invoice_reference")
+  paymentId         String                @unique @map("payment_id")
+  payment           Payment               @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  issuedAt          DateTime              @default(now()) @map("issued_at")
+  issuerSnapshot    Json                  @map("issuer_snapshot")
+  payerSnapshot     Json                  @map("payer_snapshot")
+  lineItemsSnapshot Json                  @map("line_items_snapshot")
+  subtotalVnd       Int                   @map("subtotal_vnd")
+  taxVnd            Int                   @map("tax_vnd")
+  totalVnd          Int                   @map("total_vnd")
+  currency          String                @default("VND")
+  documentStatus    InvoiceDocumentStatus @default(PENDING_RENDER) @map("document_status")
+  storageBucket     String?               @map("storage_bucket")
+  storageKey        String?               @map("storage_key")
+  contentSha256     String?               @map("content_sha256")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+  auditEvents       PaymentAuditEvent[]
+
+  @@map("invoices")
+}
+
+model PaymentAuditEvent {
+  id            String                @id @default(uuid())
+  paymentId     String                @map("payment_id")
+  payment       Payment               @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoiceId     String?               @map("invoice_id")
+  invoice       Invoice?              @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  action        PaymentAuditAction
+  previousState PaymentStatus?        @map("previous_state")
+  newState      PaymentStatus?        @map("new_state")
+  actorKind     PaymentAuditActorKind @map("actor_kind")
+  correlationId String?               @map("correlation_id")
+  reasonCode    String?               @map("reason_code")
+  occurredAt    DateTime              @default(now()) @map("occurred_at")
+
+  @@index([paymentId, occurredAt])
+  @@index([invoiceId])
+  @@map("payment_audit_events")
 }
 
 model WorkspaceMember {
@@ -324,6 +457,86 @@ enum SubscriptionStatus {
   ACTIVE
 
   @@map("WorkspaceSubscriptionStatus")
+}
+
+enum PaymentProvider {
+  MOMO
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  EXPIRED
+  CANCELLED
+  REJECTED
+}
+
+enum PaymentCheckoutStatus {
+  NOT_REQUESTED
+  REQUESTING
+  READY
+  UNKNOWN
+  UNAVAILABLE
+}
+
+enum PaymentIdempotencyOperation {
+  INITIATE_MOMO_CHECKOUT
+}
+
+enum PaymentResultDisposition {
+  VERIFIED
+  REJECTED
+  DUPLICATE
+  CONFLICT_IGNORED
+}
+
+enum PaymentWorkKind {
+  CREATE_CHECKOUT
+  RECONCILE_MOMO
+  APPLY_SUCCESS
+  APPLY_FAILURE
+  ISSUE_INVOICE
+  RENDER_INVOICE
+}
+
+enum PaymentWorkStatus {
+  PENDING
+  LEASED
+  COMPLETED
+  RETRYABLE
+  MANUAL_REVIEW
+}
+
+enum InvoiceDocumentStatus {
+  PENDING_RENDER
+  AVAILABLE
+  RETRYABLE
+}
+
+enum PaymentAuditAction {
+  PAYMENT_CREATED
+  IDEMPOTENCY_REPLAYED
+  CHECKOUT_READY
+  CHECKOUT_UNKNOWN
+  PROVIDER_RESULT_VERIFIED
+  PROVIDER_RESULT_REJECTED
+  PROVIDER_RESULT_DUPLICATE
+  PROVIDER_RESULT_CONFLICT
+  STATE_CHANGED
+  WORK_RETRIED
+  OUTCOME_RECORDED
+  INVOICE_ISSUED
+  INVOICE_RENDERED
+  INVOICE_RENDER_FAILED
+  RECONCILIATION_COMPLETED
+}
+
+enum PaymentAuditActorKind {
+  USER
+  MOMO
+  SCHEDULER
+  SYSTEM
 }
 
 enum CvParsingStatus {

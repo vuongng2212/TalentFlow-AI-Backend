@@ -40,9 +40,30 @@ describe('appConfigSchema', () => {
       JWT_ACCESS_SECRET: 'development-access-secret-123',
       JWT_REFRESH_SECRET: 'development-refresh-secret-123',
       INGESTION_API_KEY: 'development-ingestion-key-123',
+      MOMO_API_BASE_URL: 'https://test-payment.momo.vn',
+      MOMO_PARTNER_CODE: 'development-partner',
+      MOMO_ACCESS_KEY: 'development-access-key',
+      MOMO_SECRET_KEY: 'development-momo-secret-key',
+      MOMO_IPN_URL: 'https://payments.example.test/api/v1/payments/momo/ipn',
+      MOMO_REDIRECT_URL: 'http://localhost:3001/payment/return',
+      PAYMENT_CATALOG_JSON:
+        '[{"code":"DEMO_SERVICE","description":"Demo service","amountVnd":10000,"taxVnd":0,"termsVersion":"test","enabled":true}]',
+      PAYMENT_INVOICE_BUCKET: 'payment-invoices-development',
+      PAYMENT_RECEIPT_ISSUER_NAME: 'TalentFlow AI',
+      PAYMENT_RECEIPT_ISSUER_ADDRESS: 'Development',
     });
 
     expect(error).toBeUndefined();
+  });
+
+  it('rejects malformed or client-like payment catalogue values', () => {
+    const { error } = appConfigSchema.validate({
+      NODE_ENV: 'test',
+      PAYMENT_CATALOG_JSON:
+        '[{"code":"bad code","description":"Demo","amountVnd":99,"taxVnd":0,"termsVersion":"v1"}]',
+    });
+
+    expect(error).toBeDefined();
   });
 
   it('should include default RabbitMQ resilience values', () => {

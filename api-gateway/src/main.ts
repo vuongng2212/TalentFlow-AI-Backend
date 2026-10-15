@@ -92,6 +92,11 @@ async function bootstrap() {
         },
         'access-token',
       )
+      .addCookieAuth(
+        'access_token',
+        { type: 'apiKey', in: 'cookie', name: 'access_token' },
+        'accessTokenCookie',
+      )
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);

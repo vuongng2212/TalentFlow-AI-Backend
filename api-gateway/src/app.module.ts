@@ -24,6 +24,7 @@ import { QueueModule } from './queue/queue.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { EmailTemplatesModule } from './email-templates/email-templates.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { PaymentsModule } from './payments/payments.module';
 import { LoggerModule } from './common/logger';
 import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
 import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
@@ -88,6 +89,7 @@ import { randomUUID } from 'crypto';
     QueueModule,
     WorkspacesModule,
     SubscriptionsModule,
+    PaymentsModule,
     EmailTemplatesModule,
   ],
   controllers: [AppController],

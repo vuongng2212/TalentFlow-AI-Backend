@@ -61,6 +61,7 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 CLAUDE.md
 
 /generated/prisma
+/test/generated-prisma-payment-e2e/
 
 # Cookies (E2E testing)
 cookies.txt

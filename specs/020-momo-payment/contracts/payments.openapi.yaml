@@ -1,0 +1,626 @@
+openapi: 3.0.3
+info:
+  title: TalentFlow AI MoMo Payment API
+  version: 1.0.0-draft
+  description: >-
+    Gateway-owned one-time MoMo Wallet payment API. Successful HTTP payloads use
+    the existing `{ status, message, data, timestamp }` envelope. A browser
+    redirect is display-only; only the signed MoMo IPN endpoint can establish a
+    provider result.
+servers:
+  - url: /api/v1
+security:
+  - accessTokenCookie: []
+tags:
+  - name: Payments
+  - name: MoMo IPN
+paths:
+  /payments:
+    post:
+      tags: [Payments]
+      summary: Create or safely replay a MoMo payment checkout
+      description: >-
+        Requires an active workspace and OWNER or ADMIN membership. The API
+        resolves a server-side payable item and amount; callers cannot send
+        price, currency, tax, description, or entitlement values.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '201':
+          description: Payment persisted and MoMo checkout is ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentCheckoutEnvelope'
+        '202':
+          description: >-
+            Payment is durable but MoMo checkout creation/query is uncertain or
+            still running. Reuse exactly the same Idempotency-Key to retrieve
+            the same payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentCheckoutEnvelope'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: The same idempotency key was used for a different trusted intent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Payment state is durable but provider recovery is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    get:
+      tags: [Payments]
+      summary: List payments in the resolved workspace
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/PaymentStatus'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 128
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        '200':
+          description: Active workspace member payment page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentListEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /payments/{paymentReference}:
+    get:
+      tags: [Payments]
+      summary: Read a payment and non-sensitive audit history
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/PaymentReference'
+      responses:
+        '200':
+          description: Active workspace member payment detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentDetailEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /payments/{paymentReference}/reconcile:
+    post:
+      tags: [Payments]
+      summary: Queue safe MoMo reconciliation for one uncertain payment
+      description: >-
+        OWNER or ADMIN only. This never creates a new Payment or checkout. It
+        queues/reuses a durable signed-provider-query work item for a pending or
+        uncertain payment.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/PaymentReference'
+      responses:
+        '202':
+          description: Existing or new reconciliation work is scheduled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentEnvelope'
+        '400':
+          description: Payment is final and needs no reconciliation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /payments/{paymentReference}/invoice:
+    get:
+      tags: [Payments]
+      summary: Read the immutable commercial receipt summary
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/PaymentReference'
+      responses:
+        '200':
+          description: Active workspace member receipt view.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Payment is not a confirmed success, so no receipt may be issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /payments/{paymentReference}/invoice/download:
+    get:
+      tags: [Payments]
+      summary: Obtain a short-lived private PDF receipt URL
+      description: >-
+        The response is a signed, expiring URL after active-workspace
+        authorization. The service never stores or returns a permanent public
+        invoice URL.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/PaymentReference'
+      responses:
+        '200':
+          description: PDF document is available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceDownloadEnvelope'
+        '202':
+          description: Receipt exists but deterministic document rendering is retrying.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /payments/momo/ipn:
+    post:
+      tags: [MoMo IPN]
+      summary: Receive a signed MoMo payment notification
+      description: >-
+        Public server-to-server endpoint. It validates the documented MoMo
+        Wallet HMAC, database-matches trusted identifiers, persists a scrubbed
+        receipt, and schedules local work. It is not a customer-facing status
+        endpoint and must not be called by the browser.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MomoIpnPayload'
+      responses:
+        '204':
+          description: Delivery was safely handled, deduplicated, or safely rejected.
+        '400':
+          description: Structurally invalid payload that could not be safely recorded.
+        '500':
+          description: Persistence unavailable; MoMo may retry.
+components:
+  securitySchemes:
+    accessTokenCookie:
+      type: apiKey
+      in: cookie
+      name: access_token
+  parameters:
+    WorkspaceId:
+      name: x-workspace-id
+      in: header
+      required: false
+      description: Optional active workspace; existing context guard validates membership.
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Opaque client-generated key. It is hashed server-side and never returned.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 255
+    PaymentReference:
+      name: paymentReference
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]{7,63}$'
+  responses:
+    ValidationError:
+      description: Invalid headers, query, or request body.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Unauthorized:
+      description: No valid authenticated session.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Forbidden:
+      description: No active workspace membership or insufficient workspace role.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: Resource is absent in the resolved workspace.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    CreatePaymentRequest:
+      type: object
+      additionalProperties: false
+      required: [payableItemCode]
+      properties:
+        payableItemCode:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[A-Z0-9][A-Z0-9_.-]*$'
+          description: Server catalogue code only; it is not a money-bearing object.
+    PaymentStatus:
+      type: string
+      enum: [PENDING, SUCCEEDED, FAILED, EXPIRED, CANCELLED, REJECTED]
+    PaymentCheckoutStatus:
+      type: string
+      enum: [NOT_REQUESTED, REQUESTING, READY, UNKNOWN, UNAVAILABLE]
+    Payment:
+      type: object
+      required:
+        - reference
+        - payableItem
+        - amountVnd
+        - taxVnd
+        - totalVnd
+        - currency
+        - status
+        - checkoutStatus
+        - createdAt
+        - updatedAt
+      properties:
+        reference:
+          type: string
+          example: TFP_01J7E2H6N4YQ8B2H9K4R5M6P7Q
+        payableItem:
+          $ref: '#/components/schemas/PayableItemSnapshot'
+        amountVnd:
+          type: integer
+          minimum: 1000
+          example: 10000
+        taxVnd:
+          type: integer
+          minimum: 0
+          example: 0
+        totalVnd:
+          type: integer
+          minimum: 1000
+          example: 10000
+        currency:
+          type: string
+          enum: [VND]
+        status:
+          $ref: '#/components/schemas/PaymentStatus'
+        checkoutStatus:
+          $ref: '#/components/schemas/PaymentCheckoutStatus'
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        providerTransactionReference:
+          type: string
+          nullable: true
+          description: Safe MoMo transaction correlation, returned only when available.
+        invoiceReference:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PaymentCheckout:
+      allOf:
+        - $ref: '#/components/schemas/Payment'
+        - type: object
+          properties:
+            checkout:
+              type: object
+              nullable: true
+              required: [status]
+              properties:
+                status:
+                  $ref: '#/components/schemas/PaymentCheckoutStatus'
+                payUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+                  description: MoMo-hosted checkout URL; only available to the authorized initiating context.
+                deeplink:
+                  type: string
+                  nullable: true
+                  description: Present only when the MoMo merchant capability permits it.
+                qrCodeUrl:
+                  type: string
+                  nullable: true
+                  description: Present only when the MoMo merchant capability permits it.
+    PayableItemSnapshot:
+      type: object
+      required: [code, description, termsVersion, quantity]
+      properties:
+        code:
+          type: string
+          example: DEMO_SERVICE
+        description:
+          type: string
+          example: Demo service
+        termsVersion:
+          type: string
+          example: 2026-09-demo
+        quantity:
+          type: integer
+          minimum: 1
+          example: 1
+    PaymentAuditEvent:
+      type: object
+      required: [action, actorKind, occurredAt]
+      properties:
+        action:
+          type: string
+          example: PROVIDER_RESULT_VERIFIED
+        actorKind:
+          type: string
+          enum: [USER, MOMO, SCHEDULER, SYSTEM]
+        previousState:
+          $ref: '#/components/schemas/PaymentStatus'
+          nullable: true
+        newState:
+          $ref: '#/components/schemas/PaymentStatus'
+          nullable: true
+        reasonCode:
+          type: string
+          nullable: true
+          example: MOMO_RESULT_0
+        occurredAt:
+          type: string
+          format: date-time
+    PaymentDetail:
+      allOf:
+        - $ref: '#/components/schemas/Payment'
+        - type: object
+          required: [auditEvents]
+          properties:
+            auditEvents:
+              type: array
+              items:
+                $ref: '#/components/schemas/PaymentAuditEvent'
+    InvoiceDocumentStatus:
+      type: string
+      enum: [PENDING_RENDER, AVAILABLE, RETRYABLE]
+    Invoice:
+      type: object
+      required:
+        - invoiceReference
+        - paymentReference
+        - issuedAt
+        - lineItems
+        - subtotalVnd
+        - taxVnd
+        - totalVnd
+        - currency
+        - documentStatus
+      properties:
+        invoiceReference:
+          type: string
+          example: TFI_01J7E4C1X0G9Z4M8R6K3N5Q2P
+        paymentReference:
+          type: string
+        issuedAt:
+          type: string
+          format: date-time
+        issuer:
+          type: object
+          additionalProperties: false
+          properties:
+            name:
+              type: string
+            address:
+              type: string
+        lineItems:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PayableItemSnapshot'
+        subtotalVnd:
+          type: integer
+          minimum: 0
+        taxVnd:
+          type: integer
+          minimum: 0
+        totalVnd:
+          type: integer
+          minimum: 1000
+        currency:
+          type: string
+          enum: [VND]
+        documentStatus:
+          $ref: '#/components/schemas/InvoiceDocumentStatus'
+    InvoiceDownload:
+      type: object
+      required: [invoiceReference, downloadUrl, expiresAt]
+      properties:
+        invoiceReference:
+          type: string
+        downloadUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+    MomoIpnPayload:
+      type: object
+      additionalProperties: true
+      required:
+        - partnerCode
+        - orderId
+        - requestId
+        - amount
+        - orderInfo
+        - orderType
+        - transId
+        - resultCode
+        - message
+        - payType
+        - responseTime
+        - extraData
+        - signature
+      properties:
+        partnerCode:
+          type: string
+          maxLength: 50
+        orderId:
+          type: string
+          maxLength: 200
+          pattern: '^[0-9a-zA-Z]([-_.]*[0-9a-zA-Z]+)*$'
+        requestId:
+          type: string
+          maxLength: 50
+        amount:
+          type: integer
+          minimum: 1000
+        orderInfo:
+          type: string
+          maxLength: 255
+        orderType:
+          type: string
+          example: momo_wallet
+        transId:
+          type: integer
+          format: int64
+        resultCode:
+          type: integer
+        message:
+          type: string
+          maxLength: 1024
+        payType:
+          type: string
+          example: qr
+        responseTime:
+          type: integer
+          format: int64
+        extraData:
+          type: string
+          maxLength: 1000
+        signature:
+          type: string
+          pattern: '^[a-fA-F0-9]{64}$'
+    EnvelopeBase:
+      type: object
+      required: [status, message, data, timestamp]
+      properties:
+        status:
+          type: integer
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    PaymentEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Payment'
+    PaymentCheckoutEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PaymentCheckout'
+    PaymentDetailEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PaymentDetail'
+    PaymentListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Payment'
+                nextCursor:
+                  type: string
+                  nullable: true
+    InvoiceEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Invoice'
+    InvoiceDownloadEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/InvoiceDownload'
+    ErrorEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          properties:
+            data:
+              nullable: true
+              example: null
