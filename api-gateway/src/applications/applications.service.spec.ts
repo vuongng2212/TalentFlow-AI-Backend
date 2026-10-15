@@ -462,9 +462,9 @@ describe('ApplicationsService', () => {
       });
     });
 
-    it('should filter by job owner for recruiter role', async () => {
+    it('should filter by search across candidate and job title', async () => {
       // Arrange
-      const query = { page: 1, limit: 10 };
+      const query = { page: 1, limit: 10, search: 'Alice' };
       prisma.application.findMany.mockResolvedValue([]);
       prisma.application.count.mockResolvedValue(0);
 
@@ -475,16 +475,26 @@ describe('ApplicationsService', () => {
       expect(prisma.application.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            job: {
-              createdById: 'recruiter-1',
-              workspaceId: MOCK_WORKSPACE_ID,
-            },
+            workspaceId: MOCK_WORKSPACE_ID,
+            OR: [
+              {
+                candidate: {
+                  fullName: { contains: 'Alice', mode: 'insensitive' },
+                },
+              },
+              {
+                candidate: {
+                  email: { contains: 'Alice', mode: 'insensitive' },
+                },
+              },
+              { job: { title: { contains: 'Alice', mode: 'insensitive' } } },
+            ],
           }),
         }),
       );
     });
 
-    it('should filter by candidate for non-admin users', async () => {
+    it('should scope queries to candidate profile for non-staff roles', async () => {
       // Arrange
       const query = { page: 1, limit: 10 };
       prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
@@ -493,13 +503,34 @@ describe('ApplicationsService', () => {
       prisma.application.count.mockResolvedValue(0);
 
       // Act
-      await service.findAll('user-1', 'INTERVIEWER', query);
+      await service.findAll('user-1', 'CANDIDATE', query);
 
       // Assert
       expect(prisma.application.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
+            workspaceId: MOCK_WORKSPACE_ID,
             candidateId: 'candidate-1',
+          }),
+        }),
+      );
+    });
+
+    it('should filter by minScore and maxScore', async () => {
+      // Arrange
+      const query = { page: 1, limit: 10, minScore: 70, maxScore: 90 };
+      prisma.application.findMany.mockResolvedValue([]);
+      prisma.application.count.mockResolvedValue(0);
+
+      // Act
+      await service.findAll('recruiter-1', 'RECRUITER', query);
+
+      // Assert
+      expect(prisma.application.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            workspaceId: MOCK_WORKSPACE_ID,
+            aiScore: { gte: 70, lte: 90 },
           }),
         }),
       );
@@ -648,7 +679,7 @@ describe('ApplicationsService', () => {
 
       // Act & Assert
       await expect(
-        service.findOne('app-1', 'other-user', 'RECRUITER'),
+        service.findOne('app-1', 'other-user', 'GUEST'),
       ).rejects.toThrow(ForbiddenException);
     });
   });
@@ -760,7 +791,7 @@ describe('ApplicationsService', () => {
 
       // Act & Assert
       await expect(
-        service.update('app-1', 'other-user', 'RECRUITER', updateDto),
+        service.update('app-1', 'other-user', 'GUEST', updateDto),
       ).rejects.toThrow(ForbiddenException);
     });
 

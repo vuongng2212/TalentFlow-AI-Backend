@@ -11,6 +11,7 @@ import { EmailService } from '../src/email/email.service';
 import { SendNotificationType } from '../src/notification/dto/send-notification.dto';
 import { NotificationModule } from '../src/notification/notification.module';
 import { NotificationService } from '../src/notification/notification.service';
+import { PrismaService } from '../src/prisma/prisma.service';
 
 type JoinUserRoomAck = {
   event: string;
@@ -34,6 +35,46 @@ describe('NotificationGateway client/server connection (e2e)', () => {
     process.env.JWT_ACCESS_SECRET = jwtAccessSecret;
     process.env.JWT_EXPIRES_IN = '1d';
     process.env.WS_CORS_ORIGIN = 'http://localhost:3000';
+    let pendingNotification: Record<string, unknown> = {};
+    const prismaService = {
+      notification: {
+        create: jest
+          .fn()
+          .mockImplementation(({ data }: { data: Record<string, unknown> }) => {
+            pendingNotification = {
+              id: 'notification-id',
+              applicationId: null,
+              subject: null,
+              recipient: null,
+              templateId: null,
+              templateData: null,
+              metadata: null,
+              externalId: null,
+              isRead: false,
+              readAt: null,
+              sentAt: null,
+              failedAt: null,
+              errorMessage: null,
+              expiresAt: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              deletedAt: null,
+              ...data,
+            };
+            return Promise.resolve(pendingNotification);
+          }),
+        update: jest
+          .fn()
+          .mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+            Promise.resolve({
+              ...pendingNotification,
+              ...data,
+              updatedAt: new Date(),
+            }),
+          ),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+    };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [
@@ -48,6 +89,8 @@ describe('NotificationGateway client/server connection (e2e)', () => {
       .useValue({
         sendEmail: jest.fn().mockResolvedValue(undefined),
       })
+      .overrideProvider(PrismaService)
+      .useValue(prismaService)
       .compile();
 
     app = moduleFixture.createNestApplication();

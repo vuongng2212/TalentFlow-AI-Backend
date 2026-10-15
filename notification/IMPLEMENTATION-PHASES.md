@@ -8,7 +8,7 @@
 | 2     | Email Service                       | Day 2-3  | ✅ Completed   |
 | 3     | RabbitMQ Consumer                   | Day 3-4  | ✅ Completed   |
 | 4     | Socket.IO Real-time                 | Day 4-5  | ⬜ Not Started |
-| 5     | Notification History                | Day 5-6  | ⬜ Not Started |
+| 5     | Notification History                | Day 5-6  | ✅ Completed   |
 | 6     | Testing & Documentation             | Day 6-7  | ⬜ Not Started |
 
 **Legend:** ⬜ Not Started | 🔄 In Progress | ✅ Completed | ❌ Blocked
@@ -322,34 +322,34 @@ const socket2 = io('http://localhost:5000/notifications', {
 **Tasks:**
 
 ```
-[ ] 5.1 Database Schema
-    [ ] Update prisma/schema.prisma với Notification model (all fields)
-    [ ] Run: npx prisma migrate dev --name add-notification-history
-    [ ] Seed test data (optional)
+[x] 5.1 Database Schema
+    [x] Update prisma/schema.prisma với Notification model (all fields)
+    [x] Add migration add-notification-history
+    [x] Seed test data not required (optional)
 
-[ ] 5.2 Repository (Prisma Service)
-    [ ] Update notification.service.ts
-    [ ] Implement getById()
-    [ ] Implement getByUserId() với pagination (skip/take)
-    [ ] Implement getUnreadCount()
-    [ ] Implement markAsRead()
-    [ ] Implement delete()
+[x] 5.2 Repository (Prisma Service)
+    [x] Update notification.service.ts
+    [x] Implement getById()
+    [x] Implement getByUserId() với pagination (skip/take)
+    [x] Implement getUnreadCount()
+    [x] Implement markAsRead()
+    [x] Implement delete()
 
-[ ] 5.3 API Endpoints
-    [ ] GET /api/notifications/:userId - với ownership check
-    [ ] GET /api/notifications/:userId/unread-count
-    [ ] PUT /api/notifications/:id/read
-    [ ] DELETE /api/notifications/:id
+[x] 5.3 API Endpoints
+    [x] GET /api/notifications/:userId - với ownership check
+    [x] GET /api/notifications/:userId/unread-count
+    [x] PUT /api/notifications/:id/read
+    [x] DELETE /api/notifications/:id
 
-[ ] 5.4 Cleanup Job
-    [ ] Create notification/notification-cleanup.service.ts
-    [ ] Use @nestjs/schedule → @Cron() decorator
-    [ ] Run daily, delete > 30 days
-    [ ] Log cleanup statistics
-    [ ] Add PII masking in cleanup logs
+[x] 5.4 Cleanup Job
+    [x] Create notification/notification-cleanup.service.ts
+    [x] Use @nestjs/schedule → @Cron() decorator
+    [x] Run daily, delete > 30 days
+    [x] Log cleanup statistics
+    [x] Avoid PII in cleanup logs
 
-[ ] 5.5 Integration
-    [ ] Update NotificationService to save history
+[x] 5.5 Integration
+    [x] Update NotificationService to save history
 ```
 
 **Verification:**

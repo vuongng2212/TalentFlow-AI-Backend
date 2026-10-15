@@ -6,14 +6,15 @@ metadata:
   labels:
     app: api-gateway
 data:
-  NODE_ENV: "production"
+  NODE_ENV: "development"
   PORT: "8080"
   RATE_LIMIT_TTL_SEC: "60"
   RATE_LIMIT_MAX: "100"
   BODY_LIMIT_MB: "10"
   TIMEOUT_MS: "15000"
-  CORS_ORIGINS: "https://app.talentflow.ai"
-  SWAGGER_ENABLED: "false"
+  CORS_ORIGINS: "http://localhost:3000,https://app.talentflow.ai,http://app.talentflow.local"
+  WORKSPACE_INVITE_BASE_URL: "http://localhost:3000/invite/accept"
+  SWAGGER_ENABLED: "true"
   # S3/MinIO
   R2_ENDPOINT: "http://minio-service.talentflow.svc.cluster.local:9000"
   R2_BUCKET: "talentflow-cvs"

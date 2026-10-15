@@ -3,6 +3,7 @@ import { EmailTemplateId } from '../../src/email/email-template';
 import { EmailService } from '../../src/email/email.service';
 import { NotificationGateway } from '../../src/notification/notification.gateway';
 import { NotificationService } from '../../src/notification/notification.service';
+import { PrismaService } from '../../src/prisma/prisma.service';
 
 describe('NotificationService', () => {
   let emailService: jest.Mocked<Pick<EmailService, 'sendEmail'>>;
@@ -35,9 +36,49 @@ describe('NotificationService', () => {
     notificationGateway = {
       sendToUser: jest.fn(),
     };
+    let pendingNotification: Record<string, unknown> = {};
+    const prismaService = {
+      notification: {
+        create: jest
+          .fn()
+          .mockImplementation(({ data }: { data: Record<string, unknown> }) => {
+            pendingNotification = {
+              id: 'notification-id',
+              applicationId: null,
+              subject: null,
+              recipient: null,
+              templateId: null,
+              templateData: null,
+              metadata: null,
+              externalId: null,
+              isRead: false,
+              readAt: null,
+              sentAt: null,
+              failedAt: null,
+              errorMessage: null,
+              expiresAt: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              deletedAt: null,
+              ...data,
+            };
+            return Promise.resolve(pendingNotification);
+          }),
+        update: jest
+          .fn()
+          .mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+            Promise.resolve({
+              ...pendingNotification,
+              ...data,
+              updatedAt: new Date(),
+            }),
+          ),
+      },
+    };
     service = new NotificationService(
       emailService as unknown as EmailService,
       notificationGateway as unknown as NotificationGateway,
+      prismaService as unknown as PrismaService,
     );
   });
 

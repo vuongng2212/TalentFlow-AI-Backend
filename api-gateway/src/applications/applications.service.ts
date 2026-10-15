@@ -216,6 +216,9 @@ export class ApplicationsService {
     const {
       page = 1,
       limit = 10,
+      search,
+      minScore,
+      maxScore,
       jobId,
       candidateId,
       stage,
@@ -230,26 +233,34 @@ export class ApplicationsService {
       deletedAt: null,
     };
 
-    if (userRole === 'RECRUITER') {
-      where.job = {
-        workspaceId,
-        createdById: userId,
+    if (search) {
+      where.OR = [
+        { candidate: { fullName: { contains: search, mode: 'insensitive' } } },
+        { candidate: { email: { contains: search, mode: 'insensitive' } } },
+        { job: { title: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    if (minScore !== undefined || maxScore !== undefined) {
+      where.aiScore = {
+        ...(minScore !== undefined && { gte: minScore }),
+        ...(maxScore !== undefined && { lte: maxScore }),
       };
-    } else if (userRole !== 'ADMIN') {
-      const candidateIdForViewer = await this.resolveCandidateIdForViewer(
-        userId,
-        workspaceId,
-      );
-      if (candidateIdForViewer) {
-        where.candidateId = candidateIdForViewer;
-      }
     }
 
     if (jobId) {
       where.jobId = jobId;
     }
 
-    if (candidateId && userRole === 'ADMIN') {
+    const isStaff = ['ADMIN', 'RECRUITER', 'INTERVIEWER'].includes(userRole);
+    if (!isStaff) {
+      const candidateIdForViewer = await this.resolveCandidateIdForViewer(
+        userId,
+        workspaceId,
+      );
+      where.candidateId =
+        candidateIdForViewer || '00000000-0000-0000-0000-000000000000';
+    } else if (candidateId) {
       where.candidateId = candidateId;
     }
 
@@ -363,10 +374,10 @@ export class ApplicationsService {
       : null;
 
     const isApplicant = candidate && application.candidateId === candidate.id;
-    const isRecruiter = application.job.createdById === userId;
-    const isAdmin = userRole === 'ADMIN';
+    const isJobCreator = application.job.createdById === userId;
+    const isStaff = ['ADMIN', 'RECRUITER', 'INTERVIEWER'].includes(userRole);
 
-    if (!isApplicant && !isRecruiter && !isAdmin) {
+    if (!isApplicant && !isJobCreator && !isStaff) {
       throw new ForbiddenException(
         'You do not have permission to view this application',
       );
@@ -393,23 +404,23 @@ export class ApplicationsService {
         })
       : null;
 
-    const isRecruiter = application.job.createdById === userId;
+    const isJobCreator = application.job.createdById === userId;
     const isApplicant = candidate && application.candidateId === candidate.id;
-    const isAdmin = userRole === 'ADMIN';
+    const isStaff = ['ADMIN', 'RECRUITER'].includes(userRole);
 
     if (
       updateApplicationDto.stage ||
       updateApplicationDto.status ||
       updateApplicationDto.notes
     ) {
-      if (!isRecruiter && !isAdmin) {
+      if (!isJobCreator && !isStaff) {
         throw new ForbiddenException(
           'Only recruiters can update application stage, status and notes',
         );
       }
     }
 
-    if (!isRecruiter && !isAdmin && !isApplicant) {
+    if (!isJobCreator && !isStaff && !isApplicant) {
       throw new ForbiddenException(
         'You do not have permission to update this application',
       );

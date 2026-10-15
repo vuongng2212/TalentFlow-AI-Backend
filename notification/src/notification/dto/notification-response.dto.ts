@@ -11,6 +11,9 @@ export class NotificationResponseDto {
   subject?: string;
   status?: string;
   read: boolean;
+  isRead: boolean;
+  readAt?: string;
   sentAt?: string;
+  failedAt?: string;
   createdAt: string;
 }

@@ -150,7 +150,7 @@ services:
   # MinIO (Local S3-compatible storage for development)
   # In production, use Cloudflare R2
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: talentflow-minio
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -171,7 +171,7 @@ services:
 
   # MinIO Client (Create bucket automatically)
   minio-setup:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     container_name: talentflow-minio-setup
     depends_on:
       - minio
