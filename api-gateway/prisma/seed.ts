@@ -5,8 +5,10 @@ import {
   InterviewStatus,
   InterviewType,
   JobStatus,
+  PlanCode,
   PrismaClient,
   Role,
+  SubscriptionStatus,
   WorkspaceMemberRole,
   WorkspaceMemberStatus,
 } from '@prisma/client';
@@ -39,13 +41,65 @@ async function main() {
   await prisma.emailTemplate.deleteMany();
   await prisma.workspaceInvitation.deleteMany();
   await prisma.workspaceMember.deleteMany();
-  
+  await prisma.subscription.deleteMany();
+
   // Clear user activeWorkspaceId first to avoid foreign key violations when deleting workspaces
   await prisma.user.updateMany({
     data: { activeWorkspaceId: null },
   });
   await prisma.workspace.deleteMany();
   await prisma.user.deleteMany();
+
+  const [freePlan, , businessPlan] = await Promise.all([
+    prisma.plan.upsert({
+      where: { code: PlanCode.FREE },
+      update: {
+        name: 'Free',
+        displayOrder: 1,
+        isActive: true,
+        enablesBusiness: false,
+      },
+      create: {
+        code: PlanCode.FREE,
+        name: 'Free',
+        displayOrder: 1,
+        isActive: true,
+        enablesBusiness: false,
+      },
+    }),
+    prisma.plan.upsert({
+      where: { code: PlanCode.PLUS },
+      update: {
+        name: 'Plus',
+        displayOrder: 2,
+        isActive: true,
+        enablesBusiness: false,
+      },
+      create: {
+        code: PlanCode.PLUS,
+        name: 'Plus',
+        displayOrder: 2,
+        isActive: true,
+        enablesBusiness: false,
+      },
+    }),
+    prisma.plan.upsert({
+      where: { code: PlanCode.BUSINESS },
+      update: {
+        name: 'Business',
+        displayOrder: 3,
+        isActive: true,
+        enablesBusiness: true,
+      },
+      create: {
+        code: PlanCode.BUSINESS,
+        name: 'Business',
+        displayOrder: 3,
+        isActive: true,
+        enablesBusiness: true,
+      },
+    }),
+  ]);
 
   console.log('Seeding Users and their Personal Workspaces...');
   // 1. Seed Core Users
@@ -87,13 +141,26 @@ async function main() {
   });
 
   // Provision Personal Workspaces
-  const users = [userAdmin, userRecruiter, userInterviewer, userInvitedRecruiter];
+  const users = [
+    userAdmin,
+    userRecruiter,
+    userInterviewer,
+    userInvitedRecruiter,
+  ];
   for (const user of users) {
     const personalWorkspace = await prisma.workspace.create({
       data: {
         name: `${user.fullName} - Personal Workspace`,
         isBusiness: false,
         createdById: user.id,
+      },
+    });
+
+    await prisma.subscription.create({
+      data: {
+        workspaceId: personalWorkspace.id,
+        planId: freePlan.id,
+        status: SubscriptionStatus.ACTIVE,
       },
     });
 
@@ -120,6 +187,14 @@ async function main() {
       name: 'Acme Corp - Tech Recruitment',
       isBusiness: true,
       createdById: userAdmin.id,
+    },
+  });
+
+  await prisma.subscription.create({
+    data: {
+      workspaceId: businessWorkspace.id,
+      planId: businessPlan.id,
+      status: SubscriptionStatus.ACTIVE,
     },
   });
 
@@ -222,7 +297,8 @@ async function main() {
   const jobBackend = await prisma.job.create({
     data: {
       title: 'Senior Backend Engineer',
-      description: 'Build scalable backend services for ATS workflows and hiring automation.',
+      description:
+        'Build scalable backend services for ATS workflows and hiring automation.',
       requirements: [
         '3+ years experience with Node.js or NestJS',
         'Strong SQL and data modeling skills',
@@ -242,7 +318,8 @@ async function main() {
   const jobFrontend = await prisma.job.create({
     data: {
       title: 'Frontend Engineer',
-      description: 'Develop modern, responsive interfaces for recruiters and hiring managers.',
+      description:
+        'Develop modern, responsive interfaces for recruiters and hiring managers.',
       requirements: [
         'Strong React and TypeScript knowledge',
         'Experience with state management and testing',
@@ -262,7 +339,8 @@ async function main() {
   const jobDevOps = await prisma.job.create({
     data: {
       title: 'DevOps Engineer',
-      description: 'Maintain infrastructure, observability, and deployment pipelines.',
+      description:
+        'Maintain infrastructure, observability, and deployment pipelines.',
       requirements: [
         'Hands-on with Docker and Kubernetes',
         'Experience with CI/CD and IaC',
@@ -279,10 +357,11 @@ async function main() {
     },
   });
 
-  const jobProductManager = await prisma.job.create({
+  await prisma.job.create({
     data: {
       title: 'Product Manager',
-      description: 'Define product vision and collaborate with engineering team.',
+      description:
+        'Define product vision and collaborate with engineering team.',
       requirements: [
         'Product management experience in B2B SaaS',
         'Strong roadmap execution and analytical skills',
@@ -307,7 +386,8 @@ async function main() {
       phone: '+84901111222',
       linkedinUrl: 'https://linkedin.com/in/seed-alice-nguyen',
       resumeUrl: 'https://minio.local/talentflow-cvs/seed-alice-nguyen.pdf',
-      resumeText: 'Seed backend engineer with 4 years experience in Node.js and PostgreSQL.',
+      resumeText:
+        'Seed backend engineer with 4 years experience in Node.js and PostgreSQL.',
       workspaceId: businessWorkspace.id,
     },
   });
@@ -319,7 +399,8 @@ async function main() {
       phone: '+84903333444',
       linkedinUrl: 'https://linkedin.com/in/seed-bob-tran',
       resumeUrl: 'https://minio.local/talentflow-cvs/seed-bob-tran.pdf',
-      resumeText: 'Seed frontend engineer focused on React, TypeScript, and accessibility.',
+      resumeText:
+        'Seed frontend engineer focused on React, TypeScript, and accessibility.',
       workspaceId: businessWorkspace.id,
     },
   });
@@ -331,7 +412,8 @@ async function main() {
       phone: '+84905555666',
       linkedinUrl: 'https://linkedin.com/in/seed-charlie-le',
       resumeUrl: 'https://minio.local/talentflow-cvs/seed-charlie-le.pdf',
-      resumeText: 'Seed DevOps engineer experienced with Docker, CI/CD, and cloud infrastructure.',
+      resumeText:
+        'Seed DevOps engineer experienced with Docker, CI/CD, and cloud infrastructure.',
       workspaceId: businessWorkspace.id,
     },
   });
@@ -374,7 +456,7 @@ async function main() {
     },
   });
 
-  const appCharlie = await prisma.application.create({
+  await prisma.application.create({
     data: {
       jobId: jobDevOps.id,
       candidateId: candidateCharlie.id,
@@ -386,7 +468,7 @@ async function main() {
     },
   });
 
-  const appDavid = await prisma.application.create({
+  await prisma.application.create({
     data: {
       jobId: jobBackend.id,
       candidateId: candidateDavid.id,
@@ -444,8 +526,12 @@ async function main() {
 
   console.log('Seed completed successfully!');
   console.log(`- Workspaces: ${await prisma.workspace.count()}`);
+  console.log(`- Plans: ${await prisma.plan.count()}`);
+  console.log(`- Subscriptions: ${await prisma.subscription.count()}`);
   console.log(`- Workspace Member: ${await prisma.workspaceMember.count()}`);
-  console.log(`- Workspace Invitation: ${await prisma.workspaceInvitation.count()}`);
+  console.log(
+    `- Workspace Invitation: ${await prisma.workspaceInvitation.count()}`,
+  );
   console.log(`- Email Templates: ${await prisma.emailTemplate.count()}`);
   console.log(`- Jobs: ${await prisma.job.count()}`);
   console.log(`- Candidates: ${await prisma.candidate.count()}`);

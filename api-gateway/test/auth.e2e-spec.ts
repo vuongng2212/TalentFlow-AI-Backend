@@ -54,25 +54,63 @@ describe('AuthController (E2E)', () => {
   });
 
   afterAll(async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: testUser.email },
+      select: { id: true },
+    });
+    if (user) {
+      const personalWorkspaces = await prisma.workspace.findMany({
+        where: { createdById: user.id },
+        select: { id: true },
+      });
+      const workspaceIds = personalWorkspaces.map((workspace) => workspace.id);
+
+      if (workspaceIds.length > 0) {
+        await prisma.workspaceMember.deleteMany({
+          where: { workspaceId: { in: workspaceIds } },
+        });
+        await prisma.subscription.deleteMany({
+          where: { workspaceId: { in: workspaceIds } },
+        });
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { activeWorkspaceId: null },
+        });
+        await prisma.workspace.deleteMany({
+          where: { id: { in: workspaceIds } },
+        });
+      }
+    }
     await prisma.user.deleteMany({ where: { email: testUser.email } });
     await app.close();
   });
 
-  it('/auth/signup (POST)', () => {
-    return request(httpServer)
+  it('/auth/signup (POST) provisions a Free personal-workspace subscription', async () => {
+    const response = await request(httpServer)
       .post('/api/v1/auth/signup')
       .send(testUser)
-      .expect(201)
-      .expect((res) => {
-        const body = res.body as {
-          message?: string;
-          data?: { user?: { email?: string } };
-        };
-        const user = body.data?.user;
-        expect(body.message).toEqual('User registered successfully');
-        expect(user).toBeDefined();
-        expect(user?.email).toEqual(testUser.email);
-      });
+      .expect(201);
+
+    const body = response.body as {
+      message?: string;
+      data?: { user?: { email?: string } };
+    };
+    const user = body.data?.user;
+    expect(body.message).toEqual('User registered successfully');
+    expect(user).toBeDefined();
+    expect(user?.email).toEqual(testUser.email);
+
+    const persistedUser = await prisma.user.findUnique({
+      where: { email: testUser.email },
+      select: { activeWorkspaceId: true },
+    });
+    const subscription = await prisma.subscription.findUnique({
+      where: { workspaceId: persistedUser?.activeWorkspaceId ?? '' },
+      include: { plan: true },
+    });
+    expect(subscription?.status).toBe('ACTIVE');
+    expect(subscription?.plan.code).toBe('FREE');
+    expect(subscription?.plan.enablesBusiness).toBe(false);
   });
 
   it('/auth/login (POST)', async () => {

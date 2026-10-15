@@ -43,11 +43,16 @@ describe('Workspaces (e2e)', () => {
 
     prisma = app.get<PrismaService>(PrismaService);
 
-    await prisma.workspaceMember.deleteMany();
-    await prisma.workspace.deleteMany();
+    await prisma.interview.deleteMany();
     await prisma.application.deleteMany();
     await prisma.candidate.deleteMany();
     await prisma.job.deleteMany();
+    await prisma.emailTemplate.deleteMany();
+    await prisma.workspaceInvitation.deleteMany();
+    await prisma.workspaceMember.deleteMany();
+    await prisma.subscription.deleteMany();
+    await prisma.user.updateMany({ data: { activeWorkspaceId: null } });
+    await prisma.workspace.deleteMany();
     await prisma.user.deleteMany();
 
     await request(app.getHttpServer()).post('/api/v1/auth/signup').send({
@@ -104,23 +109,35 @@ describe('Workspaces (e2e)', () => {
       outsiderCookies.find((c) => c.startsWith('access_token')) ?? '';
   });
   afterAll(async () => {
-    await prisma.workspaceMember.deleteMany();
-    await prisma.workspace.deleteMany();
+    await prisma.interview.deleteMany();
     await prisma.application.deleteMany();
     await prisma.candidate.deleteMany();
     await prisma.job.deleteMany();
+    await prisma.emailTemplate.deleteMany();
+    await prisma.workspaceInvitation.deleteMany();
+    await prisma.workspaceMember.deleteMany();
+    await prisma.subscription.deleteMany();
+    await prisma.user.updateMany({ data: { activeWorkspaceId: null } });
+    await prisma.workspace.deleteMany();
     await prisma.user.deleteMany();
     await app.close();
   });
 
   describe('POST /api/v1/workspaces', () => {
-    it('should create a workspace and owner membership', async () => {
+    it('should reject a client-supplied Business entitlement', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/workspaces')
+        .set('Cookie', [ownerCookie])
+        .send({ name: 'Untrusted entitlement', isBusiness: true })
+        .expect(400);
+    });
+
+    it('should create a Free workspace, subscription, and owner membership', async () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/workspaces')
         .set('Cookie', [ownerCookie])
         .send({
           name: 'TalentFlow Workspace',
-          isBusiness: true,
         })
         .expect(201);
 
@@ -130,7 +147,7 @@ describe('Workspaces (e2e)', () => {
       });
       expect(response.body.data).toMatchObject({
         name: 'TalentFlow Workspace',
-        isBusiness: true,
+        isBusiness: false,
       });
 
       workspaceId = response.body.data.id;
@@ -151,6 +168,29 @@ describe('Workspaces (e2e)', () => {
       expect(membership).not.toBeNull();
       expect(membership?.role).toBe('OWNER');
       expect(membership?.status).toBe('ACTIVE');
+
+      const subscription = await prisma.subscription.findUnique({
+        where: { workspaceId },
+        include: { plan: true },
+      });
+      expect(subscription?.status).toBe('ACTIVE');
+      expect(subscription?.plan.code).toBe('FREE');
+      expect(subscription?.plan.enablesBusiness).toBe(false);
+    });
+
+    it('should enable Business membership operations only after an owner selects Business', async () => {
+      const response = await request(app.getHttpServer())
+        .put('/api/v1/subscriptions/current')
+        .set('Cookie', [ownerCookie])
+        .set('x-workspace-id', workspaceId)
+        .send({ planCode: 'BUSINESS' })
+        .expect(200);
+
+      expect(response.body.data).toMatchObject({
+        workspaceId,
+        isBusiness: true,
+        plan: { code: 'BUSINESS', enablesBusiness: true },
+      });
     });
   });
 
@@ -178,18 +218,21 @@ describe('Workspaces (e2e)', () => {
         .expect(403);
     });
 
-    it('should reject adding member when workspace is not business', async () => {
-      const personalWorkspace = await request(app.getHttpServer())
-        .post('/api/v1/workspaces')
+    it('should reject adding member after a Business workspace is downgraded', async () => {
+      const downgrade = await request(app.getHttpServer())
+        .put('/api/v1/subscriptions/current')
         .set('Cookie', [ownerCookie])
-        .send({
-          name: 'Personal Workspace',
-          isBusiness: false,
-        })
-        .expect(201);
+        .set('x-workspace-id', workspaceId)
+        .send({ planCode: 'FREE' })
+        .expect(200);
+
+      expect(downgrade.body.data).toMatchObject({
+        isBusiness: false,
+        plan: { code: 'FREE', enablesBusiness: false },
+      });
 
       await request(app.getHttpServer())
-        .post(`/api/v1/workspaces/${personalWorkspace.body.data.id}/members`)
+        .post(`/api/v1/workspaces/${workspaceId}/members`)
         .set('Cookie', [ownerCookie])
         .send({ email: 'workspace-outsider@test.com' })
         .expect(403);

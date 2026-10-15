@@ -13,6 +13,7 @@ import {
 import { QueryUsersDto } from './dto/query-users.dto';
 import type { PaginatedResult } from '../common/dto/pagination.dto';
 import type { User } from '@prisma/client';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 type SafeUser = Omit<User, 'password'>;
 
@@ -20,7 +21,10 @@ type SafeUser = Omit<User, 'password'>;
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptionsService: SubscriptionsService,
+  ) {}
 
   /**
    * Atomically provisions a default Personal Workspace and active
@@ -52,6 +56,11 @@ export class UsersService {
           createdById: user.id,
         },
       });
+
+      await this.subscriptionsService.provisionFreeForWorkspace(
+        tx,
+        personalWorkspace.id,
+      );
 
       await tx.workspaceMember.create({
         data: {

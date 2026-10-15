@@ -79,7 +79,7 @@ export class WorkspacesController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update workspace name or plan (owner/admin only)' })
+  @ApiOperation({ summary: 'Update workspace name (owner/admin only)' })
   @ApiResponse({ status: 200, description: 'Workspace updated successfully' })
   @ApiResponse({ status: 403, description: 'Forbidden – not owner/admin' })
   @ApiResponse({ status: 404, description: 'Workspace not found' })

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/unbound-method */
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
@@ -6,6 +6,7 @@ import { WorkspaceMemberRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspaceCoreService } from './workspace-core.service';
 import { WorkspaceMemberService } from './workspace-member.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { PrismaClient } from '@prisma/client';
 
@@ -13,11 +14,15 @@ describe('WorkspaceCoreService', () => {
   let service: WorkspaceCoreService;
   let prisma: DeepMockProxy<PrismaClient>;
   let memberService: jest.Mocked<WorkspaceMemberService>;
+  let subscriptionsService: jest.Mocked<SubscriptionsService>;
 
   beforeEach(async () => {
     const mockMemberService = {
       ensureMemberAccess: jest.fn().mockResolvedValue(undefined),
       ensureCanManageMembers: jest.fn().mockResolvedValue(undefined),
+    };
+    const mockSubscriptionsService = {
+      provisionFreeForWorkspace: jest.fn().mockResolvedValue({}),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -31,12 +36,17 @@ describe('WorkspaceCoreService', () => {
           provide: WorkspaceMemberService,
           useValue: mockMemberService,
         },
+        {
+          provide: SubscriptionsService,
+          useValue: mockSubscriptionsService,
+        },
       ],
     }).compile();
 
     service = module.get<WorkspaceCoreService>(WorkspaceCoreService);
     prisma = module.get(PrismaService);
     memberService = module.get(WorkspaceMemberService);
+    subscriptionsService = module.get(SubscriptionsService);
   });
 
   describe('create', () => {
@@ -61,6 +71,12 @@ describe('WorkspaceCoreService', () => {
 
       const res = await service.create('user-1', { name: 'New WS' });
       expect(res).toEqual(workspace);
+      expect(
+        subscriptionsService.provisionFreeForWorkspace,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ workspace: expect.any(Object) }),
+        'ws-1',
+      );
     });
   });
 

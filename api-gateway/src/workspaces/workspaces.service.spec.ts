@@ -24,6 +24,7 @@ import { WorkspaceCoreService } from './workspace-core.service';
 import { WorkspaceMemberService } from './workspace-member.service';
 import { WorkspaceInvitationService } from './workspace-invitation.service';
 import { WorkspacesService } from './workspaces.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 
 describe('WorkspacesService', () => {
@@ -66,6 +67,12 @@ describe('WorkspacesService', () => {
           provide: QueueService,
           useValue: mockQueueService,
         },
+        {
+          provide: SubscriptionsService,
+          useValue: {
+            provisionFreeForWorkspace: jest.fn().mockResolvedValue({}),
+          },
+        },
       ],
     }).compile();
 
@@ -83,7 +90,7 @@ describe('WorkspacesService', () => {
       const workspace = {
         id: 'workspace-1',
         name: 'Test Workspace',
-        isBusiness: true,
+        isBusiness: false,
       };
 
       prisma.$transaction.mockImplementation(async (callback: any) => {
@@ -104,7 +111,7 @@ describe('WorkspacesService', () => {
         expect(tx.workspace.create).toHaveBeenCalledWith({
           data: {
             name: 'Test Workspace',
-            isBusiness: true,
+            isBusiness: false,
             createdById: 'user-1',
           },
         });
@@ -123,7 +130,6 @@ describe('WorkspacesService', () => {
 
       const result = await service.create('user-1', {
         name: 'Test Workspace',
-        isBusiness: true,
       });
 
       expect(result).toEqual(workspace);
@@ -970,68 +976,20 @@ describe('WorkspacesService', () => {
       expect(result.name).toBe('Admin Rename');
     });
 
-    it('should upgrade workspace to business plan when isBusiness is set to true', async () => {
-      const upgraded = { ...workspaceFixture, isBusiness: true };
-
+    it('should never persist a client-supplied Business entitlement', async () => {
       prisma.workspace.findUnique.mockResolvedValue(workspaceFixture);
       prisma.workspaceMember.findFirst.mockResolvedValue({
         role: WorkspaceMemberRole.OWNER,
       } as never);
-      (prisma.workspace.update as jest.Mock).mockResolvedValue(upgraded);
+      (prisma.workspace.update as jest.Mock).mockResolvedValue(
+        workspaceFixture,
+      );
 
-      const result = await service.update('ws-1', 'owner-1', {
-        isBusiness: true,
-      });
+      await service.update('ws-1', 'owner-1', { isBusiness: true } as never);
 
       expect(prisma.workspace.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { isBusiness: true },
-        }),
+        expect.objectContaining({ data: {} }),
       );
-      expect(result.isBusiness).toBe(true);
-    });
-
-    it('should allow updating name and isBusiness simultaneously', async () => {
-      const updated = {
-        ...workspaceFixture,
-        name: 'Acme Biz',
-        isBusiness: true,
-      };
-
-      prisma.workspace.findUnique.mockResolvedValue(workspaceFixture);
-      prisma.workspaceMember.findFirst.mockResolvedValue({
-        role: WorkspaceMemberRole.OWNER,
-      } as never);
-      (prisma.workspace.update as jest.Mock).mockResolvedValue(updated);
-
-      const result = await service.update('ws-1', 'owner-1', {
-        name: 'Acme Biz',
-        isBusiness: true,
-      });
-
-      expect(prisma.workspace.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { name: 'Acme Biz', isBusiness: true },
-        }),
-      );
-      expect(result).toEqual(updated);
-    });
-
-    it('should not include undefined fields in the update data', async () => {
-      // Only isBusiness provided — name must NOT appear in data
-      const updated = { ...workspaceFixture, isBusiness: true };
-
-      prisma.workspace.findUnique.mockResolvedValue(workspaceFixture);
-      prisma.workspaceMember.findFirst.mockResolvedValue({
-        role: WorkspaceMemberRole.OWNER,
-      } as never);
-      (prisma.workspace.update as jest.Mock).mockResolvedValue(updated);
-
-      await service.update('ws-1', 'owner-1', { isBusiness: true });
-
-      const callArg = (prisma.workspace.update as any).mock.calls[0][0];
-      expect(callArg.data).not.toHaveProperty('name');
-      expect(callArg.data).toEqual({ isBusiness: true });
     });
 
     it('should return only the selected fields from workspace.update', async () => {

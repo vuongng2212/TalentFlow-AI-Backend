@@ -6,8 +6,10 @@ import { WorkspaceCoreService } from './workspace-core.service';
 import { WorkspaceMemberService } from './workspace-member.service';
 import { WorkspaceInvitationService } from './workspace-invitation.service';
 import { WorkspacesCleanupService } from './workspaces-cleanup.service';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
+  imports: [SubscriptionsModule],
   controllers: [WorkspacesController],
   providers: [
     WorkspacesService,

@@ -5,12 +5,14 @@ import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { WorkspaceMemberService } from './workspace-member.service';
 import { WORKSPACE_SELECT } from './constants/workspace.constants';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class WorkspaceCoreService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly memberService: WorkspaceMemberService,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   async create(ownerId: string, dto: CreateWorkspaceDto) {
@@ -18,10 +20,15 @@ export class WorkspaceCoreService {
       const workspace = await tx.workspace.create({
         data: {
           name: dto.name,
-          isBusiness: dto.isBusiness ?? false,
+          isBusiness: false,
           createdById: ownerId,
         },
       });
+
+      await this.subscriptionsService.provisionFreeForWorkspace(
+        tx,
+        workspace.id,
+      );
 
       await tx.workspaceMember.create({
         data: {
@@ -116,7 +123,6 @@ export class WorkspaceCoreService {
       where: { id: workspaceId },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.isBusiness !== undefined && { isBusiness: dto.isBusiness }),
       },
       select: WORKSPACE_SELECT,
     });

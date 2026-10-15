@@ -13,10 +13,12 @@ import {
   WorkspaceMember,
 } from '@prisma/client';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 describe('UsersService', () => {
   let service: UsersService;
   let prisma: DeepMockProxy<PrismaClient>;
+  let subscriptionsService: jest.Mocked<SubscriptionsService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -26,11 +28,18 @@ describe('UsersService', () => {
           provide: PrismaService,
           useValue: mockDeep<PrismaClient>(),
         },
+        {
+          provide: SubscriptionsService,
+          useValue: {
+            provisionFreeForWorkspace: jest.fn().mockResolvedValue({}),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<UsersService>(UsersService);
     prisma = module.get(PrismaService);
+    subscriptionsService = module.get(SubscriptionsService);
   });
 
   afterEach(() => {
@@ -90,6 +99,12 @@ describe('UsersService', () => {
       expect(result.user).toEqual(updatedUser);
       expect(result.personalWorkspaceId).toBe('ws-1');
       expect(prisma.$transaction).toHaveBeenCalled();
+      expect(
+        subscriptionsService.provisionFreeForWorkspace,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ workspace: expect.any(Object) }),
+        'ws-1',
+      );
     });
   });
 
