@@ -51,7 +51,6 @@ import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
           }),
         ];
 
-        // Forward logs to Elasticsearch when ELK_HOST is configured.
         if (elkHost) {
           const elkTransport = new ElasticsearchTransport({
             level: configService.get<string>('ELK_LOG_LEVEL', 'info'),
@@ -105,7 +104,7 @@ import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
     }),
     ThrottlerModule.forRoot([
       {
-        ttl: 60000,
+        ttl: 60,
         limit: 100,
       },
     ]),

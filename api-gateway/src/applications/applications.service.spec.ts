@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApplicationsService } from './applications.service';
 import { CvOrchestrationService } from './cv-orchestration.service';
@@ -9,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { QueueService } from '../queue/queue.service';
 import { WorkspaceContextService } from '../common/services/workspace-context.service';
+import { RedisService } from '../redis/redis.service';
 import {
   NotFoundException,
   ForbiddenException,
@@ -150,6 +148,14 @@ describe('ApplicationsService', () => {
           provide: WorkspaceContextService,
           useValue: mockWorkspaceContextService,
         },
+        {
+          provide: RedisService,
+          useValue: {
+            get: jest.fn().mockResolvedValue(null),
+            set: jest.fn().mockResolvedValue('OK'),
+            delByPattern: jest.fn().mockResolvedValue(0),
+          },
+        },
       ],
     }).compile();
 
@@ -164,7 +170,6 @@ describe('ApplicationsService', () => {
 
   describe('create', () => {
     it('should create an application successfully', async () => {
-      // Arrange
       const createDto = { jobId: 'job-1', coverLetter: 'I am interested' };
       prisma.job.findFirst.mockResolvedValue(mockJob);
       prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
@@ -184,10 +189,8 @@ describe('ApplicationsService', () => {
         },
       } as never);
 
-      // Act
       const result = await service.create('user-1', createDto);
 
-      // Assert
       expect(result.jobId).toBe('job-1');
       expect(result.candidateId).toBe('candidate-1');
       expect(prisma.application.create).toHaveBeenCalled();
@@ -203,58 +206,49 @@ describe('ApplicationsService', () => {
     });
 
     it('should throw NotFoundException when job not found', async () => {
-      // Arrange
       const createDto = { jobId: 'non-existent-job' };
       prisma.job.findFirst.mockResolvedValue(null);
 
-      // Act & Assert
       await expect(service.create('user-1', createDto)).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('should throw NotFoundException when job is soft deleted', async () => {
-      // Arrange
       const createDto = { jobId: 'deleted-job' };
       prisma.job.findFirst.mockResolvedValue({
         ...mockJob,
         deletedAt: new Date(),
       });
 
-      // Act & Assert
       await expect(service.create('user-1', createDto)).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('should throw ForbiddenException when job is not open', async () => {
-      // Arrange
       const createDto = { jobId: 'job-1' };
       prisma.job.findFirst.mockResolvedValue({
         ...mockJob,
         status: JobStatus.CLOSED,
       });
 
-      // Act & Assert
       await expect(service.create('user-1', createDto)).rejects.toThrow(
         ForbiddenException,
       );
     });
 
     it('should throw NotFoundException when user not found', async () => {
-      // Arrange
       const createDto = { jobId: 'job-1' };
       prisma.job.findFirst.mockResolvedValue(mockJob);
       prisma.user.findUnique.mockResolvedValue(null);
 
-      // Act & Assert
       await expect(
         service.create('non-existent-user', createDto),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should create candidate if not exists', async () => {
-      // Arrange
       const createDto = { jobId: 'job-1' };
       prisma.job.findFirst.mockResolvedValue(mockJob);
       prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
@@ -275,10 +269,8 @@ describe('ApplicationsService', () => {
         },
       } as never);
 
-      // Act
       await service.create('user-1', createDto);
 
-      // Assert
       expect(prisma.candidate.create).toHaveBeenCalledWith({
         data: {
           email: mockUser.email,
@@ -289,7 +281,6 @@ describe('ApplicationsService', () => {
     });
 
     it('should throw ConflictException when already applied', async () => {
-      // Arrange
       const createDto = { jobId: 'job-1' };
       prisma.job.findFirst.mockResolvedValue(mockJob);
       prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
@@ -298,7 +289,6 @@ describe('ApplicationsService', () => {
         mockApplication as unknown as Application,
       );
 
-      // Act & Assert
       await expect(service.create('user-1', createDto)).rejects.toThrow(
         ConflictException,
       );
@@ -383,7 +373,6 @@ describe('ApplicationsService', () => {
       prisma.application.findFirst.mockResolvedValue(null);
       mockStorageService.upload.mockRejectedValue(new Error('upload failed'));
 
-      // Silence the logger error for this test
       const loggerSpy = jest
         .spyOn(cvUploadService['logger'], 'error')
         .mockImplementation();
@@ -415,7 +404,6 @@ describe('ApplicationsService', () => {
       prisma.application.delete.mockResolvedValue({} as unknown as Application);
       mockStorageService.delete.mockResolvedValue(undefined);
 
-      // Silence the logger error for this test
       const loggerSpy = jest
         .spyOn(cvUploadService['logger'], 'error')
         .mockImplementation();
@@ -440,17 +428,14 @@ describe('ApplicationsService', () => {
 
   describe('findAll', () => {
     it('should return paginated applications for recruiter', async () => {
-      // Arrange
       const query = { page: 1, limit: 10 };
       prisma.application.findMany.mockResolvedValue([
         mockApplication,
       ] as unknown as Application[]);
       prisma.application.count.mockResolvedValue(1);
 
-      // Act
       const result = await service.findAll('recruiter-1', 'RECRUITER', query);
 
-      // Assert
       expect(result).toEqual({
         data: [mockApplication],
         meta: {
@@ -463,15 +448,12 @@ describe('ApplicationsService', () => {
     });
 
     it('should filter by search across candidate and job title', async () => {
-      // Arrange
       const query = { page: 1, limit: 10, search: 'Alice' };
       prisma.application.findMany.mockResolvedValue([]);
       prisma.application.count.mockResolvedValue(0);
 
-      // Act
       await service.findAll('recruiter-1', 'RECRUITER', query);
 
-      // Assert
       expect(prisma.application.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -495,17 +477,14 @@ describe('ApplicationsService', () => {
     });
 
     it('should scope queries to candidate profile for non-staff roles', async () => {
-      // Arrange
       const query = { page: 1, limit: 10 };
       prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
       prisma.candidate.findUnique.mockResolvedValue(mockCandidate);
       prisma.application.findMany.mockResolvedValue([]);
       prisma.application.count.mockResolvedValue(0);
 
-      // Act
       await service.findAll('user-1', 'CANDIDATE', query);
 
-      // Assert
       expect(prisma.application.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -517,15 +496,12 @@ describe('ApplicationsService', () => {
     });
 
     it('should filter by minScore and maxScore', async () => {
-      // Arrange
       const query = { page: 1, limit: 10, minScore: 70, maxScore: 90 };
       prisma.application.findMany.mockResolvedValue([]);
       prisma.application.count.mockResolvedValue(0);
 
-      // Act
       await service.findAll('recruiter-1', 'RECRUITER', query);
 
-      // Assert
       expect(prisma.application.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -537,15 +513,12 @@ describe('ApplicationsService', () => {
     });
 
     it('should filter by stage when provided', async () => {
-      // Arrange
       const query = { page: 1, limit: 10, stage: ApplicationStage.INTERVIEW };
       prisma.application.findMany.mockResolvedValue([]);
       prisma.application.count.mockResolvedValue(0);
 
-      // Act
       await service.findAll('recruiter-1', 'ADMIN', query);
 
-      // Assert
       expect(prisma.application.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -556,15 +529,12 @@ describe('ApplicationsService', () => {
     });
 
     it('should filter by status when provided', async () => {
-      // Arrange
       const query = { page: 1, limit: 10, status: ApplicationStatus.REVIEWING };
       prisma.application.findMany.mockResolvedValue([]);
       prisma.application.count.mockResolvedValue(0);
 
-      // Act
       await service.findAll('recruiter-1', 'ADMIN', query);
 
-      // Assert
       expect(prisma.application.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -594,7 +564,6 @@ describe('ApplicationsService', () => {
     };
 
     it('should return application when found by admin', async () => {
-      // Arrange
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
@@ -603,30 +572,24 @@ describe('ApplicationsService', () => {
       );
       prisma.candidate.findUnique.mockResolvedValue(null);
 
-      // Act
       const result = await service.findOne('app-1', 'admin-1', 'ADMIN');
 
-      // Assert
       expect(result).toEqual(mockApplicationWithRelations);
     });
 
     it('should return application when user is the applicant', async () => {
-      // Arrange
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
       prisma.user.findUnique.mockResolvedValue(mockUser as unknown as User);
       prisma.candidate.findUnique.mockResolvedValue(mockCandidate);
 
-      // Act
       const result = await service.findOne('app-1', 'user-1', 'RECRUITER');
 
-      // Assert
       expect(result).toEqual(mockApplicationWithRelations);
     });
 
     it('should return application when user is the job recruiter', async () => {
-      // Arrange
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
@@ -635,38 +598,31 @@ describe('ApplicationsService', () => {
       );
       prisma.candidate.findUnique.mockResolvedValue(null);
 
-      // Act
       const result = await service.findOne('app-1', 'recruiter-1', 'RECRUITER');
 
-      // Assert
       expect(result).toEqual(mockApplicationWithRelations);
     });
 
     it('should throw NotFoundException when application not found', async () => {
-      // Arrange
       prisma.application.findFirst.mockResolvedValue(null);
 
-      // Act & Assert
       await expect(
         service.findOne('non-existent', 'user-1', 'RECRUITER'),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw NotFoundException when application is soft deleted', async () => {
-      // Arrange
       prisma.application.findFirst.mockResolvedValue({
         ...mockApplicationWithRelations,
         deletedAt: new Date(),
       } as never);
 
-      // Act & Assert
       await expect(
         service.findOne('app-1', 'user-1', 'RECRUITER'),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ForbiddenException when user has no access', async () => {
-      // Arrange
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
@@ -677,7 +633,6 @@ describe('ApplicationsService', () => {
       } as never);
       prisma.candidate.findUnique.mockResolvedValue(null);
 
-      // Act & Assert
       await expect(
         service.findOne('app-1', 'other-user', 'GUEST'),
       ).rejects.toThrow(ForbiddenException);
@@ -703,7 +658,6 @@ describe('ApplicationsService', () => {
     };
 
     it('should allow recruiter to update stage/status/notes', async () => {
-      // Arrange
       const updateDto = {
         stage: ApplicationStage.INTERVIEW,
         status: ApplicationStatus.REVIEWING,
@@ -727,7 +681,6 @@ describe('ApplicationsService', () => {
         },
       } as never);
 
-      // Act
       const result = await service.update(
         'app-1',
         'recruiter-1',
@@ -735,14 +688,12 @@ describe('ApplicationsService', () => {
         updateDto,
       );
 
-      // Assert
       expect(result.stage).toBe(ApplicationStage.INTERVIEW);
       expect(result.status).toBe(ApplicationStatus.REVIEWING);
       expect(result.notes).toBe('Good candidate');
     });
 
     it('should set reviewedAt when status changes', async () => {
-      // Arrange
       const updateDto = { status: ApplicationStatus.SHORTLISTED };
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
@@ -763,10 +714,8 @@ describe('ApplicationsService', () => {
         },
       } as never);
 
-      // Act
       await service.update('app-1', 'recruiter-1', 'RECRUITER', updateDto);
 
-      // Assert
       expect(prisma.application.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -777,7 +726,6 @@ describe('ApplicationsService', () => {
     });
 
     it('should throw ForbiddenException when non-recruiter tries to update stage', async () => {
-      // Arrange
       const updateDto = { stage: ApplicationStage.INTERVIEW };
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
@@ -789,14 +737,12 @@ describe('ApplicationsService', () => {
       } as never);
       prisma.candidate.findUnique.mockResolvedValue(null);
 
-      // Act & Assert
       await expect(
         service.update('app-1', 'other-user', 'GUEST', updateDto),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('should allow applicant to update cover letter', async () => {
-      // Arrange
       const updateDto = { coverLetter: 'Updated cover letter' };
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
@@ -814,7 +760,6 @@ describe('ApplicationsService', () => {
         },
       } as never);
 
-      // Act
       const result = await service.update(
         'app-1',
         'user-1',
@@ -822,12 +767,10 @@ describe('ApplicationsService', () => {
         updateDto,
       );
 
-      // Assert
       expect(result.coverLetter).toBe('Updated cover letter');
     });
 
     it('should allow admin to update any field', async () => {
-      // Arrange
       const updateDto = {
         stage: ApplicationStage.OFFER,
         notes: 'Admin notes',
@@ -852,7 +795,6 @@ describe('ApplicationsService', () => {
         },
       } as never);
 
-      // Act
       const result = await service.update(
         'app-1',
         'admin-1',
@@ -860,7 +802,6 @@ describe('ApplicationsService', () => {
         updateDto,
       );
 
-      // Assert
       expect(result.stage).toBe(ApplicationStage.OFFER);
     });
   });
@@ -884,7 +825,6 @@ describe('ApplicationsService', () => {
     };
 
     it('should allow applicant to withdraw application', async () => {
-      // Arrange
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
@@ -896,10 +836,8 @@ describe('ApplicationsService', () => {
         status: ApplicationStatus.WITHDRAWN,
       } as never);
 
-      // Act
       await service.remove('app-1', 'user-1', 'RECRUITER');
 
-      // Assert
       expect(prisma.application.update).toHaveBeenCalledWith({
         where: { id: 'app-1' },
         data: {
@@ -910,7 +848,6 @@ describe('ApplicationsService', () => {
     });
 
     it('should allow admin to delete any application', async () => {
-      // Arrange
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
@@ -926,15 +863,12 @@ describe('ApplicationsService', () => {
         status: ApplicationStatus.WITHDRAWN,
       } as never);
 
-      // Act
       await service.remove('app-1', 'admin-1', 'ADMIN');
 
-      // Assert
       expect(prisma.application.update).toHaveBeenCalled();
     });
 
     it('should throw ForbiddenException when recruiter tries to delete', async () => {
-      // Arrange
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
@@ -943,14 +877,12 @@ describe('ApplicationsService', () => {
       );
       prisma.candidate.findUnique.mockResolvedValue(null);
 
-      // Act & Assert
       await expect(
         service.remove('app-1', 'recruiter-1', 'RECRUITER'),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw ForbiddenException when non-applicant tries to withdraw', async () => {
-      // Arrange
       prisma.application.findFirst.mockResolvedValue(
         mockApplicationWithRelations as any,
       );
@@ -961,7 +893,6 @@ describe('ApplicationsService', () => {
       } as never);
       prisma.candidate.findUnique.mockResolvedValue(null);
 
-      // Act & Assert
       await expect(
         service.remove('app-1', 'other-user', 'RECRUITER'),
       ).rejects.toThrow(ForbiddenException);
@@ -970,7 +901,6 @@ describe('ApplicationsService', () => {
 
   describe('handleCvParsedEvent', () => {
     it('should update application and publish enriched success event', async () => {
-      // Arrange
       const event = {
         candidateId: 'candidate-1',
         applicationId: 'app-1',
@@ -1002,10 +932,8 @@ describe('ApplicationsService', () => {
         .fn()
         .mockResolvedValue(undefined);
 
-      // Act
       await service.handleCvParsedEvent(event);
 
-      // Assert
       expect(prisma.application.update).toHaveBeenCalledWith({
         where: { id: 'app-1' },
         data: {
@@ -1020,7 +948,6 @@ describe('ApplicationsService', () => {
 
   describe('handleCvFailedEvent', () => {
     it('should update application to failed and publish enriched failure event', async () => {
-      // Arrange
       const event = {
         candidateId: 'candidate-1',
         applicationId: 'app-1',
@@ -1053,10 +980,8 @@ describe('ApplicationsService', () => {
         .fn()
         .mockResolvedValue(undefined);
 
-      // Act
       await service.handleCvFailedEvent(event);
 
-      // Assert
       expect(prisma.application.update).toHaveBeenCalledWith({
         where: { id: 'app-1' },
         data: {

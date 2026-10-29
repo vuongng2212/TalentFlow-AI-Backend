@@ -9,31 +9,18 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
-/**
- * Thread pool configuration for different workloads.
- *
- * Separate pools prevent one type of work from starving others:
- *   - parsingExecutor: PDF/DOCX parsing (I/O bound)
- *   - ocrExecutor: outer OCR orchestration
- *   - ocrPageExecutor: per-page OCR tasks (CPU intensive)
- *   - llmExecutor: Gemini API calls (I/O bound, high latency)
- */
 @Configuration
 @EnableAsync(proxyTargetClass = true)
 public class ThreadPoolConfig {
 
-    /**
-     * Thread pool for document parsing operations.
-     * I/O bound - moderate pool size.
-     */
     @Bean("parsingExecutor")
     public Executor parsingExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(8);
-        executor.setMaxPoolSize(16);
-        executor.setQueueCapacity(100);
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
+        executor.setQueueCapacity(50);
         executor.setThreadNamePrefix("parsing-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
         executor.setTaskDecorator(new MdcTaskDecorator());
@@ -41,40 +28,14 @@ public class ThreadPoolConfig {
         return executor;
     }
 
-    /**
-     * Thread pool for OCR operations.
-     * CPU intensive - smaller pool to avoid CPU starvation.
-     */
     @Bean("ocrExecutor")
     public Executor ocrExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(4);
-        executor.setQueueCapacity(20);
+        executor.setQueueCapacity(8);
         executor.setThreadNamePrefix("ocr-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setAwaitTerminationSeconds(60); // OCR can be slow
-        executor.setTaskDecorator(new MdcTaskDecorator());
-        executor.initialize();
-        return executor;
-    }
-
-    /**
-     * Thread pool for per-page OCR tasks.
-     * Used inside OCR pipeline to avoid nested blocking on outer OCR executor.
-     */
-    @Bean("ocrPageExecutor")
-    public Executor ocrPageExecutor() {
-        // Must be >= ocrExecutor.maxPoolSize × maxParallelPages (4 × 2 = 8).
-        // Fewer threads causes tasks from concurrent extractText() calls to queue behind each other,
-        // serialising pages that the two-phase B1 design intended to run in parallel.
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(8);
-        executor.setMaxPoolSize(8);
-        executor.setQueueCapacity(20);
-        executor.setThreadNamePrefix("ocr-page-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
         executor.setTaskDecorator(new MdcTaskDecorator());
@@ -82,18 +43,29 @@ public class ThreadPoolConfig {
         return executor;
     }
 
-    /**
-     * Thread pool for LLM API calls.
-     * I/O bound with high latency - larger pool for concurrency.
-     */
+    @Bean("ocrPageExecutor")
+    public Executor ocrPageExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(8);
+        executor.setMaxPoolSize(8);
+        executor.setQueueCapacity(16);
+        executor.setThreadNamePrefix("ocr-page-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.setTaskDecorator(new MdcTaskDecorator());
+        executor.initialize();
+        return executor;
+    }
+
     @Bean("llmExecutor")
     public Executor llmExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(8);
-        executor.setMaxPoolSize(20);
-        executor.setQueueCapacity(100);
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(12);
+        executor.setQueueCapacity(50);
         executor.setThreadNamePrefix("llm-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
         executor.setTaskDecorator(new MdcTaskDecorator());

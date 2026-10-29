@@ -2,6 +2,12 @@ import { execSync } from 'child_process';
 import { writeFileSync } from 'fs';
 import { getProcessStats, getDockerStats } from './system_stats.mjs';
 
+const API_GATEWAY_URL = process.env.BENCH_API_GATEWAY_URL ?? 'http://localhost:8080';
+const NOTIFICATION_URL = process.env.BENCH_NOTIFICATION_URL ?? 'http://localhost:5000';
+const CV_PARSER_URL = process.env.BENCH_CV_PARSER_URL ?? 'http://localhost:8081';
+const POSTGRES_PORT = process.env.BENCH_POSTGRES_PORT ?? '5432';
+const POSTGRES_PASSWORD = process.env.BENCH_POSTGRES_PASSWORD ?? '1111';
+
 function runAutocannon(args) {
   const cmd = `npx autocannon --json ${args}`;
   try {
@@ -38,7 +44,7 @@ function runAutocannon(args) {
 
 function getAuthToken() {
   const out = execSync(
-    'curl -s -X POST http://localhost:8080/api/v1/auth/login ' +
+    `curl -s -X POST ${API_GATEWAY_URL}/api/v1/auth/login ` +
     '-H "Content-Type: application/json" ' +
     '-d \'{"email":"seed-admin@talentflow.invalid","password":"Password123!"}\' -c -',
     { encoding: 'utf-8' }
@@ -71,58 +77,58 @@ async function main() {
 
   const token = getAuthToken();
 
-  results.apiGateway.health_c10 = runAutocannon('-c 10 -d 5 http://localhost:8080/health');
-  results.apiGateway.health_c50 = runAutocannon('-c 50 -d 5 http://localhost:8080/health');
-  results.apiGateway.health_c100 = runAutocannon('-c 100 -d 5 http://localhost:8080/health');
+  results.apiGateway.health_c10 = runAutocannon(`-c 10 -d 5 ${API_GATEWAY_URL}/health`);
+  results.apiGateway.health_c50 = runAutocannon(`-c 50 -d 5 ${API_GATEWAY_URL}/health`);
+  results.apiGateway.health_c100 = runAutocannon(`-c 100 -d 5 ${API_GATEWAY_URL}/health`);
 
-  results.apiGateway.ready_c10 = runAutocannon('-c 10 -d 5 http://localhost:8080/ready');
-  results.apiGateway.ready_c50 = runAutocannon('-c 50 -d 5 http://localhost:8080/ready');
+  results.apiGateway.ready_c10 = runAutocannon(`-c 10 -d 5 ${API_GATEWAY_URL}/ready`);
+  results.apiGateway.ready_c50 = runAutocannon(`-c 50 -d 5 ${API_GATEWAY_URL}/ready`);
 
-  results.apiGateway.metrics_c10 = runAutocannon('-c 10 -d 3 http://localhost:8080/metrics');
+  results.apiGateway.metrics_c10 = runAutocannon(`-c 10 -d 3 ${API_GATEWAY_URL}/metrics`);
 
   results.apiGateway.login_c1 = runAutocannon(
     '-c 1 -d 5 -m POST -H "Content-Type: application/json" ' +
     '-b \'{"email":"seed-admin@talentflow.invalid","password":"Password123!"}\' ' +
-    'http://localhost:8080/api/v1/auth/login'
+    `${API_GATEWAY_URL}/api/v1/auth/login`
   );
   results.apiGateway.login_c10 = runAutocannon(
     '-c 10 -d 5 -m POST -H "Content-Type: application/json" ' +
     '-b \'{"email":"seed-admin@talentflow.invalid","password":"Password123!"}\' ' +
-    'http://localhost:8080/api/v1/auth/login'
+    `${API_GATEWAY_URL}/api/v1/auth/login`
   );
   results.apiGateway.login_c25 = runAutocannon(
     '-c 25 -d 5 -m POST -H "Content-Type: application/json" ' +
     '-b \'{"email":"seed-admin@talentflow.invalid","password":"Password123!"}\' ' +
-    'http://localhost:8080/api/v1/auth/login'
+    `${API_GATEWAY_URL}/api/v1/auth/login`
   );
   results.apiGateway.login_c50 = runAutocannon(
     '-c 50 -d 5 -m POST -H "Content-Type: application/json" ' +
     '-b \'{"email":"seed-admin@talentflow.invalid","password":"Password123!"}\' ' +
-    'http://localhost:8080/api/v1/auth/login'
+    `${API_GATEWAY_URL}/api/v1/auth/login`
   );
 
   results.apiGateway.jobs_c10 = runAutocannon(
-    `-c 10 -d 5 -H "Cookie: access_token=${token}" http://localhost:8080/api/v1/jobs`
+    `-c 10 -d 5 -H "Cookie: access_token=${token}" ${API_GATEWAY_URL}/api/v1/jobs`
   );
   results.apiGateway.jobs_c50 = runAutocannon(
-    `-c 50 -d 5 -H "Cookie: access_token=${token}" http://localhost:8080/api/v1/jobs`
+    `-c 50 -d 5 -H "Cookie: access_token=${token}" ${API_GATEWAY_URL}/api/v1/jobs`
   );
   results.apiGateway.jobs_c100 = runAutocannon(
-    `-c 100 -d 5 -H "Cookie: access_token=${token}" http://localhost:8080/api/v1/jobs`
+    `-c 100 -d 5 -H "Cookie: access_token=${token}" ${API_GATEWAY_URL}/api/v1/jobs`
   );
 
   results.apiGateway.applications_c10 = runAutocannon(
-    `-c 10 -d 5 -H "Cookie: access_token=${token}" http://localhost:8080/api/v1/applications`
+    `-c 10 -d 5 -H "Cookie: access_token=${token}" ${API_GATEWAY_URL}/api/v1/applications`
   );
   results.apiGateway.applications_c50 = runAutocannon(
-    `-c 50 -d 5 -H "Cookie: access_token=${token}" http://localhost:8080/api/v1/applications`
+    `-c 50 -d 5 -H "Cookie: access_token=${token}" ${API_GATEWAY_URL}/api/v1/applications`
   );
 
-  results.notificationService.root_c10 = runAutocannon('-c 10 -d 5 http://localhost:5000/');
-  results.notificationService.root_c50 = runAutocannon('-c 50 -d 5 http://localhost:5000/');
+  results.notificationService.root_c10 = runAutocannon(`-c 10 -d 5 ${NOTIFICATION_URL}/`);
+  results.notificationService.root_c50 = runAutocannon(`-c 50 -d 5 ${NOTIFICATION_URL}/`);
 
-  results.cvParserService.actuator_health_c10 = runAutocannon('-c 10 -d 5 http://localhost:8081/actuator/health');
-  results.cvParserService.actuator_prometheus_c10 = runAutocannon('-c 10 -d 3 http://localhost:8081/actuator/prometheus');
+  results.cvParserService.actuator_health_c10 = runAutocannon(`-c 10 -d 5 ${CV_PARSER_URL}/actuator/health`);
+  results.cvParserService.actuator_prometheus_c10 = runAutocannon(`-c 10 -d 3 ${CV_PARSER_URL}/actuator/prometheus`);
 
   results.postgres = runPostgresBenchmarks();
   results.redis = runRedisBenchmarks();
@@ -149,7 +155,7 @@ function runPostgresBenchmarks() {
     for (const clients of [1, 10, 25, 50]) {
       try {
         const out = execSync(
-          `PGPASSWORD=1111 pgbench -U postgres -h localhost -d talentflow_dev -c ${clients} -j 2 -T 3 -f /tmp/bench_query.sql`,
+          `PGPASSWORD=${POSTGRES_PASSWORD} pgbench -U postgres -h localhost -p ${POSTGRES_PORT} -d talentflow_dev -c ${clients} -j 2 -T 3 -f /tmp/bench_query.sql`,
           { encoding: 'utf-8' }
         );
         const tpsMatch = out.match(/tps = ([0-9.]+)/);
@@ -205,7 +211,7 @@ function runCvPipelineBenchmark() {
     const token = getAuthToken();
     try {
       execSync(
-        `PGPASSWORD=1111 psql -U postgres -d talentflow_dev -h localhost -c ` +
+        `PGPASSWORD=${POSTGRES_PASSWORD} psql -U postgres -d talentflow_dev -h localhost -p ${POSTGRES_PORT} -c ` +
         `"DELETE FROM cv_parser.cv_parse_results WHERE candidate_id = 'bfe26cf6-acb4-4061-aa14-f4b556e3aeb2' AND job_id = '${jobId}'; ` +
         `DELETE FROM public.applications WHERE candidate_id = 'bfe26cf6-acb4-4061-aa14-f4b556e3aeb2' AND job_id = '${jobId}';"`,
         { encoding: 'utf-8' }
@@ -215,7 +221,7 @@ function runCvPipelineBenchmark() {
     const t0 = performance.now();
     try {
       const uploadOut = execSync(
-        `curl -s -H "Cookie: access_token=${token}" -X POST http://localhost:8080/api/v1/applications/upload ` +
+        `curl -s -H "Cookie: access_token=${token}" -X POST ${API_GATEWAY_URL}/api/v1/applications/upload ` +
         `-F "jobId=${jobId}" -F "file=@/tmp/test_cv.pdf"`,
         { encoding: 'utf-8' }
       );
@@ -231,7 +237,7 @@ function runCvPipelineBenchmark() {
       while (!processed && attempts < 40) {
         execSync('sleep 0.1');
         const dbCheck = execSync(
-          `PGPASSWORD=1111 psql -U postgres -d talentflow_dev -h localhost -t -c ` +
+          `PGPASSWORD=${POSTGRES_PASSWORD} psql -U postgres -d talentflow_dev -h localhost -p ${POSTGRES_PORT} -t -c ` +
           `"SELECT status FROM cv_parser.cv_parse_results WHERE application_id = '${appId}';"`,
           { encoding: 'utf-8' }
         ).trim();

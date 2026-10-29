@@ -31,6 +31,7 @@ import { WorkspaceContextService } from '../common/services/workspace-context.se
 import { IngestionDto } from './dto/ingestion.dto';
 import { CvOrchestrationService } from './cv-orchestration.service';
 import { CvUploadService } from './cv-upload.service';
+import { RedisService } from '../redis/redis.service';
 
 interface ApplicationWithRelations {
   id: string;
@@ -84,6 +85,7 @@ export class ApplicationsService {
     private readonly workspaceContext: WorkspaceContextService,
     private readonly cvOrchestrationService: CvOrchestrationService,
     private readonly cvUploadService: CvUploadService,
+    private readonly redis: RedisService,
   ) {}
 
   async create(
@@ -166,6 +168,7 @@ export class ApplicationsService {
         },
       },
     });
+    await this.invalidateWorkspaceCache(workspaceId);
 
     try {
       await this.queueService.publishApplicationCreated({
@@ -272,45 +275,48 @@ export class ApplicationsService {
       where.status = status;
     }
 
-    const [applications, total] = await Promise.all([
-      this.prisma.application.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: {
-          [sortBy as string]: sortOrder,
-        },
-        include: {
-          job: {
-            select: {
-              id: true,
-              title: true,
-              department: true,
-              location: true,
-              employmentType: true,
+    const cacheKey = `applications:workspace:${workspaceId}:list:${userId}:${userRole}:${JSON.stringify(query)}`;
+    return this.getCached(cacheKey, async () => {
+      const [applications, total] = await Promise.all([
+        this.prisma.application.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: {
+            [sortBy as string]: sortOrder,
+          },
+          include: {
+            job: {
+              select: {
+                id: true,
+                title: true,
+                department: true,
+                location: true,
+                employmentType: true,
+              },
+            },
+            candidate: {
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+              },
             },
           },
-          candidate: {
-            select: {
-              id: true,
-              email: true,
-              fullName: true,
-            },
-          },
-        },
-      }),
-      this.prisma.application.count({ where }),
-    ]);
+        }),
+        this.prisma.application.count({ where }),
+      ]);
 
-    return {
-      data: applications,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+      return {
+        data: applications,
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    });
   }
 
   private async resolveCandidateIdForViewer(
@@ -336,12 +342,24 @@ export class ApplicationsService {
   ): Promise<ApplicationWithRelations> {
     const workspaceId = this.workspaceContext.getWorkspaceId();
 
-    const application = await this.prisma.application.findFirst({
-      where: { id, workspaceId },
-      include: {
-        job: {
+    const application = await this.getCached(
+      `applications:workspace:${workspaceId}:item:${id}`,
+      async () => {
+        const result = await this.prisma.application.findFirst({
+          where: { id, workspaceId },
           include: {
-            createdBy: {
+            job: {
+              include: {
+                createdBy: {
+                  select: {
+                    id: true,
+                    email: true,
+                    fullName: true,
+                  },
+                },
+              },
+            },
+            candidate: {
               select: {
                 id: true,
                 email: true,
@@ -349,20 +367,14 @@ export class ApplicationsService {
               },
             },
           },
-        },
-        candidate: {
-          select: {
-            id: true,
-            email: true,
-            fullName: true,
-          },
-        },
-      },
-    });
+        });
 
-    if (!application || application.deletedAt) {
-      throw new NotFoundException(`Application with ID ${id} not found`);
-    }
+        if (!result || result.deletedAt) {
+          throw new NotFoundException(`Application with ID ${id} not found`);
+        }
+        return result;
+      },
+    );
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const candidate = user
@@ -437,7 +449,7 @@ export class ApplicationsService {
       updateData.reviewedAt = new Date();
     }
 
-    return this.prisma.application.update({
+    const updatedApplication = await this.prisma.application.update({
       where: { id },
       data: updateData,
       include: {
@@ -458,6 +470,8 @@ export class ApplicationsService {
         },
       },
     });
+    await this.invalidateWorkspaceCache(workspaceId);
+    return updatedApplication;
   }
 
   async remove(id: string, userId: string, userRole: string): Promise<void> {
@@ -489,5 +503,33 @@ export class ApplicationsService {
         status: 'WITHDRAWN',
       },
     });
+    await this.invalidateWorkspaceCache(workspaceId);
+  }
+
+  private async getCached<T>(key: string, load: () => Promise<T>): Promise<T> {
+    try {
+      const cached = await this.redis.get(key);
+      if (cached !== null) {
+        return JSON.parse(cached) as T;
+      }
+    } catch {
+      return load();
+    }
+
+    const value = await load();
+    try {
+      await this.redis.set(key, JSON.stringify(value), 60);
+    } catch {
+      return value;
+    }
+    return value;
+  }
+
+  private async invalidateWorkspaceCache(workspaceId: string): Promise<void> {
+    try {
+      await this.redis.delByPattern(`applications:workspace:${workspaceId}:*`);
+    } catch {
+      return;
+    }
   }
 }

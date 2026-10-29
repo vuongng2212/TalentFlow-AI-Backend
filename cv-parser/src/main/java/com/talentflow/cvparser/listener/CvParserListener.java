@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 @Slf4j
 @Component
@@ -72,7 +73,6 @@ public class CvParserListener {
             @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag,
             @Header(value = "x-retry-count", required = false) Integer retryCount) {
 
-        // Set correlation ID from applicationId for structured logging
         MDC.put("correlationId", event.getApplicationId());
 
         log.info("[CVP-LISTENER] Received candidateId={}, fileKey={}, applicationId={}, retryCount={}",
@@ -80,14 +80,25 @@ public class CvParserListener {
 
         int currentRetry = retryCount != null ? retryCount : 0;
 
-        CompletableFuture.runAsync(() -> runPipeline(event), parsingExecutor)
-                .whenComplete((v, ex) -> {
-                    try {
-                        onPipelineComplete(event, channel, deliveryTag, currentRetry, ex);
-                    } finally {
-                        MDC.clear();
-                    }
-                });
+        try {
+            CompletableFuture.runAsync(() -> runPipeline(event), parsingExecutor)
+                    .whenComplete((v, ex) -> {
+                        try {
+                            onPipelineComplete(event, channel, deliveryTag, currentRetry, ex);
+                        } finally {
+                            MDC.clear();
+                        }
+                    });
+        } catch (RejectedExecutionException ex) {
+            try {
+                channel.basicNack(deliveryTag, false, true);
+            } catch (IOException nackException) {
+                log.error("[CVP-LISTENER] Failed to requeue message after executor saturation. candidateId={}",
+                        event.getCandidateId(), nackException);
+            } finally {
+                MDC.clear();
+            }
+        }
     }
 
     public void runPipeline(CvUploadedEvent event) {
@@ -122,7 +133,6 @@ public class CvParserListener {
                             nextRetry, retryPolicy.getMaxRetries(), event.getCandidateId());
                     try {
                         retryPolicy.republishForRetry(event, nextRetry);
-                        // Only ACK the original after the retry copy is safely on the queue.
                         ackMessage(channel, deliveryTag, event.getCandidateId());
                     } catch (Exception republishEx) {
                         log.error("[CVP-LISTENER] Failed to republish message for retry, sending NACK. candidateId={}",

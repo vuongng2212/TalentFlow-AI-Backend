@@ -461,3 +461,18 @@ node benchmarks/rabbitmq_bench.mjs
 # 4. Review detailed output JSON
 cat benchmarks/results.json | jq .
 ```
+
+## 8. Phase 1 Retest: Before And After
+
+The baseline is the committed benchmark snapshot from `2026-10-29T10:39:00Z`. The retest was recorded at `2026-10-29T12:53:04Z` with the same 5-second autocannon samples. The gateway retest used a separate process on port 8082 with `RATE_LIMIT_MAX=1000000` so the corrected 60-second limiter would not turn the jobs and applications samples into 429 responses. The standard gateway limiter remains at its configured limit. The notification service retained its configured 100-request limit.
+
+| Measurement | Before | After | Result |
+| :--- | ---: | ---: | :--- |
+| `GET /api/v1/jobs`, c=50 | 629.4 RPS, 84 ms p95 | 202.4 RPS, 163 ms p95 | No throughput gain in this run; the long tail reached 3.5 s p99. |
+| `GET /api/v1/applications`, c=50 | 619.6 RPS, 85 ms p95 | 460.0 RPS, 151 ms p95 | No throughput gain in this run. |
+| `POST /api/v1/auth/login`, c=50 | 77.4 RPS, 653 ms p95 | 127.2 RPS, 489 ms p95 | 1.64× throughput and lower p95 latency with `UV_THREADPOOL_SIZE=16`. |
+| CV parser actuator health, c=10 | 6,817.2 RPS, 2 ms p95 | 6,894.0 RPS, 2 ms p95 | Essentially unchanged. |
+| CV upload-to-parse pipeline, 3 runs | 347.62 ms average | 435.41 ms average | All retest runs succeeded; latency was higher in this sample. |
+| Notification root, c=50 | 15,231 RPS, 15,231 non-2xx | 2,996.6 RPS, 14,881 non-2xx | The v5 throttler continues to enforce its 100-request, 60-second window. |
+
+The read-cache implementation is active in the retest, and the list result is stored under a workspace-prefixed Redis key. These aggregate runs do not show a read throughput improvement; jobs and applications p95 latency regressed under c=50. Treat the results as a warning that the current benchmark does not validate the expected cache gain. A controlled before/after run on one gateway instance with matched load and warmed cache is needed before claiming a performance improvement. The corrected rate limiter also means the default 100-request setting must be raised in an isolated benchmark environment for load tests above that request budget.
