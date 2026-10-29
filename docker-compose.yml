@@ -11,6 +11,8 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
+      - UV_THREADPOOL_SIZE=16
+      - NODE_OPTIONS=--max-old-space-size=400
       - PORT=3000
       # Provide default URLs based on container names
       - DATABASE_URL=postgresql://postgres:123@postgres:5433/talentflow_dev?schema=public
@@ -150,7 +152,7 @@ services:
   # MinIO (Local S3-compatible storage for development)
   # In production, use Cloudflare R2
   minio:
-    image: quay.io/minio/minio:latest
+    image: ghcr.io/golithus/minio:latest
     container_name: talentflow-minio
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -171,7 +173,7 @@ services:
 
   # MinIO Client (Create bucket automatically)
   minio-setup:
-    image: quay.io/minio/mc:latest
+    image: ghcr.io/golithus/mc:latest
     container_name: talentflow-minio-setup
     depends_on:
       - minio

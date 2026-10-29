@@ -66,7 +66,7 @@ import { randomUUID } from 'crypto';
         throttlers: [
           {
             name: 'default',
-            ttl: config.get<number>('RATE_LIMIT_TTL_SEC', 60),
+            ttl: config.get<number>('RATE_LIMIT_TTL_SEC', 60) * 1000,
             limit: config.get<number>('RATE_LIMIT_MAX', 100),
           },
         ],

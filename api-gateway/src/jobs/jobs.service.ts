@@ -10,6 +10,7 @@ import { QueryJobsDto } from './dto/query-jobs.dto';
 import { Job, Prisma, WorkspaceMemberRole } from '@prisma/client';
 import { JobRequirementsDto } from './dto/job-requirements.dto';
 import { WorkspaceContextService } from '../common/services/workspace-context.service';
+import { RedisService } from '../redis/redis.service';
 
 const WRITE_ROLES: WorkspaceMemberRole[] = [
   WorkspaceMemberRole.OWNER,
@@ -22,6 +23,7 @@ export class JobsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly workspaceContext: WorkspaceContextService,
+    private readonly redis: RedisService,
   ) {}
 
   private toRequirementsJson(
@@ -43,7 +45,7 @@ export class JobsService {
     const workspaceId = this.workspaceContext.getWorkspaceId();
     const { requirements, ...jobData } = createJobDto;
 
-    return this.prisma.job.create({
+    const job = await this.prisma.job.create({
       data: {
         ...jobData,
         ...(requirements
@@ -63,6 +65,8 @@ export class JobsService {
         },
       },
     });
+    await this.invalidateWorkspaceCache(workspaceId);
+    return job;
   }
 
   async findAll(query: QueryJobsDto) {
@@ -106,7 +110,6 @@ export class JobsService {
       where.department = { contains: department, mode: 'insensitive' };
     }
 
-    // Filter by salary range - find jobs where salary range overlaps with requested range
     if (salaryMin !== undefined) {
       where.salaryMax = { gte: salaryMin };
     }
@@ -115,7 +118,6 @@ export class JobsService {
       where.salaryMin = { lte: salaryMax };
     }
 
-    // Filter by skills (JSON array contains)
     if (skills) {
       const skillList = skills.split(',').map((s) => s.trim().toLowerCase());
       where.requirements = {
@@ -124,66 +126,73 @@ export class JobsService {
       };
     }
 
-    const [jobs, total] = await Promise.all([
-      this.prisma.job.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: {
-          [sortBy]: sortOrder,
-        },
-        include: {
-          createdBy: {
-            select: {
-              id: true,
-              email: true,
-              fullName: true,
+    const cacheKey = `jobs:workspace:${workspaceId}:list:${JSON.stringify(query)}`;
+    return this.getCached(cacheKey, async () => {
+      const [jobs, total] = await Promise.all([
+        this.prisma.job.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: {
+            [sortBy]: sortOrder,
+          },
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+              },
+            },
+            _count: {
+              select: { applications: true },
             },
           },
-          _count: {
-            select: { applications: true },
-          },
-        },
-      }),
-      this.prisma.job.count({ where }),
-    ]);
+        }),
+        this.prisma.job.count({ where }),
+      ]);
 
-    return {
-      data: jobs,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+      return {
+        data: jobs,
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    });
   }
 
   async findOne(id: string): Promise<Job> {
     const workspaceId = this.workspaceContext.getWorkspaceId();
-    const job = await this.prisma.job.findFirst({
-      where: { id, workspaceId },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            email: true,
-            fullName: true,
-            role: true,
+    return this.getCached(
+      `jobs:workspace:${workspaceId}:item:${id}`,
+      async () => {
+        const job = await this.prisma.job.findFirst({
+          where: { id, workspaceId },
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+                role: true,
+              },
+            },
+            _count: {
+              select: { applications: true },
+            },
           },
-        },
-        _count: {
-          select: { applications: true },
-        },
+        });
+
+        if (!job || job.deletedAt) {
+          throw new NotFoundException(`Job with ID ${id} not found`);
+        }
+
+        return job;
       },
-    });
-
-    if (!job || job.deletedAt) {
-      // Return 404 to avoid leaking existence across tenants.
-      throw new NotFoundException(`Job with ID ${id} not found`);
-    }
-
-    return job;
+    );
   }
 
   async update(
@@ -196,7 +205,8 @@ export class JobsService {
     await this.findOne(id);
     const { requirements, ...jobData } = updateJobDto;
 
-    return this.prisma.job.update({
+    const workspaceId = this.workspaceContext.getWorkspaceId();
+    const job = await this.prisma.job.update({
       where: { id },
       data: {
         ...jobData,
@@ -214,6 +224,8 @@ export class JobsService {
         },
       },
     });
+    await this.invalidateWorkspaceCache(workspaceId);
+    return job;
   }
 
   async remove(id: string, userId: string, userRole: string): Promise<void> {
@@ -224,22 +236,40 @@ export class JobsService {
       where: { id },
       data: { deletedAt: new Date() },
     });
+    await this.invalidateWorkspaceCache(this.workspaceContext.getWorkspaceId());
   }
 
-  /**
-   * Workspace-scoped authorization check. The previous behavior used
-   * `createdById`-based ownership; we now rely on workspace-scoped
-   * RBAC: only OWNER, ADMIN, or RECRUITER can mutate resources, and
-   * any user with a system-level ADMIN role can also bypass.
-   */
+  private async getCached<T>(key: string, load: () => Promise<T>): Promise<T> {
+    try {
+      const cached = await this.redis.get(key);
+      if (cached !== null) {
+        return JSON.parse(cached) as T;
+      }
+    } catch {
+      return load();
+    }
+
+    const value = await load();
+    try {
+      await this.redis.set(key, JSON.stringify(value), 60);
+    } catch {
+      return value;
+    }
+    return value;
+  }
+
+  private async invalidateWorkspaceCache(workspaceId: string): Promise<void> {
+    try {
+      await this.redis.delByPattern(`jobs:workspace:${workspaceId}:*`);
+    } catch {
+      return;
+    }
+  }
+
   private assertCanMutate(userRole: string): void {
     if (userRole === 'ADMIN') {
       return;
     }
-    // The WorkspaceRolesGuard is responsible for ensuring the user
-    // has the right workspace role; this helper exists for tests
-    // and direct service usage where a workspace role is passed
-    // through the request lifecycle.
     if (!WRITE_ROLES.includes(userRole as WorkspaceMemberRole)) {
       throw new ForbiddenException(
         'You do not have permission to mutate resources in this workspace',

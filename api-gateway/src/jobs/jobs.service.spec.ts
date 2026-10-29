@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { JobStatus, EmploymentType, PrismaClient } from '@prisma/client';
 import { WorkspaceContextService } from '../common/services/workspace-context.service';
+import { RedisService } from '../redis/redis.service';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 
 describe('JobsService (Workspace-Scoped Isolation)', () => {
@@ -48,6 +49,14 @@ describe('JobsService (Workspace-Scoped Isolation)', () => {
         {
           provide: WorkspaceContextService,
           useValue: mockWorkspaceContext,
+        },
+        {
+          provide: RedisService,
+          useValue: {
+            get: jest.fn().mockResolvedValue(null),
+            set: jest.fn().mockResolvedValue('OK'),
+            delByPattern: jest.fn().mockResolvedValue(0),
+          },
         },
       ],
     }).compile();

@@ -33,7 +33,9 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    UV_THREADPOOL_SIZE=16 \
+    NODE_OPTIONS=--max-old-space-size=400
 
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001

@@ -1,0 +1,682 @@
+{
+  "metadata": {
+    "timestamp": "2026-10-29T10:39:00.336Z",
+    "platform": "linux",
+    "arch": "x64",
+    "nodeVersion": "v24.21.0"
+  },
+  "initialSystem": {
+    "processes": {
+      "apiGateway": {
+        "pid": 7565,
+        "cpuPercent": 2.3,
+        "memPercent": 1.4,
+        "rssKb": 240368,
+        "vszKb": 10173796,
+        "rssMb": "234.7"
+      },
+      "notification": {
+        "pid": 7610,
+        "cpuPercent": 0.7,
+        "memPercent": 1.3,
+        "rssKb": 222872,
+        "vszKb": 11174104,
+        "rssMb": "217.6"
+      },
+      "cvParser": {
+        "pid": 7923,
+        "cpuPercent": 1.3,
+        "memPercent": 3.5,
+        "rssKb": 581208,
+        "vszKb": 3177292,
+        "rssMb": "567.6"
+      },
+      "postgres": {
+        "pid": 1085,
+        "cpuPercent": 0,
+        "memPercent": 0.2,
+        "rssKb": 33224,
+        "vszKb": 237628,
+        "rssMb": "32.4"
+      }
+    },
+    "docker": {
+      "talentflow-rabbitmq": {
+        "cpu": "0.89%",
+        "memory": "164MiB / 15.47GiB"
+      },
+      "talentflow-redis": {
+        "cpu": "1.24%",
+        "memory": "15.03MiB / 15.47GiB"
+      },
+      "talentflow-minio": {
+        "cpu": "0.05%",
+        "memory": "92.14MiB / 15.47GiB"
+      }
+    }
+  },
+  "apiGateway": {
+    "health_c10": {
+      "requests": {
+        "average": 1292.8,
+        "total": 6464,
+        "p50": 1343,
+        "p99": 1512
+      },
+      "latency": {
+        "average": 7.23,
+        "p50": 6,
+        "p95": 11,
+        "p97_5": 15,
+        "p99": 18,
+        "max": 32
+      },
+      "throughput": {
+        "average": 1358950.4,
+        "total": 6795110
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 586,
+      "duration": 5.02
+    },
+    "health_c50": {
+      "requests": {
+        "average": 1513.2,
+        "total": 7566,
+        "p50": 1490,
+        "p99": 1623
+      },
+      "latency": {
+        "average": 32.46,
+        "p50": 32,
+        "p95": 39,
+        "p97_5": 53,
+        "p99": 62,
+        "max": 91
+      },
+      "throughput": {
+        "average": 1429196.8,
+        "total": 7145398
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 3784,
+      "duration": 5.02
+    },
+    "health_c100": {
+      "requests": {
+        "average": 1554.8,
+        "total": 7774,
+        "p50": 1579,
+        "p99": 1656
+      },
+      "latency": {
+        "average": 63.49,
+        "p50": 62,
+        "p95": 74,
+        "p97_5": 88,
+        "p99": 93,
+        "max": 155
+      },
+      "throughput": {
+        "average": 1466470.4,
+        "total": 7331179
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 3929,
+      "duration": 5.03
+    },
+    "ready_c10": {
+      "requests": {
+        "average": 1139.2,
+        "total": 5696,
+        "p50": 1166,
+        "p99": 1198
+      },
+      "latency": {
+        "average": 8.27,
+        "p50": 8,
+        "p95": 10,
+        "p97_5": 14,
+        "p99": 16,
+        "max": 33
+      },
+      "throughput": {
+        "average": 1396838.4,
+        "total": 6983296
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "duration": 5.02
+    },
+    "ready_c50": {
+      "requests": {
+        "average": 1355.2,
+        "total": 6776,
+        "p50": 1364,
+        "p99": 1392
+      },
+      "latency": {
+        "average": 36.19,
+        "p50": 38,
+        "p95": 55,
+        "p97_5": 62,
+        "p99": 71,
+        "max": 87
+      },
+      "throughput": {
+        "average": 1449267.2,
+        "total": 7246646
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 2573,
+      "duration": 5.02
+    },
+    "metrics_c10": {
+      "requests": {
+        "average": 505.67,
+        "total": 1517,
+        "p50": 504,
+        "p99": 521
+      },
+      "latency": {
+        "average": 19.2,
+        "p50": 18,
+        "p95": 22,
+        "p97_5": 35,
+        "p99": 37,
+        "max": 55
+      },
+      "throughput": {
+        "average": 35176448,
+        "total": 105521466
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "duration": 3.01
+    },
+    "login_c1": {
+      "requests": {
+        "average": 19.2,
+        "total": 96,
+        "p50": 19,
+        "p99": 20
+      },
+      "latency": {
+        "average": 51.4,
+        "p50": 51,
+        "p95": 52,
+        "p97_5": 53,
+        "p99": 60,
+        "max": 60
+      },
+      "throughput": {
+        "average": 36976,
+        "total": 184896
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "duration": 5.01
+    },
+    "login_c10": {
+      "requests": {
+        "average": 77.41,
+        "total": 387,
+        "p50": 77,
+        "p99": 80
+      },
+      "latency": {
+        "average": 126.89,
+        "p50": 129,
+        "p95": 146,
+        "p97_5": 153,
+        "p99": 158,
+        "max": 175
+      },
+      "throughput": {
+        "average": 149056,
+        "total": 745362
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "duration": 5.02
+    },
+    "login_c25": {
+      "requests": {
+        "average": 75.2,
+        "total": 376,
+        "p50": 79,
+        "p99": 80
+      },
+      "latency": {
+        "average": 321.78,
+        "p50": 317,
+        "p95": 376,
+        "p97_5": 427,
+        "p99": 436,
+        "max": 445
+      },
+      "throughput": {
+        "average": 144812.8,
+        "total": 724176
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "duration": 5.02
+    },
+    "login_c50": {
+      "requests": {
+        "average": 77.41,
+        "total": 387,
+        "p50": 79,
+        "p99": 79
+      },
+      "latency": {
+        "average": 605.01,
+        "p50": 632,
+        "p95": 653,
+        "p97_5": 661,
+        "p99": 677,
+        "max": 718
+      },
+      "throughput": {
+        "average": 149056,
+        "total": 745362
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "duration": 5.03
+    },
+    "jobs_c10": {
+      "requests": {
+        "average": 576.4,
+        "total": 2882,
+        "p50": 571,
+        "p99": 609
+      },
+      "latency": {
+        "average": 16.82,
+        "p50": 16,
+        "p95": 20,
+        "p97_5": 22,
+        "p99": 24,
+        "max": 53
+      },
+      "throughput": {
+        "average": 2349670.4,
+        "total": 11747032
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "duration": 5.01
+    },
+    "jobs_c50": {
+      "requests": {
+        "average": 629.4,
+        "total": 3147,
+        "p50": 640,
+        "p99": 651
+      },
+      "latency": {
+        "average": 78.3,
+        "p50": 77,
+        "p95": 84,
+        "p97_5": 88,
+        "p99": 107,
+        "max": 155
+      },
+      "throughput": {
+        "average": 2565529.6,
+        "total": 12827172
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "duration": 5.02
+    },
+    "jobs_c100": {
+      "requests": {
+        "average": 660,
+        "total": 3300,
+        "p50": 700,
+        "p99": 700
+      },
+      "latency": {
+        "average": 150.06,
+        "p50": 150,
+        "p95": 155,
+        "p97_5": 164,
+        "p99": 165,
+        "max": 175
+      },
+      "throughput": {
+        "average": 2690867.2,
+        "total": 13450470
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "duration": 5.03
+    },
+    "applications_c10": {
+      "requests": {
+        "average": 573.21,
+        "total": 2866,
+        "p50": 577,
+        "p99": 593
+      },
+      "latency": {
+        "average": 16.92,
+        "p50": 17,
+        "p95": 20,
+        "p97_5": 22,
+        "p99": 25,
+        "max": 37
+      },
+      "throughput": {
+        "average": 3325337.6,
+        "total": 16625666
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "duration": 5.02
+    },
+    "applications_c50": {
+      "requests": {
+        "average": 619.6,
+        "total": 3098,
+        "p50": 648,
+        "p99": 649
+      },
+      "latency": {
+        "average": 79.76,
+        "p50": 79,
+        "p95": 85,
+        "p97_5": 98,
+        "p99": 103,
+        "max": 122
+      },
+      "throughput": {
+        "average": 3594444.8,
+        "total": 17971498
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "duration": 5.02
+    }
+  },
+  "notificationService": {
+    "root_c10": {
+      "requests": {
+        "average": 2676.6,
+        "total": 13381,
+        "p50": 2773,
+        "p99": 2925
+      },
+      "latency": {
+        "average": 3.23,
+        "p50": 3,
+        "p95": 5,
+        "p97_5": 7,
+        "p99": 8,
+        "max": 15
+      },
+      "throughput": {
+        "average": 896051.2,
+        "total": 4480425
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 13281,
+      "duration": 5.02
+    },
+    "root_c50": {
+      "requests": {
+        "average": 3046.6,
+        "total": 15231,
+        "p50": 3019,
+        "p99": 3123
+      },
+      "latency": {
+        "average": 15.9,
+        "p50": 15,
+        "p95": 18,
+        "p97_5": 29,
+        "p99": 31,
+        "max": 38
+      },
+      "throughput": {
+        "average": 1020467.2,
+        "total": 5102385
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 15231,
+      "duration": 5.02
+    }
+  },
+  "cvParserService": {
+    "actuator_health_c10": {
+      "requests": {
+        "average": 6817.2,
+        "total": 34081,
+        "p50": 7087,
+        "p99": 7703
+      },
+      "latency": {
+        "average": 0.96,
+        "p50": 1,
+        "p95": 2,
+        "p97_5": 3,
+        "p99": 3,
+        "max": 23
+      },
+      "throughput": {
+        "average": 4028211.2,
+        "total": 20141871
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "duration": 5.01
+    },
+    "actuator_prometheus_c10": {
+      "requests": {
+        "average": 864,
+        "total": 2592,
+        "p50": 860,
+        "p99": 874
+      },
+      "latency": {
+        "average": 11.07,
+        "p50": 10,
+        "p95": 16,
+        "p97_5": 21,
+        "p99": 23,
+        "max": 32
+      },
+      "throughput": {
+        "average": 25643690.67,
+        "total": 76937695
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "duration": 3.02
+    }
+  },
+  "postgres": {
+    "pkLookup": {
+      "c1": {
+        "tps": 14839.368846,
+        "latencyAvgMs": 0.067
+      },
+      "c10": {
+        "tps": 70480.273925,
+        "latencyAvgMs": 0.142
+      },
+      "c25": {
+        "tps": 84874.593807,
+        "latencyAvgMs": 0.295
+      },
+      "c50": {
+        "tps": 83165.586456,
+        "latencyAvgMs": 0.601
+      }
+    },
+    "indexedFilter": {
+      "c1": {
+        "tps": 10286.916357,
+        "latencyAvgMs": 0.097
+      },
+      "c10": {
+        "tps": 63836.303791,
+        "latencyAvgMs": 0.157
+      },
+      "c25": {
+        "tps": 76759.649653,
+        "latencyAvgMs": 0.326
+      },
+      "c50": {
+        "tps": 72218.755562,
+        "latencyAvgMs": 0.692
+      }
+    },
+    "relationJoin": {
+      "c1": {
+        "tps": 4969.254575,
+        "latencyAvgMs": 0.201
+      },
+      "c10": {
+        "tps": 35056.563973,
+        "latencyAvgMs": 0.285
+      },
+      "c25": {
+        "tps": 37393.141783,
+        "latencyAvgMs": 0.669
+      },
+      "c50": {
+        "tps": 35650.128017,
+        "latencyAvgMs": 1.403
+      }
+    }
+  },
+  "redis": {
+    "PING_INLINE": {
+      "rps": 87565.68,
+      "p50Ms": 0.263
+    },
+    "PING_MBULK": {
+      "rps": 96339.12,
+      "p50Ms": 0.255
+    },
+    "SET": {
+      "rps": 101626.02,
+      "p50Ms": 0.255
+    },
+    "GET": {
+      "rps": 92250.92,
+      "p50Ms": 0.255
+    },
+    "LPUSH": {
+      "rps": 99601.6,
+      "p50Ms": 0.263
+    },
+    "LPOP": {
+      "rps": 101214.58,
+      "p50Ms": 0.263
+    }
+  },
+  "rabbitmq": {
+    "messageCount": 5000,
+    "publishDurationMs": "34.91",
+    "publishRps": "143235.41",
+    "consumeDurationMs": "235.38",
+    "consumeRps": "21242.09",
+    "consumeLatencyP50Ms": "173.20",
+    "consumeLatencyP95Ms": "229.80",
+    "consumeLatencyP99Ms": "235.07"
+  },
+  "finalSystem": {
+    "processes": {
+      "apiGateway": {
+        "pid": 7565,
+        "cpuPercent": 3.5,
+        "memPercent": 3,
+        "rssKb": 498432,
+        "vszKb": 10402352,
+        "rssMb": "486.8"
+      },
+      "notification": {
+        "pid": 7610,
+        "cpuPercent": 0.7,
+        "memPercent": 3.4,
+        "rssKb": 566860,
+        "vszKb": 11521188,
+        "rssMb": "553.6"
+      },
+      "cvParser": {
+        "pid": 7923,
+        "cpuPercent": 1.6,
+        "memPercent": 3.5,
+        "rssKb": 583028,
+        "vszKb": 3191684,
+        "rssMb": "569.4"
+      },
+      "postgres": {
+        "pid": 1085,
+        "cpuPercent": 0,
+        "memPercent": 0.2,
+        "rssKb": 33224,
+        "vszKb": 237628,
+        "rssMb": "32.4"
+      }
+    },
+    "docker": {
+      "talentflow-rabbitmq": {
+        "cpu": "0.83%",
+        "memory": "227.2MiB / 15.47GiB"
+      },
+      "talentflow-redis": {
+        "cpu": "168.65%",
+        "memory": "27.18MiB / 15.47GiB"
+      },
+      "talentflow-minio": {
+        "cpu": "0.03%",
+        "memory": "92.21MiB / 15.47GiB"
+      }
+    }
+  },
+  "pipeline": {
+    "runs": [
+      {
+        "applicationId": "a5bbe641-c4a1-49a6-ab75-26ccd0847499",
+        "durationMs": 271.23,
+        "success": true
+      },
+      {
+        "applicationId": "0486a52e-a8a5-4a43-a64f-6a1ce729fb11",
+        "durationMs": 386.02,
+        "success": true
+      },
+      {
+        "applicationId": "99c5e237-c2af-46e4-8cb9-d21983d859c4",
+        "durationMs": 385.62,
+        "success": true
+      }
+    ],
+    "averageDurationMs": "347.62"
+  }
+}
